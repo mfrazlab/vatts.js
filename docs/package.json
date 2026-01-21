@@ -1,0 +1,37 @@
+{
+  "name": "vatts-docs",
+  "version": "1.1.0",
+  "description": "Basic example application for Vatts.js framework",
+  "private": true,
+  "author": "itsmuzin",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.20.0",
+  "keywords": [
+    "hightjs",
+    "example",
+    "react"
+  ],
+  "scripts": {
+    "start": "vatts start",
+    "dev": "vatts dev"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/prismjs": "^1.26.5",
+    "autoprefixer": "^10.4.23",
+    "framer-motion": "^12.27.5",
+    "lucide-react": "^0.562.0",
+    "marked": "^17.0.1",
+    "vatts": "workspace:*",
+    "postcss": "^8.5.6",
+    "prismjs": "^1.30.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.8",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,95 @@
+export type SearchDoc = {
+    id: string;
+    label: string;
+    /** Category or section title to show in UI */
+    category?: string;
+    /** Target href */
+    href: string;
+    /** Raw content used for full-text search */
+    content?: string;
+};
+
+export type SearchHit = {
+    id: string;
+    label: string;
+    category?: string;
+    href: string;
+    score: number;
+    snippet?: string;
+};
+
+function normalize(text: string) {
+    return text
+        .toLowerCase()
+        .normalize('NFD')
+        // strip accents
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function makeSnippet(content: string, queryNorm: string) {
+    const normalized = content.replace(/\s+/g, ' ');
+    const lower = normalize(normalized);
+    const idx = lower.indexOf(queryNorm);
+    if (idx === -1) return undefined;
+
+    // Map idx in normalized/diacritics-stripped to original is hard; keep it simple:
+    // use the raw lowercased index against raw lowercased string.
+    const rawLower = normalized.toLowerCase();
+    const rawIdx = rawLower.indexOf(queryNorm);
+    if (rawIdx === -1) return undefined;
+
+    const start = Math.max(0, rawIdx - 70);
+    const end = Math.min(normalized.length, rawIdx + queryNorm.length + 90);
+    const prefix = start > 0 ? '…' : '';
+    const suffix = end < normalized.length ? '…' : '';
+    return `${prefix}${normalized.slice(start, end)}${suffix}`;
+}
+
+export function searchDocs(docs: SearchDoc[], query: string, limit = 12): SearchHit[] {
+    const q = normalize(query);
+    if (!q) return [];
+
+    const words = q.split(' ').filter(Boolean);
+
+    const hits: SearchHit[] = [];
+
+    for (const doc of docs) {
+        const labelNorm = normalize(doc.label);
+        const contentNorm = normalize(doc.content ?? '');
+        const categoryNorm = normalize(doc.category ?? '');
+
+        let score = 0;
+
+        // Strong boost for label matches
+        if (labelNorm.includes(q)) score += 40;
+
+        // Category matches
+        if (categoryNorm.includes(q)) score += 10;
+
+        // Content matches
+        if (contentNorm.includes(q)) score += 15;
+
+        // Multi-word scoring
+        for (const w of words) {
+            if (labelNorm.includes(w)) score += 8;
+            if (contentNorm.includes(w)) score += 2;
+        }
+
+        if (score <= 0) continue;
+
+        hits.push({
+            id: doc.id,
+            label: doc.label,
+            category: doc.category,
+            href: doc.href,
+            score,
+            snippet: doc.content ? makeSnippet(doc.content, q) : undefined,
+        });
+    }
+
+    return hits
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+}
