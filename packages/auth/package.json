@@ -1,0 +1,59 @@
+{
+  "name": "@vatts/auth",
+  "version": "0.0.1",
+  "description": "Authentication package for Nyte.js framework",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": false,
+  "author": "itsmuzin",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.20.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.js"
+    }
+  },
+  "keywords": [
+    "hightjs",
+    "nytejs",
+    "nyte",
+    "vattsjs",
+    "vatts",
+    "auth",
+    "authentication",
+    "framework"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rimraf dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@types/react": "^19.2.2",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "vatts": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/vatts"},
+    { "path": "packages/auth" },
+    { "path": "packages/create-vatts-app"}
+  ]
+}
