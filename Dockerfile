@@ -2,11 +2,13 @@ FROM node:25-alpine
 
 WORKDIR /app
 
-COPY . .
-
 RUN npm install -g pnpm
 
+COPY . .
+
 RUN pnpm install
+
+WORKDIR /app/docs
 
 EXPOSE 3000
 
