@@ -1,7 +1,7 @@
 <div align="center">  
   <picture>  
-      <source media="(prefers-color-scheme: dark)" srcset="https://i.imgur.com/fz5N4jL.png">  
-      <img alt="Vatts.js logo" src="https://i.imgur.com/fz5N4jL.png" height="128">  
+      <source media="(prefers-color-scheme: dark)" srcset="https://vatts.mfraz.ovh/logo-v.png">  
+      <img alt="Vatts.js logo" src="https://vatts.mfraz.ovh/logo-v.png" height="128">  
     </picture>  
   <h1>Vatts.js</h1>  
 
