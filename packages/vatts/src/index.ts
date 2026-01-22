@@ -39,7 +39,7 @@ import {
     processWebSocketRoutes,
     setupWebSocketUpgrade
 } from './router';
-import {render} from './renderer';
+import { renderAsStream } from './renderer'; // Usando a nova função de streaming
 import {VattsRequest, VattsResponse} from './api/http';
 import {HotReloadManager} from './hotReload';
 import {FrameworkAdapterFactory} from './adapters/factory';
@@ -115,12 +115,8 @@ function isLargeProject(projectDir: string): boolean {
 
         scanDirectory(srcDir);
 
-        // Considera projeto grande se:
-        // - Mais de 20 arquivos de frontend/style
-        // - Ou tamanho total > 500KB
         return totalFiles > 20 || totalSize > 500 * 1024;
     } catch (error) {
-        // Em caso de erro, assume que não é um projeto grande
         return false;
     }
 }
@@ -133,13 +129,9 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
         fs.mkdirSync(tempDir, { recursive: true });
 
         const entryFilePath = path.join(tempDir, 'entry.client.js');
-        // Verifica se há layout
         const layout = getLayout();
-
-        // Verifica se há notFound personalizado
         const notFound = getNotFound();
 
-        // Gera imports dinâmicos para cada componente
         const imports = routes
             .map((route, index) => {
                 const relativePath = path.relative(tempDir, route.componentPath).replace(/\\/g, '/');
@@ -147,40 +139,29 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
             })
             .join('\n');
 
-        // Import do layout se existir
         const layoutImport = layout
             ? `import LayoutComponent from '${path.relative(tempDir, layout.componentPath).replace(/\\/g, '/')}';`
             : '';
 
-        // Import do notFound se existir
         const notFoundImport = notFound
             ? `import NotFoundComponent from '${path.relative(tempDir, notFound.componentPath).replace(/\\/g, '/')}';`
             : '';
 
-        // Registra os componentes no window para o cliente acessar
         const componentRegistration = routes
             .map((route, index) => `  '${route.componentPath}': route${index}.component || route${index}.default?.component,`)
             .join('\n');
 
-        // Registra o layout se existir
         const layoutRegistration = layout
             ? `window.__VATTS_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
             : `window.__VATTS_LAYOUT__ = null;`;
 
-        // Registra o notFound se existir
         const notFoundRegistration = notFound
             ? `window.__VATTS_NOT_FOUND__ = NotFoundComponent.default || NotFoundComponent;`
             : `window.__VATTS_NOT_FOUND__ = null;`;
 
-        // Caminho correto para o entry.client
-        // IMPORTANT: quando o pacote é instalado via npm, bundlers (Rollup/Vite/etc.) não transpilam TSX em node_modules.
-        // Por isso, aqui a gente sempre aponta para os artefatos compilados em dist/.
-        const sdkDir = path.dirname(__dirname); // pasta do pacote (pai de dist/ e src/)
-
+        const sdkDir = path.dirname(__dirname);
         const entryClientPath = path.join(sdkDir, 'dist', 'client', 'entry.client.js');
         const relativeEntryPath = path.relative(tempDir, entryClientPath).replace(/\\/g, '/');
-
-        // Import do DefaultNotFound do SDK (compilado)
         const defaultNotFoundPath = path.join(sdkDir, 'dist', 'client', 'DefaultNotFound.js');
         const relativeDefaultNotFoundPath = path.relative(tempDir, defaultNotFoundPath).replace(/\\/g, '/');
 
@@ -190,28 +171,22 @@ ${layoutImport}
 ${notFoundImport}
 import DefaultNotFound from '${relativeDefaultNotFoundPath}';
 
-// Registra os componentes para o cliente
 window.__VATTS_COMPONENTS__ = {
 ${componentRegistration}
 };
 
-// Registra o layout se existir
 ${layoutRegistration}
-
-// Registra o notFound se existir
 ${notFoundRegistration}
-
 
 window.__VATTS_DEFAULT_NOT_FOUND__ = DefaultNotFound;
 
-// Importa e executa o entry.client.tsx
 import '${relativeEntryPath}';
 `;
 
         try {
             fs.writeFileSync(entryFilePath, entryContent);
         } catch (e) {
-            console.error("sdfijnsdfnijfsdijnfsdnijsdfnijfsdnijfsdnijfsdn", e)
+            console.error("Error writing entry file", e)
         }
 
         return entryFilePath;
@@ -226,18 +201,12 @@ export default function vatts(options: VattsOptions) {
     loadEnv({ dir, dev, envFiles });
     // @ts-ignore
     process.vatts = options;
+    // @ts-ignore
+    process.env.PORT = options.port
     const userWebDir = path.join(dir, 'src', 'web');
     const userWebRoutesDir = path.join(userWebDir, 'routes');
     const userBackendRoutesDir = path.join(dir, 'src', 'backend', 'routes');
 
-    /**
-     * Executa middlewares sequencialmente e depois o handler final
-     * @param middlewares Array de middlewares para executar
-     * @param finalHandler Handler final da rota
-     * @param request Requisição do Vatts.js
-     * @param params Parâmetros da rota
-     * @returns Resposta do middleware ou handler final
-     */
     async function executeMiddlewareChain(
         middlewares: VattsMiddleware[] | undefined,
         finalHandler: BackendHandler,
@@ -245,54 +214,42 @@ export default function vatts(options: VattsOptions) {
         params: { [key: string]: string }
     ): Promise<VattsResponse> {
         if (!middlewares || middlewares.length === 0) {
-            // Não há middlewares, executa diretamente o handler final
             return await finalHandler(request, params);
         }
 
         let currentIndex = 0;
 
-        // Função next que será chamada pelos middlewares
         const next = async (): Promise<VattsResponse> => {
             if (currentIndex < middlewares.length) {
-                // Ainda há middlewares para executar
                 const currentMiddleware = middlewares[currentIndex];
                 currentIndex++;
                 return await currentMiddleware(request, params, next);
             } else {
-                // Todos os middlewares foram executados, chama o handler final
                 return await finalHandler(request, params);
             }
         };
 
-        // Inicia a cadeia de execução
         return await next();
     }
 
     let frontendRoutes: (RouteConfig & { componentPath: string })[] = [];
     let hotReloadManager: HotReloadManager | null = null;
     let entryPoint: string;
-    let outfile: string;
 
-    // Função para regenerar o entry file
     const regenerateEntryFile = () => {
-        // Recarrega todas as rotas e componentes
         const newFrontendRoutes = loadRoutes(userWebRoutesDir);
         const newLayout = loadLayout(userWebDir);
         const newNotFound = loadNotFound(userWebDir);
 
-        // Se nada mudou, não reescreve o entry file (evita disparar rebuild extra)
         const oldKey = frontendRoutes.map(r => `${(r as any).pattern ?? ''}:${r.componentPath}`).join('|');
         const newKey = newFrontendRoutes.map(r => `${(r as any).pattern ?? ''}:${r.componentPath}`).join('|');
 
         if (oldKey === newKey) {
-            // Ainda atualiza refs internas de layout/notFound, mas evita re-gerar o entry.
             frontendRoutes = newFrontendRoutes;
             return;
         }
 
         frontendRoutes = newFrontendRoutes;
-
-        // Regenera o entry file
         entryPoint = createEntryFile(dir, frontendRoutes);
     };
 
@@ -301,19 +258,14 @@ export default function vatts(options: VattsOptions) {
             const isProduction = !dev;
 
             if (!isProduction) {
-                // Inicia hot reload apenas em desenvolvimento (com suporte ao main)
                 hotReloadManager = new HotReloadManager(dir);
                 await hotReloadManager.start();
 
-                // Adiciona callback para recarregar TUDO quando qualquer arquivo mudar
                 hotReloadManager.onBackendApiChange(() => {
-
-
                     loadBackendRoutes(userBackendRoutesDir);
-                    processWebSocketRoutes(); // Processa rotas WS após recarregar backend
+                    processWebSocketRoutes();
                 });
 
-                // Adiciona callback para regenerar entry file quando frontend mudar
                 hotReloadManager.onFrontendChange(() => {
                     regenerateEntryFile();
                 });
@@ -326,17 +278,14 @@ export default function vatts(options: VattsOptions) {
             const spinner1 = setInterval(() => {
                 timee.update(`   ${Colors.FgYellow}${spinnerFrames1[frameIndex1]}${Colors.Reset}  Loading routes and components...`);
                 frameIndex1 = (frameIndex1 + 1) % spinnerFrames1.length;
-            }, 100); // muda a cada 100ms
-            // ORDEM IMPORTANTE: Carrega TUDO antes de criar o arquivo de entrada
+            }, 100);
+
             frontendRoutes = loadRoutes(userWebRoutesDir);
             loadBackendRoutes(userBackendRoutesDir);
 
-            // Processa rotas WebSocket após carregar backend
             processWebSocketRoutes();
 
-            // Carrega layout.tsx ANTES de criar o entry file
             const layout = loadLayout(userWebDir);
-
             const notFound = loadNotFound(userWebDir);
 
             const outDir = path.join(dir, '.vatts');
@@ -349,25 +298,22 @@ export default function vatts(options: VattsOptions) {
 
             if (isProduction) {
                 const time = Console.dynamicLine(`Starting client build`);
-
-// Spinner
                 const spinnerFrames = ['|', '/', '-', '\\'];
                 let frameIndex = 0;
 
                 const spinner = setInterval(() => {
                     time.update(`    ${Colors.FgYellow}${spinnerFrames[frameIndex]}${Colors.Reset}  Building...`);
                     frameIndex = (frameIndex + 1) % spinnerFrames.length;
-                }, 100); // muda a cada 100ms
+                }, 100);
 
                 const now = Date.now();
                 await buildWithChunks(entryPoint, outDir, isProduction);
                 const elapsed = Date.now() - now;
 
-                clearInterval(spinner); // para o spinner
-                time.update(""); // limpa a linha
+                clearInterval(spinner);
+                time.update("");
                 time.end(`Client build completed in ${elapsed}ms`);
 
-                // Notifica o hot reload manager que o build foi concluído
                 if (hotReloadManager) {
                     hotReloadManager.onBuildComplete(true);
                 }
@@ -384,15 +330,11 @@ export default function vatts(options: VattsOptions) {
         },
 
         executeInstrumentation: () => {
-
-            // verificar se dir/src/instrumentation.(tsx/jsx/js/ts) existe com regex
             const instrumentationFile = fs.readdirSync(path.join(dir, 'src')).find(file => /^vattsweb\.(tsx|jsx|js|ts)$/.test(file));
             if (instrumentationFile) {
                 const instrumentationPath = path.join(dir, 'src', instrumentationFile);
-                // dar require, e executar a função principal do arquivo
                 const instrumentation = require(instrumentationPath);
 
-                // Registra o listener de hot reload se existir
                 if (instrumentation.hotReloadListener && typeof instrumentation.hotReloadListener === 'function') {
                     if (hotReloadManager) {
                         hotReloadManager.setHotReloadListener(instrumentation.hotReloadListener);
@@ -410,12 +352,10 @@ export default function vatts(options: VattsOptions) {
         },
         getRequestHandler: (): RequestHandler => {
             return async (req: any, res: any) => {
-                // Detecta o framework e cria request/response genéricos
                 const adapter = FrameworkAdapterFactory.detectFramework(req, res);
                 const genericReq: GenericRequest = adapter.parseRequest(req);
                 const genericRes: GenericResponse = adapter.createResponse(res);
 
-                // Adiciona informações do hweb na requisição genérica
                 (genericReq as any).hwebDev = dev;
                 (genericReq as any).hotReloadManager = hotReloadManager;
 
@@ -423,7 +363,6 @@ export default function vatts(options: VattsOptions) {
                 const method = (genericReq.method || 'GET').toUpperCase();
                 const pathname = new URL(genericReq.url, `http://${hostname}:${port}`).pathname;
 
-                // RPC endpoint (antes das rotas de backend)
                 if (pathname === RPC_ENDPOINT && method === 'POST') {
                     try {
                         const result = await executeRpc(
@@ -443,13 +382,10 @@ export default function vatts(options: VattsOptions) {
                     }
                 }
 
-                // 1. Verifica se é WebSocket upgrade para hot reload
                 if (pathname === '/hweb-hotreload/' && genericReq.headers.upgrade === 'websocket' && hotReloadManager) {
-                    // Framework vai chamar o evento 'upgrade' do servidor HTTP
                     return;
                 }
 
-                // 2. Primeiro verifica se é um arquivo estático da pasta public
                 if (pathname !== '/' && !pathname.startsWith('/api/') && !pathname.startsWith('/.vatts')) {
                     const publicDir = path.join(dir, 'public');
 
@@ -481,7 +417,6 @@ export default function vatts(options: VattsOptions) {
 
                             genericRes.header('Content-Type', contentTypes[ext] || 'application/octet-stream');
 
-                            // Para arquivos estáticos, usamos o método nativo do framework
                             if (adapter.type === 'express') {
                                 (res as any).sendFile(filePath);
                             } else if (adapter.type === 'fastify') {
@@ -513,7 +448,6 @@ export default function vatts(options: VattsOptions) {
 
                             genericRes.header('Content-Type', contentTypes[ext] || 'text/plain');
 
-                            // Para arquivos estáticos, usamos o método nativo do framework
                             if (adapter.type === 'express') {
                                 (res as any).sendFile(filePath);
                             } else if (adapter.type === 'fastify') {
@@ -528,10 +462,6 @@ export default function vatts(options: VattsOptions) {
                     }
                 }
 
-                // 4. REMOVIDO: Verificação de arquivos React UMD - não precisamos mais
-                // O React agora será bundlado diretamente no main.js
-
-                // 5. Verifica se é uma rota de API (backend)
                 const backendMatch = findMatchingBackendRoute(pathname, method);
                 if (backendMatch) {
                     try {
@@ -539,7 +469,6 @@ export default function vatts(options: VattsOptions) {
                         if (handler) {
                             const hwebReq = new VattsRequest(genericReq);
 
-                            // Executa middlewares e depois o handler final
                             const hwebRes = await executeMiddlewareChain(
                                 backendMatch.route.middleware,
                                 handler,
@@ -547,7 +476,6 @@ export default function vatts(options: VattsOptions) {
                                 backendMatch.params
                             );
 
-                            // Aplica a resposta usando o adapter correto
                             hwebRes._applyTo(genericRes);
                             return;
                         }
@@ -558,26 +486,43 @@ export default function vatts(options: VattsOptions) {
                     }
                 }
 
-                // 6. Por último, tenta renderizar uma página (frontend) ou 404
+                // Renderização de Página (Frontend)
                 const pageMatch = findMatchingRoute(pathname);
 
+                // Determina o objeto de resposta "cru" para o stream do React
+                // Se for Fastify, o Writable stream está em res.raw. Se for Express/Native, é o próprio res.
+                const rawRes = (res.raw || res);
+
                 if (!pageMatch) {
-                    // Em vez de enviar texto simples, renderiza a página 404 React
                     try {
-                        // Cria uma "rota falsa" para a página 404
                         const notFoundRoute = {
                             pattern: '/__404__',
-                            component: () => null, // Componente vazio, será tratado no cliente
+                            component: () => null, // Será renderizado via SSR se tiver componente de 404 definido no Client
                             componentPath: '__404__'
                         };
 
-                        const html = await render({
+                        // Tenta usar componente 404 customizado se houver
+                        const notFound = getNotFound();
+                        if (notFound) {
+                            // Carrega o componente 404 real para o SSR funcionar
+                            try {
+                                const nfModule = require(path.resolve(process.cwd(), notFound.componentPath));
+                                // @ts-ignore
+                                notFoundRoute.component = nfModule.default || nfModule;
+                            } catch(e) {}
+                        }
+
+                        // Define status 404 antes de iniciar o stream
+                        if (rawRes.statusCode) rawRes.statusCode = 404; // Native/Fastify
+                        if (rawRes.status) rawRes.status(404); // Express (mas pode quebrar se for raw, melhor usar statusCode)
+
+                        await renderAsStream({
                             req: genericReq,
+                            res: rawRes,
                             route: notFoundRoute,
                             params: {},
                             allRoutes: frontendRoutes
                         });
-                        genericRes.status(404).header('Content-Type', 'text/html').send(html);
                         return;
                     } catch (error) {
                         Console.error(`Error rendering page 404:`, error);
@@ -587,30 +532,30 @@ export default function vatts(options: VattsOptions) {
                 }
 
                 try {
-                    const html = await render({
+                    // Renderização via Stream (SSR + Streaming)
+                    await renderAsStream({
                         req: genericReq,
+                        res: rawRes,
                         route: pageMatch.route,
                         params: pageMatch.params,
                         allRoutes: frontendRoutes
                     });
-                    genericRes.status(200).header('Content-Type', 'text/html').send(html);
                 } catch (error) {
                     Console.error(`Error rendering page ${pathname}:`, error);
-                    genericRes.status(500).text('Internal server error');
+                    // Se o stream já começou, não dá pra enviar erro 500 limpo.
+                    // O renderAsStream tenta lidar com isso no onError.
+                    if (!rawRes.headersSent) {
+                        genericRes.status(500).text('Internal server error');
+                    }
                 }
             };
         },
 
-        // Método para configurar WebSocket upgrade nos servidores Express e Fastify
         setupWebSocket: (server: any) => {
-            // Detecta se é um servidor Express ou Fastify
             const isExpressServer = FrameworkAdapterFactory.getCurrentAdapter() instanceof ExpressAdapter;
             const actualServer = isExpressServer ? server : (server.server || server);
-
-            // Usa o sistema coordenado de WebSocket upgrade que integra hot-reload e rotas de usuário
             setupWebSocketUpgrade(actualServer, hotReloadManager);
         },
-
 
         stop: () => {
             if (hotReloadManager) {

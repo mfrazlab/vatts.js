@@ -50,6 +50,24 @@ function asErrorMessage(err: unknown): string {
     }
 }
 
+// Detecta se estamos rodando no Node.js
+const isServer = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
+function getRpcEndpoint(): string {
+    if (isServer) {
+        // Tenta pegar a porta das variáveis de ambiente ou usa 3000 como fallback.
+        // Nota: Se você usar uma porta customizada no vatts.config.ts sem setar ENV,
+        // precisará garantir que process.env.PORT esteja alinhado.
+        const port = process.env.PORT || 3000;
+
+        // Em SSR, sempre usamos HTTP e Loopback IP (127.0.0.1) para garantir
+        // que a requisição chegue no próprio servidor localmente sem sair pra rede externa.
+        return `http://127.0.0.1:${port}${RPC_ENDPOINT}`;
+    }
+    // No cliente (browser), URL relativa funciona perfeitamente
+    return RPC_ENDPOINT;
+}
+
 /**
  * `importServer("src/backend/index.ts")` returns a Proxy where every property is
  * a function that performs a POST to `/api/rpc`.
@@ -57,7 +75,7 @@ function asErrorMessage(err: unknown): string {
  * Typing:
  * - Without a generic: `const api = importServer('...')` -> `api.anyFn<MyReturn>()`
  * - With a generic: `importServer<typeof import('../../backend/helper')>('...')`
- *   gives argument + default return types, while still allowing overrides.
+ * gives argument + default return types, while still allowing overrides.
  *
  * Note: server functions can be defined as `(req, ...args)`; the first arg is injected
  * by the server, so the client signature automatically drops that first parameter.
@@ -95,9 +113,12 @@ export function importServer<TApi extends Record<string, any> = Record<string, a
                     }
                 };
 
+                // Resolve a URL correta (Absoluta no server, Relativa no client)
+                const endpoint = getRpcEndpoint();
+
                 let res: Response;
                 try {
-                    res = await fetch(RPC_ENDPOINT, {
+                    res = await fetch(endpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'

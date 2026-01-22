@@ -25,18 +25,21 @@ require('ts-node').register();
 const { registerLoaders} = require('../loaders');
 registerLoaders()
 const { program } = require('commander');
+const fs = require('fs');
+const path = require('path');
+const { Writable } = require('stream');
+
+// Importa o Console do framework
+const ConsoleModule = require('../api/console');
+const Console = ConsoleModule.default;
+const { Levels, Colors } = ConsoleModule;
 
 
 program
     .version('1.0.0')
     .description('CLI to manage the application.');
 
-// --- Comando DEV ---
-const fs = require('fs');
-const path = require('path');
-
-// 'program' já deve estar definido no seu arquivo
-// const { program } = require('commander');
+// --- Helpers ---
 
 /**
  * Função centralizada para iniciar a aplicação
@@ -54,13 +57,9 @@ function initializeApp(options, isDev) {
 
     // 1. Verifica se a flag --ssl foi ativada
     if (options.ssl) {
-        const C = require("../api/console")
-        const { Levels } = C;
-        const Console = C.default
         const sslDir = path.resolve(process.cwd(), 'certs');
-        const keyPath = path.join(sslDir, 'key.pem'); // Padrão 1: key.pem
-        const certPath = path.join(sslDir, 'cert.pem'); // Padrão 2: cert.pem
-        // (Você pode mudar para 'cert.key' se preferir, apenas ajuste os nomes aqui)
+        const keyPath = path.join(sslDir, 'key.pem');
+        const certPath = path.join(sslDir, 'cert.pem');
 
         // 2. Verifica se os arquivos existem
         if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
@@ -69,24 +68,48 @@ function initializeApp(options, isDev) {
                 cert: certPath
             };
 
-            // 3. Adiciona a porta de redirecionamento (útil para o initNativeServer)
+            // 3. Adiciona a porta de redirecionamento
             appOptions.ssl.redirectPort = options.httpRedirectPort || 80;
 
         } else {
-            Console.logWithout(Levels.ERROR, null, `Ensure that './certs/key.pem' and './certs/cert.pem' exist.`, `--ssl flag was used, but the files were not found.`)
-
-
-            process.exit(1); // Encerra o processo com erro
+            Console.error(`SSL Error: Ensure that './certs/key.pem' and './certs/cert.pem' exist.`);
+            process.exit(1);
         }
     }
 
     // 4. Inicia o helper com as opções
-    const teste = require("../helpers");
-    const t = teste.default(appOptions);
-    t.init();
+    const helperModule = require("../helpers");
+    const helper = helperModule.default(appOptions);
+    helper.init();
 }
 
-// --- Comando DEV ---
+/**
+ * Função corrigida para copiar diretórios recursivamente.
+ */
+function copyDirRecursive(src, dest) {
+    try {
+        fs.mkdirSync(dest, { recursive: true });
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+
+        for (let entry of entries) {
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+
+            if (entry.isDirectory()) {
+                copyDirRecursive(srcPath, destPath);
+            } else {
+                fs.copyFileSync(srcPath, destPath);
+            }
+        }
+    } catch (error) {
+        Console.error(`Error copying ${src} to ${dest}:`, error);
+        throw error;
+    }
+}
+
+// --- Comandos ---
+
+// Comando DEV
 program
     .command('dev')
     .description('Starts the application in development mode.')
@@ -95,10 +118,10 @@ program
     .option('--ssl', 'Activates HTTPS/SSL mode (requires ./ssl/key.pem and ./ssl/cert.pem)')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
     .action((options) => {
-        initializeApp(options, true); // Chama a função com dev: true
+        initializeApp(options, true);
     });
 
-// --- Comando START (Produção) ---
+// Comando START (Produção)
 program
     .command('start')
     .description('Starts the application in production mode.')
@@ -107,43 +130,11 @@ program
     .option('--ssl', 'Activates HTTPS/SSL mode (requires ./ssl/key.pem and ./ssl/cert.pem)')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
     .action((options) => {
-        initializeApp(options, false); // Chama a função com dev: false
+        initializeApp(options, false);
     });
 
-/**
- * Função corrigida para copiar diretórios recursivamente.
- * Ela agora verifica se um item é um arquivo ou um diretório.
- */
-function copyDirRecursive(src, dest) {
-    try {
-        // Garante que o diretório de destino exista
-        fs.mkdirSync(dest, { recursive: true });
 
-        // Usamos { withFileTypes: true } para evitar uma chamada extra de fs.statSync
-        const entries = fs.readdirSync(src, { withFileTypes: true });
-
-        for (let entry of entries) {
-            const srcPath = path.join(src, entry.name);
-            const destPath = path.join(dest, entry.name);
-
-            if (entry.isDirectory()) {
-                // Se for um diretório, chama a si mesma (recursão)
-                copyDirRecursive(srcPath, destPath);
-            } else {
-                // Se for um arquivo, apenas copia
-                fs.copyFileSync(srcPath, destPath);
-            }
-        }
-    } catch (error) {
-        console.error(`❌ Erro ao copiar ${src} para ${dest}:`, error);
-        // Lança o erro para parar o processo de exportação se a cópia falhar
-        throw error;
-    }
-}
-
-
-// --- INÍCIO DO SEU CÓDIGO (AGORA CORRIGIDO) ---
-
+// Comando EXPORT
 program
     .command('export')
     .description('Exports the application as static HTML to the "exported" folder.')
@@ -154,9 +145,7 @@ program
     .action(async (options) => {
         const projectDir = process.cwd();
 
-        // Resolve output:
-        // - se vier absoluto, usa como está
-        // - se vier relativo, resolve a partir do projeto
+        // Resolve output
         const outputInput = typeof options.output === 'string' && options.output.trim().length
             ? options.output.trim()
             : 'exported';
@@ -164,82 +153,70 @@ program
             ? path.resolve(outputInput)
             : path.resolve(projectDir, outputInput);
 
-        // Proteções: nunca permitir apagar a raiz do drive (ex: D:\) ou o root do SO (ex: C:\)
         const exportDirResolved = path.resolve(exportDir);
-        const exportDirRoot = path.parse(exportDirResolved).root; // ex: 'D:\\'
+        const exportDirRoot = path.parse(exportDirResolved).root;
         const projectDirResolved = path.resolve(projectDir);
 
         if (exportDirResolved === exportDirRoot) {
-            throw new Error(`Refusing to use output directory at drive root: ${exportDirResolved}`);
+            Console.error(`Refusing to use output directory at drive root: ${exportDirResolved}`);
+            process.exit(1);
         }
 
-        // Também evita `--output .` ou `--output ..` que cairia no diretório do projeto (perigoso)
-        // Regra: output precisa estar dentro do projeto, ou dentro de uma subpasta do projeto.
-        // (mantém comportamento esperado e evita deletar o repo inteiro por acidente)
         const relExportToProject = path.relative(projectDirResolved, exportDirResolved);
         if (relExportToProject === '' || relExportToProject === '.' || relExportToProject.startsWith('..')) {
-            throw new Error(
-                `Refusing to export to ${exportDirResolved}. Use a subfolder like "exported" or an explicit path inside the project.`
-            );
+            Console.error(`Refusing to export to ${exportDirResolved}. Use a subfolder like "exported" or an explicit path inside the project.`);
+            process.exit(1);
         }
 
-        // assetsDir: sempre relativo ao exportDir (evita escrever fora sem querer)
-        // Permite usar '.' (raiz do output)
+        // assetsDir
         const assetsDirInputRaw = typeof options.assetsDir === 'string' ? options.assetsDir : '.vatts';
         const assetsDirInput = assetsDirInputRaw.trim().length ? assetsDirInputRaw.trim() : '.';
         const assetsDirResolved = path.resolve(exportDirResolved, assetsDirInput);
         const relAssetsToExport = path.relative(exportDirResolved, assetsDirResolved);
         if (relAssetsToExport.startsWith('..') || path.isAbsolute(relAssetsToExport)) {
-            throw new Error(`Invalid --assets-dir: must be inside output directory. Received: ${assetsDirInputRaw}`);
+            Console.error(`Invalid --assets-dir: must be inside output directory. Received: ${assetsDirInputRaw}`);
+            process.exit(1);
         }
 
-        // Normaliza a pasta para uso em URL no HTML
-        // Se assets-dir for '.', relAssetsToExport vira '' e assetsBaseHref vira './'
         const assetsDirUrl = relAssetsToExport.split(path.sep).join('/').replace(/^\.?\/?/, '');
         const assetsBaseHref = './' + (assetsDirUrl.length ? assetsDirUrl + '/' : '');
 
-        console.log('🚀 Starting export...\n');
+        Console.info('Starting export process...');
 
         try {
-            // 1. Cria a pasta exported (limpa se já existir)
+            // 1. Limpa pasta de exportação
             if (fs.existsSync(exportDirResolved)) {
-                console.log('🗑️  Cleaning existing export folder...');
+                Console.info('Cleaning existing export folder...');
                 fs.rmSync(exportDirResolved, { recursive: true, force: true });
             }
             fs.mkdirSync(exportDirResolved, { recursive: true });
-            console.log('✅ Export folder created\n');
 
-            // 2. Inicializa e prepara o build
-            console.log('🔨 Building application...');
-            // ATENÇÃO: Ajuste o caminho deste 'require' conforme a estrutura do seu projeto!
-            const teste = require("../helpers");
-            const app = teste.default({ dev: false, port: 3000, hostname: '0.0.0.0', framework: 'native' });
+            // 2. Build
+            Console.info('Building application...');
+            const helperModule = require("../helpers");
+            // Usando dev: false para produção
+            const app = helperModule.default({ dev: false, port: 3000, hostname: '0.0.0.0', framework: 'native' });
             await app.prepare();
-            console.log('✅ Build complete\n');
+            Console.success('Build complete.');
 
 
+            // 3. Copia JavaScript
             const distDir = path.join(projectDirResolved, '.vatts');
             if (fs.existsSync(distDir)) {
-                console.log('📦 Copying JavaScript files...');
+                Console.info('Copying JavaScript files...');
                 const exportDistDir = assetsDirResolved;
-
                 copyDirRecursive(distDir, exportDistDir);
-
-                console.log(`✅ JavaScript files copied to: ${path.relative(exportDirResolved, exportDistDir) || '.'}\n`);
             }
 
-            // 4. Copia a pasta public se existir
+            // 4. Copia Public
             const publicDir = path.join(projectDirResolved, 'public');
             if (fs.existsSync(publicDir)) {
-                console.log('📁 Copying public files...');
+                Console.info('Copying public files...');
                 const exportPublicDir = path.join(exportDirResolved, 'public');
-
                 copyDirRecursive(publicDir, exportPublicDir);
-
-                console.log('✅ Public files copied\n');
             }
 
-            // 5. Gera o index.html (opcional) / ou só renderiza para extrair h-data
+            // 5. Gera index.html
             const shouldExtractHData = typeof options.outputHData === 'string' && options.outputHData.trim().length > 0;
             const shouldRenderHtml = Boolean(options.html) || shouldExtractHData;
 
@@ -247,16 +224,14 @@ program
                 const writeHtmlToDisk = Boolean(options.html);
 
                 if (writeHtmlToDisk) {
-                    console.log('📝 Generating index.html...');
+                    Console.info('Generating index.html...');
                 } else {
-                    console.log('🧩 Rendering HTML to extract h-data (--output-h-data)...');
+                    Console.info('Rendering HTML for h-data extraction...');
                 }
 
-                // ATENÇÃO: Ajuste os caminhos destes 'requires' conforme a estrutura do seu projeto!
-                const { render } = require('../renderer');
+                const { renderAsStream } = require('../renderer');
                 const { loadRoutes, loadLayout, loadNotFound } = require('../router');
 
-                // Carrega as rotas para gerar o HTML
                 const userWebDir = path.join(projectDirResolved, 'src', 'web');
                 const userWebRoutesDir = path.join(userWebDir, 'routes');
 
@@ -264,7 +239,6 @@ program
                 loadLayout(userWebDir);
                 loadNotFound(userWebDir);
 
-                // Gera HTML para a rota raiz
                 const rootRoute = routes.find(r => r.pattern === '/') || routes[0];
 
                 if (rootRoute) {
@@ -276,13 +250,33 @@ program
                         hotReloadManager: null
                     };
 
-                    const html = await render({
+                    let html = '';
+                    let resolveStream;
+                    const streamComplete = new Promise(r => resolveStream = r);
+
+                    const mockRes = new Writable({
+                        write(chunk, encoding, callback) {
+                            html += chunk.toString();
+                            callback();
+                        }
+                    });
+
+                    mockRes.setHeader = () => {};
+                    mockRes.statusCode = 200;
+
+                    mockRes.on('finish', () => {
+                        resolveStream();
+                    });
+
+                    await renderAsStream({
                         req: mockReq,
+                        res: mockRes,
                         route: rootRoute,
                         params: {},
                         allRoutes: routes
                     });
 
+                    await streamComplete;
 
                     if (shouldExtractHData) {
                         const m = html.match(/<script\b[^>]*\bid=["']__vatts_data__["'][^>]*\bdata-h=["']([^"']*)["'][^>]*>/i);
@@ -291,8 +285,6 @@ program
                         }
 
                         const hDataValue = m[1];
-
-                        // O path do arquivo é relativo ao projeto por padrão
                         const outputHDataPathInput = options.outputHData.trim();
                         const outputHDataPath = path.isAbsolute(outputHDataPathInput)
                             ? path.resolve(outputHDataPathInput)
@@ -300,32 +292,26 @@ program
 
                         fs.mkdirSync(path.dirname(outputHDataPath), { recursive: true });
                         fs.writeFileSync(outputHDataPath, hDataValue, 'utf8');
-                        console.log(`✅ h-data written to: ${outputHDataPath}`);
+                        Console.success(`h-data written to: ${path.relative(projectDirResolved, outputHDataPath)}`);
                     }
 
                     if (writeHtmlToDisk) {
-
                         const scriptReplaced = html.replace(/\/_vatts\//g, assetsBaseHref);
                         const indexPath = path.join(exportDirResolved, 'index.html');
                         fs.writeFileSync(indexPath, scriptReplaced, 'utf8');
-                        console.log('✅ index.html generated\n');
-                    } else {
-                        console.log('✅ HTML rendered (no index.html written)\n');
+                        Console.success('index.html generated.');
                     }
                 }
             } else {
-                console.log('⏭️  Skipping index.html generation (--no-html)\n');
+                Console.info('Skipping index.html generation.');
             }
 
-            console.log('🎉 Export completed successfully!');
-            console.log(`📂 Files exported to: ${exportDirResolved}\n`);
+            Console.success(`Export completed successfully to: ${path.relative(projectDirResolved, exportDirResolved)}`);
 
         } catch (error) {
-            // Logar o erro completo (com stack trace) é mais útil
-            console.error('❌ Error during export:', error);
+            Console.error('Error during export:', error);
             process.exit(1);
         }
     });
 
-// Faz o "parse" dos argumentos passados na linha de comando
 program.parse(process.argv);

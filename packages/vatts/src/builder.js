@@ -319,7 +319,8 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
             replace({
                 preventAssignment: true,
                 values: {
-                    'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development')
+                    'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
+                    'proccess.env.PORT': JSON.stringify(process.vatts.port || 3000)
                 }
             }),
 

@@ -15,105 +15,77 @@
  * limitations under the License.
  */
 import React from 'react';
+import { renderToPipeableStream } from 'react-dom/server';
 import { RouteConfig, Metadata } from './types';
 import { getLayout } from './router';
-import type { GenericRequest } from './types/framework';
+import type { GenericRequest, GenericResponse } from './types/framework';
 import fs from 'fs';
 import path from 'path';
+import Console, {Colors} from './api/console';
 
-// Função para gerar todas as meta tags
+// --- Helpers de Servidor ---
+
+// Função auxiliar para importar módulos ignorando CSS (mesma lógica do router.ts)
+function requireWithoutStyles<T>(modulePath: string): T {
+    const extensions = ['.css', '.scss', '.sass', '.less', '.png', '.jpg', '.jpeg', '.gif', '.svg'];
+    const originalHandlers: Record<string, any> = {};
+
+    extensions.forEach(ext => {
+        originalHandlers[ext] = require.extensions[ext];
+        require.extensions[ext] = (m: any, filename: string) => {
+            m.exports = {};
+        };
+    });
+
+    try {
+        const resolved = require.resolve(modulePath);
+        if (require.cache[resolved]) delete require.cache[resolved];
+        return require(modulePath);
+    } catch (e) {
+        return require(modulePath);
+    } finally {
+        extensions.forEach(ext => {
+            if (originalHandlers[ext]) {
+                require.extensions[ext] = originalHandlers[ext];
+            } else {
+                delete require.extensions[ext];
+            }
+        });
+    }
+}
+
+// --- Funções de Metadata e Scripts ---
+
 function generateMetaTags(metadata: Metadata): string {
     const tags: string[] = [];
-
-    // Charset
     tags.push(`<meta charset="${metadata.charset || 'UTF-8'}">`);
-
-    // Viewport
     tags.push(`<meta name="viewport" content="${metadata.viewport || 'width=device-width, initial-scale=1.0'}">`);
 
-    // Description
-    if (metadata.description) {
-        tags.push(`<meta name="description" content="${metadata.description}">`);
-    }
+    if (metadata.description) tags.push(`<meta name="description" content="${metadata.description}">`);
 
-    // Keywords
     if (metadata.keywords) {
-        const keywordsStr = Array.isArray(metadata.keywords)
-            ? metadata.keywords.join(', ')
-            : metadata.keywords;
+        const keywordsStr = Array.isArray(metadata.keywords) ? metadata.keywords.join(', ') : metadata.keywords;
         tags.push(`<meta name="keywords" content="${keywordsStr}">`);
     }
 
-    // Author
-    if (metadata.author) {
-        tags.push(`<meta name="author" content="${metadata.author}">`);
-    }
+    if (metadata.author) tags.push(`<meta name="author" content="${metadata.author}">`);
+    if (metadata.themeColor) tags.push(`<meta name="theme-color" content="${metadata.themeColor}">`);
+    if (metadata.robots) tags.push(`<meta name="robots" content="${metadata.robots}">`);
+    if (metadata.canonical) tags.push(`<link rel="canonical" href="${metadata.canonical}">`);
+    if (metadata.favicon) tags.push(`<link rel="icon" href="${metadata.favicon}">`);
 
-    // Theme color
-    if (metadata.themeColor) {
-        tags.push(`<meta name="theme-color" content="${metadata.themeColor}">`);
-    }
-
-    // Robots
-    if (metadata.robots) {
-        tags.push(`<meta name="robots" content="${metadata.robots}">`);
-    }
-
-    // Canonical
-    if (metadata.canonical) {
-        tags.push(`<link rel="canonical" href="${metadata.canonical}">`);
-    }
-
-    // Favicon
-    if (metadata.favicon) {
-        tags.push(`<link rel="icon" href="${metadata.favicon}">`);
-    }
-
-    // Apple Touch Icon
-    if (metadata.appleTouchIcon) {
-        tags.push(`<link rel="apple-touch-icon" href="${metadata.appleTouchIcon}">`);
-    }
-
-    // Manifest
-    if (metadata.manifest) {
-        tags.push(`<link rel="manifest" href="${metadata.manifest}">`);
-    }
-
-    // Open Graph
     if (metadata.openGraph) {
         const og = metadata.openGraph;
         if (og.title) tags.push(`<meta property="og:title" content="${og.title}">`);
         if (og.description) tags.push(`<meta property="og:description" content="${og.description}">`);
         if (og.type) tags.push(`<meta property="og:type" content="${og.type}">`);
         if (og.url) tags.push(`<meta property="og:url" content="${og.url}">`);
-        if (og.siteName) tags.push(`<meta property="og:site_name" content="${og.siteName}">`);
-        if (og.locale) tags.push(`<meta property="og:locale" content="${og.locale}">`);
-
         if (og.image) {
-            if (typeof og.image === 'string') {
-                tags.push(`<meta property="og:image" content="${og.image}">`);
-            } else {
-                tags.push(`<meta property="og:image" content="${og.image.url}">`);
-                if (og.image.width) tags.push(`<meta property="og:image:width" content="${og.image.width}">`);
-                if (og.image.height) tags.push(`<meta property="og:image:height" content="${og.image.height}">`);
-                if (og.image.alt) tags.push(`<meta property="og:image:alt" content="${og.image.alt}">`);
-            }
+            const imgUrl = typeof og.image === 'string' ? og.image : og.image.url;
+            tags.push(`<meta property="og:image" content="${imgUrl}">`);
         }
     }
 
-    // Twitter Card
-    if (metadata.twitter) {
-        const tw = metadata.twitter;
-        if (tw.card) tags.push(`<meta name="twitter:card" content="${tw.card}">`);
-        if (tw.site) tags.push(`<meta name="twitter:site" content="${tw.site}">`);
-        if (tw.creator) tags.push(`<meta name="twitter:creator" content="${tw.creator}">`);
-        if (tw.title) tags.push(`<meta name="twitter:title" content="${tw.title}">`);
-        if (tw.description) tags.push(`<meta name="twitter:description" content="${tw.description}">`);
-        if (tw.image) tags.push(`<meta name="twitter:image" content="${tw.image}">`);
-        if (tw.imageAlt) tags.push(`<meta name="twitter:image:alt" content="${tw.imageAlt}">`);
-    }
-
-    // Custom meta tags
     if (metadata.other) {
         for (const [key, value] of Object.entries(metadata.other)) {
             tags.push(`<meta name="${key}" content="${value}">`);
@@ -123,59 +95,123 @@ function generateMetaTags(metadata: Metadata): string {
     return tags.join('\n');
 }
 
-// Função para ofuscar dados (não é criptografia, apenas ofuscação)
 function obfuscateData(data: any): string {
-    // 1. Serializa para JSON minificado
     const jsonStr = JSON.stringify(data);
-
-    // 2. Converte para base64
     const base64 = Buffer.from(jsonStr).toString('base64');
-
-    // 3. Adiciona um hash fake no início para parecer um token
     const hash = Buffer.from(Date.now().toString()).toString('base64').substring(0, 8);
-
     return `${hash}.${base64}`;
 }
 
-// Função para criar script ofuscado
-function createInitialDataScript(data: any): string {
-    const obfuscated = obfuscateData(data);
+// Retorna as URLs dos scripts para o bootstrapModules do React
+// Retorna null se não encontrar scripts (indica que o build ainda não terminou)
+function getJavaScriptUrls(req: GenericRequest): string[] | null {
+    const projectDir = process.cwd();
+    const distDir = path.join(projectDir, '.vatts');
 
-    // Usa um atributo data-* ao invés de JSON visível
-    return `<script id="__vatts_data__" type="text/plain" data-h="${obfuscated}"></script>`;
+    if (!fs.existsSync(distDir)) return null;
+
+    try {
+        const manifestPath = path.join(distDir, 'manifest.json');
+        if (fs.existsSync(manifestPath)) {
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+            const files = Object.values(manifest)
+                .filter((file: any) => file.endsWith('.js'))
+                .map((file: any) => `/_vatts/${file}`);
+            return files.length > 0 ? files as string[] : null;
+        } else {
+            const jsFiles = fs.readdirSync(distDir)
+                .filter(file => file.endsWith('.js') && !file.endsWith('.map'))
+                .sort((a, b) => {
+                    if (a.includes('main')) return -1;
+                    if (b.includes('main')) return 1;
+                    return a.localeCompare(b);
+                });
+
+            return jsFiles.length > 0 ? jsFiles.map(file => `/_vatts/${file}`) : null;
+        }
+    } catch {
+        return null;
+    }
 }
 
-// Interface para opções de renderização apenas do cliente
+// --- Componentes de Servidor ---
+
+interface ServerRootProps {
+    lang: string;
+    title: string;
+    metaTagsHtml: string;
+    initialDataScript: string;
+    hotReloadScript: string;
+    children: React.ReactNode;
+}
+
+function ServerRoot({ lang, title, metaTagsHtml, initialDataScript, hotReloadScript, children }: ServerRootProps) {
+    return (
+        <html lang={lang}>
+        <head>
+            <title>{title}</title>
+            <script dangerouslySetInnerHTML={{ __html: initialDataScript }} />
+            <span dangerouslySetInnerHTML={{ __html: metaTagsHtml }} />
+        </head>
+        <body>
+        <div id="root">{children}</div>
+        {/* O React injeta os bootstrapScripts/bootstrapModules automaticamente no final do body */}
+        {hotReloadScript && <script dangerouslySetInnerHTML={{ __html: hotReloadScript }} />}
+        </body>
+        </html>
+    );
+}
+
+// --- Renderização Principal ---
+
 interface RenderOptions {
     req: GenericRequest;
+    res: any; // Raw response object (ServerResponse)
     route: RouteConfig & { componentPath: string };
     params: Record<string, string>;
     allRoutes: (RouteConfig & { componentPath: string })[];
 }
 
-export async function render({ req, route, params, allRoutes }: RenderOptions): Promise<string> {
+export async function renderAsStream({ req, res, route, params, allRoutes }: RenderOptions): Promise<void> {
     const { generateMetadata } = route;
-
-    // Pega a opção dev e hot reload manager do req
     const isProduction = !(req as any).hwebDev;
     const hotReloadManager = (req as any).hotReloadManager;
 
-    // Pega o layout se existir
-    const layout = getLayout();
+    // 1. Verificar Build - Se não tiver scripts, retorna tela de Loading
+    const bootstrapScripts = getJavaScriptUrls(req);
 
-    let metadata: Metadata = { title: 'App hweb' };
-
-    // Primeiro usa o metadata do layout se existir
-    if (layout && layout.metadata) {
-        metadata = { ...metadata, ...layout.metadata };
+    if (!bootstrapScripts) {
+        res.setHeader('Content-Type', 'text/html');
+        // Usamos .end() diretamente para garantir que a resposta seja enviada sem stream
+        res.end(getBuildingHTML());
+        return;
     }
 
-    // Depois sobrescreve com metadata específico da rota se existir
+    // 2. Preparar Layout
+    const layoutInfo = getLayout();
+    let LayoutComponent: any = null;
+
+    if (layoutInfo) {
+        try {
+            // Recarrega o componente de layout para ter acesso à função (o router só guarda metadata)
+            const layoutModule = requireWithoutStyles<any>(path.resolve(process.cwd(), layoutInfo.componentPath));
+            LayoutComponent = layoutModule.default;
+        } catch (e) {
+            console.error("Error loading layout component for SSR:", e);
+        }
+    }
+
+    // 3. Preparar Metadata
+    let metadata: Metadata = { title: 'Vatts App' };
+    if (layoutInfo && layoutInfo.metadata) {
+        metadata = { ...metadata, ...layoutInfo.metadata };
+    }
     if (generateMetadata) {
         const routeMetadata = await Promise.resolve(generateMetadata(params, req));
         metadata = { ...metadata, ...routeMetadata };
     }
 
+    // 4. Preparar Dados Iniciais
     const results = await Promise.all(
         allRoutes.map(async (r) => {
             let routeMeta: Metadata = {};
@@ -188,109 +224,86 @@ export async function render({ req, route, params, allRoutes }: RenderOptions): 
                 metadata: routeMeta,
             }
         })
-    )
+    );
 
-
-    // Prepara os dados para injetar na janela do navegador
     const initialData = {
         routes: results,
         initialComponentPath: route.componentPath,
         initialParams: params,
     };
 
-    // Cria script JSON limpo
-    const initialDataScript = createInitialDataScript(initialData);
-
-    // Script de hot reload apenas em desenvolvimento
-    const hotReloadScript = !isProduction && hotReloadManager
-        ? hotReloadManager.getClientScript()
-        : '';
-
-    // Gera todas as meta tags
-    const metaTags = generateMetaTags(metadata);
-
-    // Determina quais arquivos JavaScript carregar
-    const jsFiles = getJavaScriptFiles(req);
-
+    // Scripts
+    const obfuscatedData = obfuscateData(initialData);
+    const hotReloadScript = !isProduction && hotReloadManager ? hotReloadManager.getClientScript() : '';
+    const metaTagsHtml = generateMetaTags(metadata);
     const htmlLang = metadata.language || 'pt-BR';
 
-    // HTML base sem SSR - apenas o container e scripts para client-side rendering
-    return `<!DOCTYPE html>
-<html lang="${htmlLang}">
-<head>
-${metaTags}
-<title>${metadata.title || 'Vatts.js'}</title>
-</head>
-<body>
-<div id="root"></div>
-${initialDataScript}
-${jsFiles}
-${hotReloadScript}
-</body>
-</html>`;
+    // 5. Componente da Página Atual
+    const PageComponent = route.component;
+
+    // Monta a árvore da aplicação
+    let AppTree = <PageComponent params={params} />;
+    if (LayoutComponent) {
+        AppTree = <LayoutComponent>{AppTree}</LayoutComponent>;
+    }
+
+    // 6. Streaming
+    return new Promise((resolve, reject) => {
+        let didError = false;
+
+        const { pipe } = renderToPipeableStream(
+            <ServerRoot
+                lang={htmlLang}
+                title={metadata.title || 'Vatts.js'}
+                metaTagsHtml={metaTagsHtml}
+                // Recriando o script de dados exatamente como o client espera
+                initialDataScript={`/* Data Injection */`}
+                hotReloadScript={hotReloadScript}
+            >
+                {/* Injetamos o script de dados como um elemento React para garantir que esteja no DOM */}
+                <script
+                    id="__vatts_data__"
+                    type="text/plain"
+                    data-h={obfuscatedData}
+                />
+                {AppTree}
+            </ServerRoot>,
+            {
+                // Usar bootstrapModules para scripts tipo módulo (ESM)
+                bootstrapModules: bootstrapScripts,
+                onShellReady() {
+                    res.setHeader('Content-Type', 'text/html');
+                    pipe(res);
+                    resolve();
+                },
+                onShellError(error: any) {
+                    console.error('Streaming Shell Error:', error);
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'text/html');
+                    res.end('<h1>Internal Server Error</h1>');
+                    resolve();
+                },
+                onError(error: any) {
+                    didError = true;
+                    console.error('Streaming Error:', error);
+                }
+            }
+        );
+    });
 }
 
-// Função para determinar quais arquivos JavaScript carregar
-function getJavaScriptFiles(req: GenericRequest): string {
-    const projectDir = process.cwd();
-    const distDir = path.join(projectDir, '.vatts');
-
-    // Verifica se o diretório de build existe
-    if (!fs.existsSync(distDir)) {
-        // Diretório não existe - build ainda não foi executado
-        return getBuildingHTML();
-    }
-
-    try {
-        // Verifica se existe um manifesto de chunks (gerado pelo ESBuild com splitting)
-        const manifestPath = path.join(distDir, 'manifest.json');
-
-        if (fs.existsSync(manifestPath)) {
-            // Modo chunks - carrega todos os arquivos necessários
-            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-            const scripts = Object.values(manifest)
-                .filter((file: any) => file.endsWith('.js'))
-                .map((file: any) => `<script type="module" src="/_vatts/${file}"></script>`)
-                .join('');
-
-            // Se não há arquivos JS no manifesto, build em andamento
-            if (!scripts) {
-                return getBuildingHTML();
-            }
-
-            return scripts;
-        } else {
-            // Verifica se existem múltiplos arquivos JS (chunks sem manifesto)
-            const jsFiles = fs.readdirSync(distDir)
-                .filter(file => file.endsWith('.js') && !file.endsWith('.map'))
-                .sort((a, b) => {
-                    // Ordena para carregar arquivos principais primeiro
-                    if (a.includes('main')) return -1;
-                    if (b.includes('main')) return 1;
-                    if (a.includes('vendor') || a.includes('react')) return -1;
-                    if (b.includes('vendor') || b.includes('react')) return 1;
-                    return a.localeCompare(b);
-                });
-
-            // @ts-ignore
-            if (jsFiles.length >= 1) {
-                // Modo chunks sem manifesto
-                return jsFiles
-                    .map(file => `<script type="module" src="/_vatts/${file}"></script>`)
-                    .join('');
-            } else {
-                // Nenhum arquivo JS encontrado - build em andamento ou erro
-                return getBuildingHTML();
-            }
-        }
-    } catch (error) {
-        // Erro ao ler diretório - build em andamento ou erro
-        return getBuildingHTML();
-    }
+// Mantemos a função antiga para compatibilidade
+export async function render(options: any): Promise<string> {
+    return "";
 }
 
 // Função para retornar HTML de "Build em andamento" com auto-refresh
 function getBuildingHTML(): string {
+    let version = "1.0.0";
+    try {
+        version = require("../package.json").version;
+    } catch(e) {}
+
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -534,7 +547,7 @@ function getBuildingHTML(): string {
                 <span>Building...</span>
                 <div class="status-active">
                     <div class="dot"></div>
-                    v${require("../package.json").version}
+                    v${version}
                 </div>
             </div>
         </div>
