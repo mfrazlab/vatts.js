@@ -34,13 +34,10 @@ program
 // --- Comando DEV ---
 const fs = require('fs');
 const path = require('path');
-const {configDotenv} = require("dotenv");
+
 // 'program' já deve estar definido no seu arquivo
 // const { program } = require('commander');
-configDotenv({
-    debug: false,
-    quiet: true
-})
+
 /**
  * Função centralizada para iniciar a aplicação
  * @param {object} options - Opções vindas do commander

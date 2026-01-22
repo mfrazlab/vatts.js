@@ -45,6 +45,7 @@ import {HotReloadManager} from './hotReload';
 import {FrameworkAdapterFactory} from './adapters/factory';
 import {GenericRequest, GenericResponse} from './types/framework';
 import Console, {Colors} from "./api/console"
+import { loadEnv } from './env/env';
 
 // RPC
 import { executeRpc } from './rpc/server';
@@ -221,7 +222,8 @@ import '${relativeEntryPath}';
 }
 
 export default function vatts(options: VattsOptions) {
-    const { dev = true, dir = process.cwd(), port = 3000 } = options;
+    const { dev = true, dir = process.cwd(), port = 3000, envFiles } = options;
+    loadEnv({ dir, dev, envFiles });
     // @ts-ignore
     process.vatts = options;
     const userWebDir = path.join(dir, 'src', 'web');
@@ -617,4 +619,3 @@ export default function vatts(options: VattsOptions) {
         }
     };
 }
-

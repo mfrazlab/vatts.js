@@ -46,6 +46,7 @@ export interface VattsOptions {
         cert: string;
         ca?: string;
     };
+    envFiles?: string[];
 }
 
 // --- Tipos de Configuração ---
@@ -177,6 +178,11 @@ export interface VattsConfig {
      * Exemplo: { 'X-Custom-Header': 'value', 'X-Powered-By': 'Vatts.js' }
      */
     customHeaders?: Record<string, string>;
+
+    /**
+     * Arquivos .env adicionais para carregar. O .env padrão é sempre carregado.
+     */
+    envFiles?: string[];
 }
 
 /**
