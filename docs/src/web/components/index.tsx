@@ -205,7 +205,7 @@ const VattsLanding = () => {
                         <div className="absolute inset-0 bg-[#ff6b35]/20 blur-2xl rounded-full" />
                         <div className="relative flex items-center justify-between gap-4 px-6 py-4 bg-[#0a0a0c] border border-white/10 rounded-xl text-sm font-mono shadow-2xl">
                             <span style={{ color: primaryColor }}>$</span>
-                            <span className="text-slate-300 flex-1 text-left">npx @vatts/create-app@latest</span>
+                            <span className="text-slate-300 flex-1 text-left">npx create-vatts-app@latest</span>
                             <Terminal size={16} className="text-slate-600" />
                         </div>
                     </div>

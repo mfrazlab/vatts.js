@@ -25,7 +25,7 @@ The fastest way to start a new Vatts.js project is by using the official basic e
 > - Start the development server locally
 
 ```bash
-npx @vatts/create-app@latest my-project
+npx create-vatts-app@latest my-project
 cd my-project
 npm run dev
 ```

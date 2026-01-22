@@ -16,13 +16,13 @@
     "build": "pnpm run clean && tsc --build",
     "clean": "pnpm -r exec rimraf dist",
     "version:alpha": "pnpm version prerelease --preid alpha --no-git-tag-version && pnpm version:sync",
-    "publish:sdk-alpha": "pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!@vatts/create-app\" publish publish --no-git-checks --access=public --tag=alpha ",
+    "publish:sdk-alpha": "pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish publish --no-git-checks --access=public --tag=alpha ",
     "version:major": "pnpm version major --no-git-tag-version && pnpm version:sync",
     "version:minor": "pnpm version minor --no-git-tag-version && pnpm version:sync",
     "version:patch": "pnpm version patch --no-git-tag-version && pnpm version:sync",
     "version:sync": "node -e \"const fs=require('fs'); const v=require('./package.json').version; ['packages/vatts','packages/auth','examples/basic-app'].forEach(p=>{const f=`${p}/package.json`; if(fs.existsSync(f)){const j=JSON.parse(fs.readFileSync(f)); j.version=v; fs.writeFileSync(f, JSON.stringify(j,null,2)+'\\n')}})\"",
-    "publish:sdk": "pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!@vatts/create-app\" publish --no-git-checks --access=public",
-    "publish:create-app": "pnpm run build && pnpm publish --filter @vatts/create-app --no-git-checks --access=public"
+    "publish:sdk": "pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish --no-git-checks --access=public",
+    "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
