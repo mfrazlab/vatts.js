@@ -258,7 +258,7 @@ export default function ErrorPage() {
                     onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                     onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
                 >
-                    <img src="https://i.imgur.com/fz5N4jL.png" alt="Vatts Logo" style={{ width: 20, height: 20 }} />
+                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" alt="Vatts Logo" style={{ width: 20, height: 20 }} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: primaryColor }}>
                         Vatts
                         {/* COR ALTERADA: O ".js" agora é laranja */}

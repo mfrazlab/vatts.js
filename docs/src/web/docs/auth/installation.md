@@ -1,6 +1,6 @@
 # Installation
 
-Add authentication to your Nyte.js application.
+Add authentication to your Vatts.js application.
 
 ---
 
@@ -9,7 +9,7 @@ Add authentication to your Nyte.js application.
 ### 1. Install the Package
 
 ```bash
-npm install @nytejs/auth
+npm install @vatts/auth
 ```
 
 ### 2. Configure Authentication
@@ -17,7 +17,7 @@ npm install @nytejs/auth
 Create `src/backend/auth.ts`:
 
 ```typescript
-import { CredentialsProvider, createAuthRoutes, User, AuthConfig } from '@nytejs/auth';
+import { CredentialsProvider, createAuthRoutes, User, AuthConfig } from '@vatts/auth';
 
 export const authConfig: AuthConfig = {
     providers: [
@@ -69,7 +69,7 @@ export default authRoutes;
 Update your `src/web/layout.tsx`:
 
 ```typescript
-import { SessionProvider } from "@nytejs/auth/react";
+import { SessionProvider } from "@vatts/auth/react";
 
 export default function Layout({ children }: LayoutProps) {
     return (

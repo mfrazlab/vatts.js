@@ -1,6 +1,6 @@
 # Protecting Routes
 
-Learn how to restrict access to certain pages and API endpoints in your Nyte.js application, ensuring only authenticated users (or only guests) can access them.
+Learn how to restrict access to certain pages and API endpoints in your Vatts.js application, ensuring only authenticated users (or only guests) can access them.
 
 ---
 
@@ -12,7 +12,7 @@ To protect backend routes, simply check the session status using `getSession` fr
 
 ```typescript
 import auth from "../auth";
-import { BackendRouteConfig, VattsResponse } from "nyte";
+import { BackendRouteConfig, VattsResponse } from "vatts";
 
 const route: BackendRouteConfig = {
   pattern: "/api/protected",
@@ -36,7 +36,7 @@ export default route;
 
 ## Frontend: Protecting Pages and Components
 
-Nyte.js Auth provides flexible ways to protect frontend routes and components using hooks and helpers.
+Vatts.js Auth provides flexible ways to protect frontend routes and components using hooks and helpers.
 
 ### Types
 - **GuestOnly**: Renders children only for unauthenticated users.
@@ -63,8 +63,8 @@ export function GuestOnly({ children, fallback, redirectTo }: GuardProps)
 
 ```typescript jsx
 import LoginPage from "../components/Login";
-import { RouteConfig } from "nyte/react";
-import { GuestOnly } from "@nytejs/auth/react";
+import { RouteConfig } from "vatts/react";
+import { GuestOnly } from "@vatts/auth/react";
 import React from "react";
 
 const wrapper = () => {
@@ -79,7 +79,7 @@ export const config: RouteConfig = {
   pattern: '/login',
   component: wrapper,
   generateMetadata: () => ({
-    title: 'Nyte.js | Login'
+    title: 'Vatts.js | Login'
   })
 };
 
@@ -107,7 +107,7 @@ export function AuthGuard({ children, fallback, redirectTo }: GuardProps)
 #### Example:
 
 ```typescript jsx
-import { AuthGuard } from "@nytejs/auth/react";
+import { AuthGuard } from "@vatts/auth/react";
 
 <AuthGuard fallback={<div>Please log in.</div>} redirectTo="/login">
   <ProtectedComponent />
@@ -122,7 +122,7 @@ import { AuthGuard } from "@nytejs/auth/react";
 **Example:**
 
 ```typescript jsx
-import { AuthGuard } from "@nytejs/auth/react";
+import { AuthGuard } from "@vatts/auth/react";
 
 export default function DashboardPage() {
   return (
@@ -138,9 +138,3 @@ export default function DashboardPage() {
 - If authenticated, the dashboard is shown.
 
 ---
-
-## Summary
-
-- **Backend:** Use `getSession` to check authentication before serving protected data.
-- **Frontend:** Use `<GuestOnly>` to restrict access to guests, or `<AuthGuard>` to restrict access to authenticated users.
-- These patterns help you build secure, user-friendly applications with Nyte.js Auth.

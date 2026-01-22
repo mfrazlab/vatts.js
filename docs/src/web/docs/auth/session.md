@@ -1,6 +1,6 @@
 # Session Management
 
-Learn how to access, manage, and use authentication sessions in your Nyte.js application—both on the frontend (React) and backend (API routes).
+Learn how to access, manage, and use authentication sessions in your Vatts.js application—both on the frontend (React) and backend (API routes).
 
 ---
 
@@ -12,7 +12,7 @@ Session management is at the core of authentication. It allows you to:
 - Access user information in your components and API routes
 - Log users in and out securely
 
-Nyte.js Auth provides simple hooks and helpers for both frontend and backend session handling.
+Vatts.js Auth provides simple hooks and helpers for both frontend and backend session handling.
 
 ---
 
@@ -20,11 +20,11 @@ Nyte.js Auth provides simple hooks and helpers for both frontend and backend ses
 
 ### Accessing Session Data
 
-Use the `useSession` hook from `@nytejs/auth/react` to access the current session and authentication status in your React components:
+Use the `useSession` hook from `@vatts/auth/react` to access the current session and authentication status in your React components:
 
 ```typescript jsx
 import React from "react";
-import { useSession } from "@nytejs/auth/react";
+import { useSession } from "@vatts/auth/react";
 
 export default function Profile() {
   const { data: session, status, signOut } = useSession();
@@ -53,8 +53,8 @@ To log in with username and password, use the `signIn` function from `useSession
 
 ```typescript jsx
 import React, { useState } from "react";
-import { useSession } from "@nytejs/auth/react";
-import { router } from "nyte/react"; // or your router
+import { useSession } from "@vatts/auth/react";
+import { router } from "vatts/react"; // or your router
 
 export default function LoginPage() {
   const { signIn } = useSession();
@@ -114,7 +114,7 @@ export default function LoginPage() {
 To log in with an OAuth provider (like Google or Discord), call `signIn` with the provider name:
 
 ```typescript jsx
-import { useSession } from "@nytejs/auth/react";
+import { useSession } from "@vatts/auth/react";
 const { signIn } = useSession();
 
 const handleOAuthLogin = async () => {
@@ -131,7 +131,7 @@ Replace `"google"` with your configured provider ID.
 To log out, simply call the `signOut` function from `useSession`:
 
 ```typescript jsx
-import { useSession } from "@nytejs/auth/react";
+import { useSession } from "@vatts/auth/react";
 const { signOut } = useSession();
 
 <button onClick={() => signOut()}>Sign Out</button>
@@ -147,7 +147,7 @@ You can access the current session in your backend routes using the `getSession`
 
 ```typescript
 import auth from "../auth"; // Import your src/backend/auth.ts
-import { BackendRouteConfig, VattsResponse } from "nyte";
+import { BackendRouteConfig, VattsResponse } from "vatts";
 
 const route: BackendRouteConfig = {
   pattern: "/api/version",
@@ -159,7 +159,7 @@ const route: BackendRouteConfig = {
     return VattsResponse.json({
       success: true,
       version: "1.0.0",
-      name: "Nyte.js Example"
+      name: "Vatts.js Example"
     });
   }
 };

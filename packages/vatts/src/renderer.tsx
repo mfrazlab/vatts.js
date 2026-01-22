@@ -176,9 +176,24 @@ export async function render({ req, route, params, allRoutes }: RenderOptions): 
         metadata = { ...metadata, ...routeMetadata };
     }
 
+    const results = await Promise.all(
+        allRoutes.map(async (r) => {
+            let routeMeta: Metadata = {};
+            if (r.generateMetadata) {
+                routeMeta = await r.generateMetadata(params, req);
+            }
+            return {
+                pattern: r.pattern,
+                componentPath: r.componentPath,
+                metadata: routeMeta,
+            }
+        })
+    )
+
+
     // Prepara os dados para injetar na janela do navegador
     const initialData = {
-        routes: allRoutes.map(r => ({ pattern: r.pattern, componentPath: r.componentPath })),
+        routes: results,
         initialComponentPath: route.componentPath,
         initialParams: params,
     };
@@ -497,7 +512,7 @@ function getBuildingHTML(): string {
             <div class="content">
                 <div class="logo-wrapper">
                     <div class="logo-glow"></div>
-                    <img src="https://i.imgur.com/fz5N4jL.png" alt="Vatts Logo">
+                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" alt="Vatts Logo">
                 </div>
 
                 <h1>Vatts<span>.js</span></h1>
@@ -516,10 +531,10 @@ function getBuildingHTML(): string {
             </div>
 
             <div class="card-footer">
-                <span>Vite</span>
+                <span>Building...</span>
                 <div class="status-active">
                     <div class="dot"></div>
-                    Hot Reload
+                    v${require("../package.json").version}
                 </div>
             </div>
         </div>

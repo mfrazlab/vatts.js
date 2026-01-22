@@ -1,16 +1,16 @@
 # Getting Started
 
-Welcome to the **@nytejs/auth** documentation!
+Welcome to the **@vatts/auth** documentation!
 
-This section gives you an overview of how authentication works in Nyte.js and what makes it powerful and flexible. Here, you'll understand the foundation of the authentication system before diving into implementation details.
+This section gives you an overview of how authentication works in Vatts.js and what makes it powerful and flexible. Here, you'll understand the foundation of the authentication system before diving into implementation details.
 
 ---
 
 ## Overview
 
-**@nytejs/auth** is a complete authentication solution built for simplicity and extensibility. It lets you add authentication to your Nyte.js applications with minimal setup, while providing the flexibility to customize every aspect of the auth flow.
+**@vatts/auth** is a complete authentication solution built for simplicity and extensibility. It lets you add authentication to your Vatts.js applications with minimal setup, while providing the flexibility to customize every aspect of the auth flow.
 
-@nytejs/auth focuses on:
+@vatts/auth focuses on:
 
 * Multiple authentication providers out of the box
 * Secure session management
@@ -18,7 +18,7 @@ This section gives you an overview of how authentication works in Nyte.js and wh
 * Built-in React hooks and components
 * Automatic CSRF protection
 
-Whether you need simple email/password authentication or complex OAuth flows, @nytejs/auth gives you the tools to implement authentication securely and efficiently.
+Whether you need simple email/password authentication or complex OAuth flows, @vatts/auth gives you the tools to implement authentication securely and efficiently.
 
 ---
 
@@ -26,7 +26,7 @@ Whether you need simple email/password authentication or complex OAuth flows, @n
 
 Before implementing authentication, you should be comfortable with:
 
-* **Nyte.js** basics and project structure
+* **Vatts.js** basics and project structure
 * **React** hooks and components
 * **TypeScript** for type safety
 * **Async/await** patterns
@@ -39,23 +39,23 @@ A basic understanding of how JWT tokens and OAuth work will help you better cust
 ## Next Steps
 
 <div class="next-steps">
-  <a href="/nyte-auth/installation-auth" class="step">
+  <a href="/docs/auth/installation-auth" class="step">
     <h3>Installation</h3>
-    <p>Learn how to install and configure @nytejs/auth in your project.</p>
+    <p>Learn how to install and configure @vatts/auth in your project.</p>
   </a>
-  <a href="/nyte-auth/providers" class="step">
+  <a href="/docs/auth/providers" class="step">
     <h3>Authentication Providers</h3>
     <p>Explore the different authentication providers available and how to configure them.</p>
   </a>
-  <a href="/nyte-auth/sessions" class="step">
+  <a href="/docs/auth/sessions" class="step">
     <h3>Session Management</h3>
     <p>Understand how to manage user sessions and access user data in your components.</p>
   </a>
-  <a href="/nyte-auth/protecting-routes" class="step">
+  <a href="/docs/auth/protecting-routes" class="step">
     <h3>Protecting Routes</h3>
     <p>Learn how to protect both frontend and backend routes using authentication.</p>
   </a>
-  <a href="/nyte-auth/custom-providers" class="step">
+  <a href="/docs/auth/custom-providers" class="step">
     <h3>Custom Providers</h3>
     <p>Create your own authentication providers for unique authentication needs.</p>
   </a>

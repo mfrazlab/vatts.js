@@ -1,48 +1,52 @@
-<div align="center">
-  <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://i.imgur.com/fz5N4jL.png">
-      <img alt="Vatts.js logo" src="https://i.imgur.com/fz5N4jL.png" height="128">
-    </picture>
-  <h1>@vatts/auth</h1>
+<div align="center">  
+  <picture>  
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png">  
+      <img alt="Vatts.js logo" src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" height="128">  
+    </picture>  
+  <h1>@vatts/auth</h1>  
 
-[![NPM](https://img.shields.io/npm/v/@vatts/auth.svg?style=for-the-badge&labelColor=000000)](https://www.npmjs.com/package/@vatts/auth)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge&labelColor=000000)](../../LICENSE)
-
+[![NPM](https://img.shields.io/npm/v/@vatts/auth.svg?style=for-the-badge&labelColor=000000)](https://www.npmjs.com/package/@vatts/auth)  
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge&labelColor=000000)](../../LICENSE)  
+[![GitHub](https://img.shields.io/badge/GitHub-mfrazlab/vatts.js-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mfrazlab/vatts.js)
 </div>
 
-> Official authentication package for **[Vatts.js](https://www.npmjs.com/package/vatts)** - Powerful, secure, and flexible authentication system with JWT, OAuth providers, and session management.
+___
 
----
+## Getting Started
 
-## ✨ Why @vatts/auth?
+**@vatts/auth** is the official authentication package for the **Vatts.js** framework, providing secure, flexible, and production-ready authentication with JWT, multiple OAuth providers, session management, and full React integration.
 
-A complete authentication solution built specifically for Vatts.js framework:
+- Secure by default — robust JWT implementation
+- Multiple providers — OAuth, credentials, and custom
+- Ready for React — integrated hooks and components
+- Strong typing — 100% TypeScript
+- Zero configuration — works out-of-the-box
+- Production-ready — HTTP-only cookies, CSRF protection, and more
 
-- **🔐 Secure by Default** - Industry-standard JWT implementation
-- **🎯 Multiple Providers** - OAuth, credentials, and custom providers
-- **⚛️ React Ready** - Built-in hooks and components
-- **🛡️ Type-Safe** - Full TypeScript support
-- **🚀 Zero Config** - Works out of the box
-- **🔒 Production Ready** - HTTP-only cookies, CSRF protection, and more
+___
 
+## Documentation
 
-## 💬 Need Help?
+Visit [https://vatts.mfraz.ovh](https://vatts.mfraz.ovh) for full documentation of Vatts.js and its official packages.
 
-If you have questions or need support, feel free to reach out:
+___
 
-[![Discord](https://img.shields.io/badge/Discord-mulinfrc-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/users/1264710048786026588)
-[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:murillofrazaocunha@gmail.com)
-[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/itsmuh_)
-[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/murillo-frazao-cunha)
+## Community
 
----
+Join the Vatts.js community on [GitHub Discussions](https://github.com/mfraz/vatts) to ask questions, share ideas, and showcase your projects.
 
-## 🪪 License
+___
+
+## Security
+
+If you discover a security vulnerability, please **do not open a public issue**. Email [helpers@mfraz.ovh](mailto:helpers@mfraz.ovh) to participate in the responsible disclosure program.
+
+___
+
+## License
 
 Copyright 2026 itsmuzin
 
 This project is licensed under the [Apache License 2.0](../../LICENSE).
 
----
-
-
+___

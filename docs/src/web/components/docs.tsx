@@ -76,7 +76,7 @@ export const sidebarConfig = {
             ]
         },
         {
-            id: 'vatts-auth',
+            id: 'auth',
             title: "Vatts Auth",
             items: [
                 { id: 'introduction-auth', icon: 'Shield', label: 'Overview', file: gettingStartAuthMd },

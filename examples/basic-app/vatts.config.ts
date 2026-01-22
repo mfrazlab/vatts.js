@@ -1,13 +1,13 @@
-import type { NyteConfig, NyteConfigFunction } from 'nyte';
+import type { VattsConfig, VattsConfigFunction } from 'vatts';
 
 /**
- * Nyte.js Configuration File
+ * Vatts.js Configuration File
  *
  * This file allows you to customize server settings for your application.
  * You can export either a static configuration object or a function that returns the configuration.
  */
-const nyteConfig: NyteConfigFunction = (phase, { defaultConfig }) => {
-    const config: NyteConfig = {
+const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
+    const config: VattsConfig = {
         /**
          * Maximum number of HTTP headers allowed per request
          * Default: 100
@@ -133,10 +133,10 @@ const nyteConfig: NyteConfigFunction = (phase, { defaultConfig }) => {
     return config;
 };
 
-export default nyteConfig;
+export default vattsConfig;
 
 // You can also export a static object instead of a function:
-// const staticConfig: NyteConfig = {
+// const staticConfig: VattsConfig = {
 //     maxHeadersCount: 100,
 //     headersTimeout: 60000,
 //     requestTimeout: 30000,
