@@ -63,7 +63,7 @@ const markdownPlugin = () => {
             if (id.endsWith('.md')) {
                 return {
                     code: `export default ${JSON.stringify(code)};`,
-                    map: null
+                    map: null // Null map economiza memória se não precisa debugar markdown
                 };
             }
         }
@@ -71,7 +71,7 @@ const markdownPlugin = () => {
 };
 
 /**
- * Plugin para CSS/PostCSS Manual (Smart Extraction + Tailwind Fix)
+ * Plugin para CSS/PostCSS Manual (Otimizado para RAM)
  */
 const customPostCssPlugin = (isProduction) => {
     let cachedProcessor = null;
@@ -99,7 +99,9 @@ const customPostCssPlugin = (isProduction) => {
                 }
 
                 if (postcss) {
-                    delete require.cache[require.resolve(configPath)];
+                    // OTIMIZAÇÃO DE RAM: Removido 'delete require.cache'.
+                    // Limpar o cache constantemente fragmenta a memória heap do V8 em processos longos (watch).
+                    // Se o usuário alterar o config, ele deve reiniciar o processo.
                     const config = require(configPath);
                     const postcssConfig = config.default || config;
 
@@ -178,38 +180,25 @@ const customPostCssPlugin = (isProduction) => {
                     }
                 }
 
-                // ESTRATÉGIA DE EXTRAÇÃO INTELIGENTE
-                if (isProduction) {
-                    // Emite arquivo físico (Melhora Cache e Tamanho do JS)
-                    const referenceId = this.emitFile({
-                        type: 'asset',
-                        name: path.basename(filePath),
-                        source: processedCss
-                    });
+                // OTIMIZAÇÃO: Emite arquivo físico sempre que possível.
+                // Strings gigantes de CSS inline consomem muita RAM no bundle JS.
+                const referenceId = this.emitFile({
+                    type: 'asset',
+                    name: path.basename(filePath),
+                    source: processedCss
+                });
 
-                    // Retorna código JS que auto-injeta o <link>
-                    // Isso mantém compatibilidade (não quebra o app) mas usa arquivo externo
-                    return `
-                        const cssUrl = import.meta.ROLLUP_FILE_URL_${referenceId};
-                        if (typeof document !== 'undefined') {
-                            const link = document.createElement('link');
-                            link.rel = 'stylesheet';
-                            link.href = cssUrl;
-                            document.head.appendChild(link);
-                        }
-                        export default cssUrl;
-                    `;
-                }
-
-                // Modo DEV (Inline para Hot Reload mais rápido)
+                // Lógica unificada: Usa arquivo externo tanto em Dev quanto Prod.
+                // Isso libera a memória que seria usada para stringificar o CSS dentro do JS.
                 return `
-                    const css = ${JSON.stringify(processedCss)};
+                    const cssUrl = import.meta.ROLLUP_FILE_URL_${referenceId};
                     if (typeof document !== 'undefined') {
-                        const style = document.createElement('style');
-                        style.textContent = css;
-                        document.head.appendChild(style);
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = cssUrl;
+                        document.head.appendChild(link);
                     }
-                    export default css;
+                    export default cssUrl;
                 `;
             }
             return null;
@@ -218,12 +207,13 @@ const customPostCssPlugin = (isProduction) => {
 };
 
 /**
- * Plugin Inteligente para Assets (Substitui forceBase64Plugin)
- * - Dev: Base64 (Rápido)
- * - Prod: Arquivos > 4KB viram URL (Melhora LCP), < 4KB Base64 (Menos requests)
+ * Plugin Inteligente para Assets (Otimizado para RAM)
+ * - Agora utiliza emissão de arquivos também em DEV para arquivos grandes.
  */
 const smartAssetPlugin = (isProduction) => {
-    const INLINE_LIMIT = 4096; // 4KB
+    // 4KB - Arquivos maiores que isso viram referência externa.
+    // Manter isso baixo economiza MUITA RAM, pois evita strings Base64 gigantes no JS.
+    const INLINE_LIMIT = 4096;
 
     return {
         name: 'smart-asset-loader',
@@ -248,64 +238,57 @@ const smartAssetPlugin = (isProduction) => {
             const type = mimeTypes[ext];
             if (!type) return null;
 
-            // Text files always strings
+            // Text files always strings (geralmente pequenos)
             if (type === 'txt') {
                 const content = await fs.promises.readFile(cleanId, 'utf8');
                 return `export default ${JSON.stringify(content)};`;
             }
 
-            const buffer = await fs.promises.readFile(cleanId);
+            let buffer = await fs.promises.readFile(cleanId);
             const size = buffer.length;
 
-            // MODO PRODUÇÃO: Otimização de Assets
-            if (isProduction) {
-                // SVG: Se for pequeno inlina, se grande emite arquivo
-                if (type === 'svg') {
-                    if (size < INLINE_LIMIT) {
-                        const content = buffer.toString('utf8');
-                        const base64 = buffer.toString('base64');
-                        return `
-                            export default "data:image/svg+xml;base64,${base64}";
-                            export const svgContent = ${JSON.stringify(content)};
-                        `;
-                    } else {
-                        // Emite arquivo físico
-                        const referenceId = this.emitFile({
-                            type: 'asset',
-                            name: path.basename(cleanId),
-                            source: buffer
-                        });
-                        const content = buffer.toString('utf8');
-                        return `
-                            export default import.meta.ROLLUP_FILE_URL_${referenceId};
-                            export const svgContent = ${JSON.stringify(content)};
-                        `;
-                    }
-                }
-
-                // Outros assets
+            // Tratamento especial para SVG (inline SVG vs URL)
+            if (type === 'svg') {
                 if (size < INLINE_LIMIT) {
-                    return `export default "data:${type};base64,${buffer.toString('base64')}";`;
+                    const content = buffer.toString('utf8');
+                    const base64 = buffer.toString('base64');
+                    buffer = null; // GC Hint
+                    return `
+                        export default "data:image/svg+xml;base64,${base64}";
+                        export const svgContent = ${JSON.stringify(content)};
+                    `;
                 } else {
                     const referenceId = this.emitFile({
                         type: 'asset',
                         name: path.basename(cleanId),
                         source: buffer
                     });
-                    return `export default import.meta.ROLLUP_FILE_URL_${referenceId};`;
+                    const content = buffer.toString('utf8');
+                    buffer = null; // GC Hint
+                    return `
+                        export default import.meta.ROLLUP_FILE_URL_${referenceId};
+                        export const svgContent = ${JSON.stringify(content)};
+                    `;
                 }
             }
 
-            // MODO DESENVOLVIMENTO: Tudo Base64 para performance de build
-            if (type === 'svg') {
-                const content = buffer.toString('utf8');
+            // Para outros assets:
+            // Se for pequeno, Base64 (reduz requests HTTP)
+            // Se for grande, Arquivo (reduz uso de RAM e tamanho do bundle JS)
+            // Essa lógica agora aplica para DEV e PROD. Base64 em Dev para arquivos grandes era o vilão da RAM.
+            if (size < INLINE_LIMIT) {
                 const base64 = buffer.toString('base64');
-                return `
-                    export default "data:image/svg+xml;base64,${base64}";
-                    export const svgContent = ${JSON.stringify(content)};
-                `;
+                buffer = null; // Libera memória do buffer bruto imediatamente
+                return `export default "data:${type};base64,${base64}";`;
+            } else {
+                const referenceId = this.emitFile({
+                    type: 'asset',
+                    name: path.basename(cleanId),
+                    source: buffer
+                });
+                buffer = null; // Libera memória
+                return `export default import.meta.ROLLUP_FILE_URL_${referenceId};`;
             }
-            return `export default "data:${type};base64,${buffer.toString('base64')}";`;
         }
     };
 };
@@ -316,20 +299,23 @@ const smartAssetPlugin = (isProduction) => {
 function createRollupConfig(entryPoint, outdir, isProduction) {
     return {
         input: entryPoint,
-        // Para evitar bare imports no browser (sem import map), em DEV também bundle React/ReactDOM.
-        // O HMR evita "Invalid hook call" removendo o script antigo e recarregando main.js.
         external: nodeBuiltIns,
-        // Otimização: Em prod usa 'recommended' para limpar código morto
-        treeshake: isProduction ? 'recommended' : false,
+        // Otimização: Treeshake limpa memória removendo nós da AST não usados
+        treeshake: {
+            moduleSideEffects: 'no-external', // Mais agressivo, economiza memória
+            preset: isProduction ? 'recommended' : 'smallest'
+        },
 
-        // CORREÇÃO CRÍTICA: Desativa cache em desenvolvimento (watch mode)
-        // Isso previne que o Rollup emita "sucesso" baseado em um cache obsoleto quando o arquivo ainda tem erro.
+        // Cache desativado em DEV conforme solicitado anteriormente,
+        // o que ajuda na RAM pois não mantém a AST antiga em memória.
         cache: isProduction ? true : false,
 
         perf: false,
+
+        // Limita execuções paralelas de leitura de arquivo internas do Rollup
+        maxParallelFileOps: 20,
+
         plugins: [
-            // CRÍTICO: 'replace' deve vir PRIMEIRO para injetar NODE_ENV antes que
-            // libs como React decidam qual bundle importar.
             replace({
                 preventAssignment: true,
                 values: {
@@ -337,7 +323,6 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
                 }
             }),
 
-            // Precisa vir antes do nodeResolve
             tsconfigPathsPlugin(process.cwd()),
 
             nodeResolve({
@@ -349,15 +334,17 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
 
             commonjs({
                 sourceMap: !isProduction,
-                requireReturnsDefault: 'auto'
+                requireReturnsDefault: 'auto',
+                // Ignora try-catch dinâmicos para economizar análise
+                ignoreTryCatch: true
             }),
 
             markdownPlugin(),
 
-            // Passamos isProduction para ativar a Extração Inteligente
+            // PostCSS Otimizado
             customPostCssPlugin(isProduction),
 
-            // Substitui forceBase64Plugin pelo Smart
+            // Assets Otimizados (menos Base64)
             smartAssetPlugin(isProduction),
 
             esbuild({
@@ -365,8 +352,7 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
                 exclude: /node_modules/,
                 sourceMap: !isProduction,
                 minify: isProduction,
-                // Otimização: Remove comentários legais em produção
-                legalComments: isProduction ? 'none' : 'eof',
+                legalComments: 'none', // Remove comentários para limpar buffer
                 treeShaking: isProduction,
                 target: isProduction ? 'es2020' : 'esnext',
                 jsx: 'automatic',
@@ -377,6 +363,8 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
         onwarn(warning, warn) {
             if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
             if (warning.code === 'THIS_IS_UNDEFINED') return;
+            // Ignora avisos circulares comuns que enchem o log/buffer
+            if (warning.code === 'CIRCULAR_DEPENDENCY' && warning.message.includes('node_modules')) return;
             warn(warning);
         }
     };
@@ -394,37 +382,26 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
         const outputOptions = {
             dir: outdir,
             format: 'es',
-            // Padrão de nomes mantido, mas com estrutura para vários arquivos
             entryFileNames: isProduction ? 'main-[hash].js' : 'main.js',
             chunkFileNames: 'chunks/[name]-[hash].js',
             assetFileNames: 'assets/[name]-[hash][extname]',
             sourcemap: !isProduction,
+            // Compacta output para economizar memória de escrita
+            compact: isProduction,
 
-            // OTIMIZAÇÃO: Separação granular para melhor Cache e Load Time
             manualChunks(id) {
                 if (id.includes('node_modules')) {
-                    // Normaliza separadores para garantir funcionamento em Windows/Linux
                     const normalizedId = id.replace(/\\/g, '/');
 
-                    // React Core isolado
-                    // IMPORTANTE: Uso de Regex para garantir que pegamos APENAS os pacotes do core
-                    // e não pacotes que tenham 'react' no nome (ex: react-router, react-icons),
-                    // pois isso causa dependências circulares com o chunk 'vendor'.
                     if (/\/node_modules\/(react|react-dom|scheduler|prop-types|loose-envify|object-assign)\//.test(normalizedId)) {
                         return 'vendor-react';
                     }
-
-                    // UI Libs comuns (opcional, pode ajustar conforme necessidade)
                     if (id.includes('framer-motion') || id.includes('@radix-ui')) {
                         return 'vendor-ui';
                     }
-
-                    // Utils comuns
                     if (id.includes('lodash') || id.includes('date-fns') || id.includes('axios')) {
                         return 'vendor-utils';
                     }
-
-                    // Resto das dependências
                     return 'vendor';
                 }
             }
@@ -432,7 +409,7 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
 
         const bundle = await rollup(inputOptions);
         await bundle.write(outputOptions);
-        await bundle.close();
+        await bundle.close(); // Importante fechar para liberar memória
 
     } catch (error) {
         Console.error('An error occurred while building with chunks:', error);
@@ -454,7 +431,8 @@ async function build(entryPoint, outfile, isProduction = false) {
             format: 'iife',
             name: 'Vattsjs',
             sourcemap: !isProduction,
-            inlineDynamicImports: true
+            inlineDynamicImports: true,
+            compact: true // Ajuda na RAM
         };
 
         const bundle = await rollup(inputOptions);
@@ -471,25 +449,22 @@ async function build(entryPoint, outfile, isProduction = false) {
  * Helper para lidar com notificações do Watcher
  */
 function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
-    // Controla o estado do build por "geração" para evitar END atrasado
-    // (ou múltiplos ciclos) emitirem sucesso após um erro.
     let currentBuildId = 0;
     let lastStartedBuildId = 0;
     const erroredBuildIds = new Set();
-
-    // DEBUG: stack trace rate-limited
-    let lastTraceAt = 0;
-
 
     watcher.on('event', event => {
 
         if (event.code === 'START') {
             currentBuildId += 1;
             lastStartedBuildId = currentBuildId;
+            // Dica pro V8 limpar lixo antes de começar um build pesado
+            if (global.gc) {
+                try { global.gc(); } catch (e) {}
+            }
         }
 
         if (event.code === 'ERROR') {
-            // Marca erro para o build atualmente em andamento.
             erroredBuildIds.add(currentBuildId);
 
             const errDetails = {
@@ -501,7 +476,6 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
                 buildId: currentBuildId
             };
 
-            // Notifica erro imediatamente
             if (hotReloadManager) {
                 hotReloadManager.onBuildComplete(false, errDetails);
             }
@@ -510,24 +484,21 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
             if (resolveFirstBuild) resolveFirstBuild();
         }
 
-        if (event.code === 'BUNDLE_END') event.result.close();
+        if (event.code === 'BUNDLE_END') {
+            // CRÍTICO: Fechar o bundle libera a memória dos módulos
+            event.result.close();
+        }
 
         if (event.code === 'END') {
             const endBuildId = currentBuildId;
             const hadError = erroredBuildIds.has(endBuildId);
 
-
-            // Só emite sucesso se:
-            //  1) esse END é do build mais recentemente iniciado (evita END atrasado)
-            //  2) esse build não teve ERROR
             if (endBuildId === lastStartedBuildId && !hadError) {
                 if (hotReloadManager) {
                     hotReloadManager.onBuildComplete(true, { buildId: endBuildId });
                 }
             }
 
-            // Limpa estados antigos pra não crescer sem limite.
-            // (qualquer build mais antigo que o último START não faz mais sentido manter)
             for (const id of erroredBuildIds) {
                 if (id < lastStartedBuildId) erroredBuildIds.delete(id);
             }
@@ -547,12 +518,10 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
     await cleanDirectoryExcept(outdir, 'temp');
 
     try {
-        // DEV MODE: isProduction = false
         const inputOptions = createRollupConfig(entryPoint, outdir, false);
 
         const outputOptions = {
             dir: outdir,
-            // Em DEV usamos ESM para suportar externals como react/react-dom sem output.globals
             format: 'es',
             entryFileNames: 'main.js',
             sourcemap: true
@@ -564,7 +533,9 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
             watch: {
                 exclude: 'node_modules/**',
                 clearScreen: false,
-                skipWrite: false
+                skipWrite: false,
+                // Atraso curto para evitar múltiplos rebuilds rápidos que comem CPU/RAM
+                buildDelay: 100
             }
         };
 
@@ -590,7 +561,6 @@ async function watch(entryPoint, outfile, hotReloadManager = null) {
 
         const outputOptions = {
             file: outfile,
-            // Em DEV usamos ESM para suportar externals como react/react-dom sem output.globals
             format: 'es',
             sourcemap: true
         };
@@ -600,7 +570,8 @@ async function watch(entryPoint, outfile, hotReloadManager = null) {
             output: outputOptions,
             watch: {
                 exclude: 'node_modules/**',
-                clearScreen: false
+                clearScreen: false,
+                buildDelay: 100
             }
         };
 
@@ -621,17 +592,22 @@ async function cleanDirectoryExcept(dirPath, excludeFolder) {
         const excludes = Array.isArray(excludeFolder) ? excludeFolder : [excludeFolder];
         const items = await readdir(dirPath);
 
-        // Paraleliza a limpeza
-        await Promise.all(items.map(async (item) => {
-            if (excludes.includes(item)) return;
+        // OTIMIZAÇÃO: Loop sequencial ao invés de Promise.all.
+        // Promise.all é mais rápido, mas cria dezenas/centenas de Promises simultâneas na RAM.
+        // O loop sequencial é mais gentil com o Garbage Collector.
+        for (const item of items) {
+            if (excludes.includes(item)) continue;
             const itemPath = path.join(dirPath, item);
-            const info = await stat(itemPath);
-            await rm(itemPath, { recursive: info.isDirectory(), force: true });
-        }));
+            try {
+                const info = await stat(itemPath);
+                await rm(itemPath, { recursive: info.isDirectory(), force: true });
+            } catch (e) {
+                // Ignora erro se arquivo sumir durante o loop
+            }
+        }
     } catch (e) {
         Console.warn(`Warning cleaning directory: ${e.message}`);
     }
 }
 
 module.exports = { build, watch, buildWithChunks, watchWithChunks };
-

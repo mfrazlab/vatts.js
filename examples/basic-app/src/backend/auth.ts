@@ -1,4 +1,12 @@
-import {CredentialsProvider, createAuthRoutes, User, AuthConfig} from '@vatts/auth';
+import {
+    AuthConfig,
+    createAuthRoutes,
+    CredentialsProvider,
+    DiscordProvider,
+    GithubProvider,
+    GoogleProvider,
+    User
+} from '@vatts/auth';
 
 
 export const authConfig: AuthConfig = {
@@ -18,6 +26,27 @@ export const authConfig: AuthConfig = {
                 username: { label: "Username", type: "text", placeholder: "jsmith" },
                 password: { label: "Password", type: "password" }
             }
+        }),
+        new GoogleProvider({
+            clientId: process.env.OAUTH_GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.OAUTH_GOOGLE_CLIENT_SECRET!,
+            scope: ['openid', 'email', 'profile'],
+            callbackUrl: 'http://localhost:3000/api/auth/callback/google',
+            successUrl: 'http://localhost:3000'
+        }),
+        new DiscordProvider({
+            clientId: process.env.OAUTH_DISCORD_CLIENT_ID!,
+            clientSecret: process.env.OAUTH_DISCORD_CLIENT_SECRET!,
+            scope: ['identify', 'email'],
+            callbackUrl: 'http://localhost:3000/api/auth/callback/discord',
+            successUrl: 'http://localhost:3000'
+        }),
+        new GithubProvider({
+            clientId: process.env.OAUTH_GITHUB_CLIENT_ID!,
+            clientSecret: process.env.OAUTH_GITHUB_CLIENT_SECRET!,
+            scope: ["read:user", "user:email"],
+            callbackUrl: 'http://localhost:3000/api/auth/callback/github',
+            successUrl: 'http://localhost:3000'
         })
     ],
 
@@ -32,6 +61,14 @@ export const authConfig: AuthConfig = {
     },
     callbacks: {
         async session({session, provider}) {
+            if(provider !== 'credentials') {
+                session.user = {
+                    id: session.user.id,
+                    name: session.user.name,
+                    email: session.user.email
+                }
+            }
+
             return session;
         }
     },

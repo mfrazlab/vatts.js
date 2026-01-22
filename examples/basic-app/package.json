@@ -1,6 +1,6 @@
 {
   "name": "basic-app",
-  "version": "1.0.2-alpha.1",
+  "version": "1.0.2-alpha.2",
   "description": "Basic example application for Vatts.js framework",
   "private": true,
   "author": "itsmuzin",
@@ -17,17 +17,18 @@
     "export": "vatts export"
   },
   "dependencies": {
-    "@vatts/auth": "workspace:*",
     "@tailwindcss/postcss": "^4.1.18",
+    "@vatts/auth": "workspace:*",
     "autoprefixer": "^10.4.23",
+    "dotenv": "^17.2.3",
     "framer-motion": "^12.28.1",
     "lucide-react": "^0.552.0",
-    "vatts": "workspace:*",
     "postcss": "^8.5.6",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "vatts": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",

@@ -1,6 +1,6 @@
 {
   "name": "vatts",
-  "version": "1.0.2-alpha.1",
+  "version": "1.0.2-alpha.2",
   "description": "Vatts.js is a high-level framework for building web applications with ease and speed. It provides a robust set of tools and features to streamline development and enhance productivity.",
   "types": "dist/index.d.ts",
   "author": "itsmuzin",
@@ -81,6 +81,7 @@
     "@rollup/plugin-replace": "^6.0.3",
     "chokidar": "^3.6.0",
     "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
     "rollup": "^4.55.2",
     "rollup-plugin-esbuild": "^6.2.1",
     "ts-loader": "9.5.4",
