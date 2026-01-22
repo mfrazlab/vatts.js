@@ -93,7 +93,7 @@ export default function App() {
                     <div className="space-y-4">
                         <div className="flex items-center gap-5">
                             <img
-                                src="https://i.imgur.com/1HSAjZC.png"
+                                src="https://i.imgur.com/fz5N4jL.png"
                                 alt="Vatts Logo"
                                 className="w-16 h-16 object-contain"
                             />

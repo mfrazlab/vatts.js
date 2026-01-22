@@ -497,7 +497,7 @@ function getBuildingHTML(): string {
             <div class="content">
                 <div class="logo-wrapper">
                     <div class="logo-glow"></div>
-                    <img src="https://i.imgur.com/1HSAjZC.png" alt="Vatts Logo">
+                    <img src="https://i.imgur.com/fz5N4jL.png" alt="Vatts Logo">
                 </div>
 
                 <h1>Vatts<span>.js</span></h1>

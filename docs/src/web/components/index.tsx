@@ -138,12 +138,10 @@ const VattsLanding = () => {
                 <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto">
                     <div className="flex items-center gap-6">
                         <div className="relative group cursor-pointer flex items-center gap-3">
-                            <img src="http://i.imgur.com/1HSAjZC.png" alt="Vatts" className="relative w-8 h-8 rounded-lg" />
-                            <span className="font-black text-xl tracking-tighter text-white">
-                                <span style={{ color: primaryColor }}>Vatts</span>.js
-                            </span>
+                            <img src="/logo-v.png" alt="Vatts" className="relative h-11 rounded-lg" />
                         </div>
                         <Link href="/docs" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Docs</Link>
+                        <a href="https://npmjs.com/vatts" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Npm</a>
                     </div>
 
                     <div className="flex items-center gap-4">
@@ -157,7 +155,7 @@ const VattsLanding = () => {
                                 <kbd className="bg-black/20 border border-white/10 px-1.5 rounded">K</kbd>
                             </div>
                         </button>
-                        <a href="https://github.com/mfraz/vatts" className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full" target="_blank" rel="noreferrer">
+                        <a href="https://github.com/mfrazlab/vatts.js" className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full" target="_blank" rel="noreferrer">
                             <Github size={20} />
                         </a>
                     </div>
@@ -415,15 +413,12 @@ const VattsLanding = () => {
             <footer className="relative z-10 py-20 border-t border-white/5 px-6 bg-[#0a0a0c]">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
                     <div className="flex items-center gap-4">
-                        <img src="http://i.imgur.com/1HSAjZC.png" alt="Vatts" className="w-8 h-8 opacity-50" />
-                        <span className="font-black text-xl text-white">
-                            <span style={{ color: primaryColor }}>Vatts</span>.js
-                        </span>
+                        <img src="/logo-all.png" alt="Vatts" className="h-8 opacity-50" />
                     </div>
                     <div className="text-slate-500 text-sm font-medium">
                         © {new Date().getFullYear()} Vatts.js. Built for the modern web.
                     </div>
-                    <a href="https://github.com/mfraz/vatts" className="text-slate-400 hover:text-white transition-all flex items-center gap-2">
+                    <a href="https://github.com/mfrazlab/vatts.js" className="text-slate-400 hover:text-white transition-all flex items-center gap-2">
                         <Github size={24} />
                     </a>
                 </div>

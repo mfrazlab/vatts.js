@@ -1,6 +1,6 @@
 {
   "name": "@vatts/auth",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.2",
   "description": "Authentication package for Nyte.js framework",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -232,11 +232,8 @@ export default function VattsDocs({ params }: any) {
             <div className="relative z-0 flex h-full min-w-0">
                 {/* Sidebar */}
                 <aside className="z-20 w-80 min-w-80 max-w-80 h-screen sticky top-0 hidden lg:flex flex-col bg-white/[0.01] backdrop-blur-xl border-r border-white/[0.05] flex-none overflow-hidden">
-                    <Link href="/" className="p-8 flex items-center gap-4">
-                        <img src="https://i.imgur.com/1HSAjZC.png" alt="Vatts" className="w-10 h-10 rounded-lg object-contain" />
-                        <span className="text-xl font-black text-white tracking-tighter">
-                            <span style={{ color: primaryColor }}>Vatts</span>.js
-                        </span>
+                    <Link href="/" className="p-8 flex items-center gap-4 justify-center">
+                        <img src="/logo-all.png" alt="Vatts" className="h-12 rounded-lg object-contain" />
                     </Link>
 
                     <nav className="flex-1 px-4 py-2 overflow-y-auto custom-scrollbar">
@@ -289,7 +286,7 @@ export default function VattsDocs({ params }: any) {
                             </button>
 
                             <div className="flex items-center gap-6 text-slate-400">
-                                <a href="https://github.com/itsmuzin/vatts" className="hover:text-[#ff6b35] transition-colors"><GithubIcon size={20} /></a>
+                                <a href="https://github.com/mfrazlab/vatts.js" className="hover:text-[#ff6b35] transition-colors"><GithubIcon size={20} /></a>
                                 <div className="h-4 w-px bg-white/10" />
                             </div>
                         </header>
