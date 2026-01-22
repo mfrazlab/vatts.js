@@ -7,6 +7,7 @@ RUN npm install -g pnpm
 COPY . .
 
 RUN pnpm install
+RUN pnpm build
 
 WORKDIR /app/docs
 
