@@ -219,7 +219,7 @@ export async function render({ req, route, params, allRoutes }: RenderOptions): 
 <html lang="${htmlLang}">
 <head>
 ${metaTags}
-<title>${metadata.title || 'App hweb'}</title>
+<title>${metadata.title || 'Vatts.js'}</title>
 </head>
 <body>
 <div id="root"></div>

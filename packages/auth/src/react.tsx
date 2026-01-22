@@ -61,7 +61,7 @@ export function SessionProvider({
                 return null;
             }
         } catch (error) {
-            console.error('[hweb-auth] Error fetching session:', error);
+            console.error('[vatts-auth] Error fetching session:', error);
             setSession(null);
             setStatus('unauthenticated');
             return null;
@@ -125,7 +125,7 @@ export function SessionProvider({
                 };
             }
         } catch (error) {
-            console.error('[hweb-auth] Error on signIn:', error);
+            console.error('[vatts-auth] Error on signIn:', error);
             return {
                 error: 'Network error',
                 status: 500,
@@ -153,7 +153,7 @@ export function SessionProvider({
                 }
             }
         } catch (error) {
-            console.error('[hweb-auth] Error on signOut:', error);
+            console.error('[vatts-auth] Error on signOut:', error);
         }
     }, [basePath]);
 

@@ -38,7 +38,7 @@ export async function getSession(): Promise<Session | null> {
         const data = await response.json();
         return data.session || null;
     } catch (error) {
-        console.error('[hweb-auth] Error fetching session:', error);
+        console.error('[vatts-auth] Error fetching session:', error);
         return null;
     }
 }
@@ -59,7 +59,7 @@ export async function getCsrfToken(): Promise<string | null> {
         const data = await response.json();
         return data.csrfToken || null;
     } catch (error) {
-        console.error('[hweb-auth] Error fetching CSRF token:', error);
+        console.error('[vatts-auth] Error fetching CSRF token:', error);
         return null;
     }
 }
@@ -80,7 +80,7 @@ export async function getProviders(): Promise<any[] | null> {
         const data = await response.json();
         return data.providers || [];
     } catch (error) {
-        console.error('[hweb-auth] Error searching for providers:', error);
+        console.error('[vatts-auth] Error searching for providers:', error);
         return null;
     }
 }
@@ -143,7 +143,7 @@ export async function signIn(
             };
         }
     } catch (error) {
-        console.error('[hweb-auth] Error on signIn:', error);
+        console.error('[vatts-auth] Error on signIn:', error);
         return {
             error: 'Network error',
             status: 500,
@@ -166,6 +166,6 @@ export async function signOut(options: { callbackUrl?: string } = {}): Promise<v
             window.location.href = options.callbackUrl || '/';
         }
     } catch (error) {
-        console.error('[hweb-auth] Error on signOut:', error);
+        console.error('[vatts-auth] Error on signOut:', error);
     }
 }

@@ -21,14 +21,44 @@ export class JWTManager {
     private secret: string;
 
     constructor(secret?: string) {
-        if (!secret && !process.env.HWEB_AUTH_SECRET) {
-            throw new Error('JWT secret is required. Set HWEB_AUTH_SECRET environment variable or provide secret parameter.');
+        if (!secret && !process.env.VATTS_AUTH_SECRET) {
+            throw new Error('JWT secret is required. Set VATTS_AUTH_SECRET environment variable or provide secret parameter.');
         }
 
-        this.secret = secret || process.env.HWEB_AUTH_SECRET!;
+        this.secret = secret || process.env.VATTS_AUTH_SECRET!;
 
+        // SECURITY: Enforce minimum secret length
         if (this.secret.length < 32) {
             throw new Error('JWT secret must be at least 32 characters long for security.');
+        }
+
+        // SECURITY: Warn about weak/common secrets in development
+        const weakSecrets = [
+            'your-secret-key',
+            'vatts-test-secret-key-change-in-production',
+            'secret',
+            'changeme',
+            'password',
+            '12345678',
+            'test-secret',
+            'development-secret'
+        ];
+
+        if (weakSecrets.some(weak => this.secret.toLowerCase().includes(weak))) {
+            console.warn('\x1b[33m%s\x1b[0m', '⚠️  SECURITY WARNING: You are using a weak/common JWT secret!');
+            console.warn('\x1b[33m%s\x1b[0m', '   This is a CRITICAL security risk in production.');
+            console.warn('\x1b[33m%s\x1b[0m', '   Generate a strong secret: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'base64\'))"');
+
+            // SECURITY: Refuse to start in production with weak secret
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('PRODUCTION: Weak JWT secret detected. Application refused to start for security reasons.');
+            }
+        }
+
+        // SECURITY: Check for sufficient entropy (basic check)
+        const uniqueChars = new Set(this.secret).size;
+        if (uniqueChars < 16) {
+            console.warn('\x1b[33m%s\x1b[0m', '⚠️  WARNING: JWT secret has low entropy (few unique characters). Consider using a more random secret.');
         }
     }
 
@@ -85,14 +115,15 @@ export class JWTManager {
             // Validate algorithm in payload matches header
             if (decodedPayload.alg !== 'HS256') return null;
 
-            // Verifica expiração com margem de erro de 30 segundos
+            // SECURITY: Verifica expiração com margem de erro de 5 segundos (clock skew)
+            // Reduzido de 30s para minimizar janela de replay attacks
             const now = Math.floor(Date.now() / 1000);
-            if (decodedPayload.exp && decodedPayload.exp < (now - 30)) {
+            if (decodedPayload.exp && decodedPayload.exp < (now - 5)) {
                 return null;
             }
 
-            // Validate issued at time (not too far in future)
-            if (decodedPayload.iat && decodedPayload.iat > (now + 300)) {
+            // SECURITY: Validate issued at time (not too far in future - 60s tolerance)
+            if (decodedPayload.iat && decodedPayload.iat > (now + 60)) {
                 return null;
             }
 
@@ -109,11 +140,22 @@ export class JWTManager {
 
         const sanitized: any = {};
         for (const [key, value] of Object.entries(payload)) {
-            // Skip dangerous properties
+            // SECURITY: Skip dangerous properties that could lead to prototype pollution
             if (key.startsWith('__') || key === 'constructor' || key === 'prototype') {
                 continue;
             }
-            sanitized[key] = value;
+
+            // SECURITY: Recursively sanitize nested objects to prevent deep prototype pollution
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                sanitized[key] = this.sanitizePayload(value);
+            } else if (Array.isArray(value)) {
+                // Sanitize arrays recursively
+                sanitized[key] = value.map(item =>
+                    (item && typeof item === 'object') ? this.sanitizePayload(item) : item
+                );
+            } else {
+                sanitized[key] = value;
+            }
         }
         return sanitized;
     }
@@ -137,6 +179,12 @@ export class JWTManager {
     }
 
     private base64UrlDecode(str: string): string {
+        // SECURITY: Prevent DoS attacks with extremely large strings
+        // JWT tokens are typically < 4KB, we allow up to 16KB to be safe
+        if (str.length > 16384) {
+            throw new Error('Token too large');
+        }
+
         str += '='.repeat(4 - str.length % 4);
         return Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
     }

@@ -163,13 +163,13 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
 
         // Registra o layout se existir
         const layoutRegistration = layout
-            ? `window.__HWEB_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
-            : `window.__HWEB_LAYOUT__ = null;`;
+            ? `window.__VATTS_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
+            : `window.__VATTS_LAYOUT__ = null;`;
 
         // Registra o notFound se existir
         const notFoundRegistration = notFound
-            ? `window.__HWEB_NOT_FOUND__ = NotFoundComponent.default || NotFoundComponent;`
-            : `window.__HWEB_NOT_FOUND__ = null;`;
+            ? `window.__VATTS_NOT_FOUND__ = NotFoundComponent.default || NotFoundComponent;`
+            : `window.__VATTS_NOT_FOUND__ = null;`;
 
         // Caminho correto para o entry.client
         // IMPORTANT: quando o pacote é instalado via npm, bundlers (Rollup/Vite/etc.) não transpilam TSX em node_modules.
@@ -183,14 +183,14 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
         const defaultNotFoundPath = path.join(sdkDir, 'dist', 'client', 'DefaultNotFound.js');
         const relativeDefaultNotFoundPath = path.relative(tempDir, defaultNotFoundPath).replace(/\\/g, '/');
 
-        const entryContent = `// Arquivo gerado automaticamente pelo hweb
+        const entryContent = `// Arquivo gerado automaticamente pelo vatts
 ${imports}
 ${layoutImport}
 ${notFoundImport}
 import DefaultNotFound from '${relativeDefaultNotFoundPath}';
 
 // Registra os componentes para o cliente
-window.__HWEB_COMPONENTS__ = {
+window.__VATTS_COMPONENTS__ = {
 ${componentRegistration}
 };
 
@@ -200,8 +200,8 @@ ${layoutRegistration}
 // Registra o notFound se existir
 ${notFoundRegistration}
 
-// Registra o DefaultNotFound do hweb
-window.__HWEB_DEFAULT_NOT_FOUND__ = DefaultNotFound;
+
+window.__VATTS_DEFAULT_NOT_FOUND__ = DefaultNotFound;
 
 // Importa e executa o entry.client.tsx
 import '${relativeEntryPath}';
@@ -220,7 +220,7 @@ import '${relativeEntryPath}';
     }
 }
 
-export default function hweb(options: VattsOptions) {
+export default function vatts(options: VattsOptions) {
     const { dev = true, dir = process.cwd(), port = 3000 } = options;
     // @ts-ignore
     process.vatts = options;

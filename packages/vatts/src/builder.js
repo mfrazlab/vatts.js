@@ -452,7 +452,7 @@ async function build(entryPoint, outfile, isProduction = false) {
         const outputOptions = {
             file: outfile,
             format: 'iife',
-            name: 'HwebApp',
+            name: 'Vattsjs',
             sourcemap: !isProduction,
             inlineDynamicImports: true
         };

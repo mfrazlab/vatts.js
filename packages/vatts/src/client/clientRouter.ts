@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Sistema de roteamento do lado do cliente para hweb-sdk
+
 
 export interface RouterEvents {
     beforeNavigate?: (url: string) => boolean | Promise<boolean>;

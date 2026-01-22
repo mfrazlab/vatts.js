@@ -35,6 +35,9 @@ export const authConfig: AuthConfig = {
             return session;
         }
     },
+    // ⚠️ SECURITY WARNING: Change this secret in production!
+    // Generate a strong secret with: node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
+    // Or use environment variable: process.env.VATTS_AUTH_SECRET
     secret: 'hweb-test-secret-key-change-in-production'
 };
 

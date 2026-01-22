@@ -254,17 +254,17 @@ export type RequestHandler = (req: any, res: any) => Promise<void>;
  * Define o formato de uma função que manipula uma rota da API.
  */
 export type BackendHandler = (
-    request: VattsRequest, // HWebRequest será importado onde necessário
+    request: VattsRequest,
     params: { [key: string]: string }
-) => Promise<VattsResponse> | VattsResponse; // HWebResponse será importado onde necessário
+) => Promise<VattsResponse> | VattsResponse;
 
 
 
 export type VattsMiddleware = (
-    request: VattsRequest, // HWebRequest será importado onde necessário
+    request: VattsRequest,
     params: { [key: string]: string },
     next: () => Promise<VattsResponse>
-) => Promise<VattsResponse> | VattsResponse; // HWebResponse será importado onde necessário
+) => Promise<VattsResponse> | VattsResponse;
 
 
 /**

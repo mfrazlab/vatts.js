@@ -194,7 +194,7 @@ function App({ componentMap, routes, initialComponentPath, initialParams, layout
     let resolvedContent: React.ReactNode;
 
     if (!CurrentPageComponent || initialComponentPath === '__404__') {
-        const NotFoundComponent = (window as any).__HWEB_NOT_FOUND__;
+        const NotFoundComponent = (window as any).__VATTS_NOT_FOUND__;
 
         if (NotFoundComponent) {
             const NotFoundContent = <NotFoundComponent />;
@@ -202,7 +202,7 @@ function App({ componentMap, routes, initialComponentPath, initialParams, layout
                 ? React.createElement(layoutComponent, { children: NotFoundContent })
                 : NotFoundContent;
         } else {
-            const DefaultNotFound = (window as any).__HWEB_DEFAULT_NOT_FOUND__;
+            const DefaultNotFound = (window as any).__VATTS_DEFAULT_NOT_FOUND__;
             const NotFoundContent = <DefaultNotFound />;
             resolvedContent = layoutComponent
                 ? React.createElement(layoutComponent, { children: NotFoundContent })
@@ -290,10 +290,10 @@ function initializeClient() {
         const componentMap: Record<string, any> = {};
 
         // Registra todos os componentes que foram importados
-        if ((window as any).__HWEB_COMPONENTS__) {
-            Object.assign(componentMap, (window as any).__HWEB_COMPONENTS__);
+        if ((window as any).__VATTS_COMPONENTS__) {
+            Object.assign(componentMap, (window as any).__VATTS_COMPONENTS__);
         } else {
-            console.warn('[Vatts] No components found in window.__HWEB_COMPONENTS__');
+            console.warn('[Vatts] No components found in window.__VATTS_COMPONENTS__');
         }
 
         const container = document.getElementById('root');
@@ -331,7 +331,7 @@ function initializeClient() {
                 routes={initialData.routes}
                 initialComponentPath={initialData.initialComponentPath}
                 initialParams={initialData.initialParams}
-                layoutComponent={(window as any).__HWEB_LAYOUT__}
+                layoutComponent={(window as any).__VATTS_LAYOUT__}
             />
         );
 
@@ -357,7 +357,7 @@ if (document.readyState === 'loading') {
 } else {
     // ESM Hoisting Fix:
     // Como este arquivo é importado pelo arquivo gerado automaticamente, ele executa
-    // ANTES do corpo do arquivo gerado (onde window.__HWEB_COMPONENTS__ é definido).
+    // ANTES do corpo do arquivo gerado (onde window.__VATTS_COMPONENTS__ é definido).
     // Usamos setTimeout para garantir que a inicialização ocorra após as atribuições globais.
     setTimeout(initializeClient, 0);
 }

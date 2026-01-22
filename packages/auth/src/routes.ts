@@ -16,13 +16,13 @@
  */
 import { VattsRequest, VattsResponse } from 'vatts';
 import type { AuthConfig } from './types';
-import { HWebAuth } from './core';
+import { VattsAuth } from './core';
 
 /**
  * Cria o handler catch-all para /api/auth/[...value]
  */
 export function createAuthRoutes(config: AuthConfig) {
-    const auth = new HWebAuth(config);
+    const auth = new VattsAuth(config);
 
     /**
      * Handler principal que gerencia todas as rotas de auth
@@ -104,7 +104,7 @@ export function createAuthRoutes(config: AuthConfig) {
 /**
  * Handler para GET /api/auth/session
  */
-async function handleSession(req: VattsRequest, auth: HWebAuth) {
+async function handleSession(req: VattsRequest, auth: VattsAuth) {
     const session = await auth.getSession(req);
 
     if (!session) {
@@ -118,9 +118,10 @@ async function handleSession(req: VattsRequest, auth: HWebAuth) {
  * Handler para GET /api/auth/csrf
  */
 async function handleCsrf(req: VattsRequest) {
-    // Token CSRF simples para proteção
-    const csrfToken = Math.random().toString(36).substring(2, 15) +
-        Math.random().toString(36).substring(2, 15);
+    // SECURITY: Usa crypto.randomBytes para token criptograficamente seguro
+    // 32 bytes = 256 bits de entropia, codificado em base64url (URL-safe)
+    const crypto = await import('crypto');
+    const csrfToken = crypto.randomBytes(32).toString('base64url');
 
     return VattsResponse.json({ csrfToken });
 }
@@ -128,7 +129,7 @@ async function handleCsrf(req: VattsRequest) {
 /**
  * Handler para GET /api/auth/providers
  */
-async function handleProviders(auth: HWebAuth) {
+async function handleProviders(auth: VattsAuth) {
     const providers = auth.getProviders();
 
     return VattsResponse.json({ providers });
@@ -137,7 +138,7 @@ async function handleProviders(auth: HWebAuth) {
 /**
  * Handler para POST /api/auth/signin
  */
-async function handleSignIn(req: VattsRequest, auth: HWebAuth) {
+async function handleSignIn(req: VattsRequest, auth: VattsAuth) {
     try {
         const { provider = 'credentials', ...credentials } = await req.json();
 
@@ -166,7 +167,7 @@ async function handleSignIn(req: VattsRequest, auth: HWebAuth) {
             type: 'session'
         });
     } catch (error) {
-        console.error('[hweb-auth] Error on handleSignIn:', error);
+        console.error('[vatts-auth] Error on handleSignIn:', error);
         return VattsResponse.json(
             { error: 'Authentication failed' },
             { status: 500 }
@@ -177,6 +178,6 @@ async function handleSignIn(req: VattsRequest, auth: HWebAuth) {
 /**
  * Handler para POST /api/auth/signout
  */
-async function handleSignOut(req: VattsRequest, auth: HWebAuth) {
+async function handleSignOut(req: VattsRequest, auth: VattsAuth) {
     return await auth.signOut(req);
 }

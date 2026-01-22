@@ -18,7 +18,7 @@ import { VattsRequest, VattsResponse } from 'vatts';
 import type { AuthConfig, AuthProviderClass, User, Session } from './types';
 import { SessionManager } from './jwt';
 
-export class HWebAuth {
+export class VattsAuth {
     private config: AuthConfig;
     private sessionManager: SessionManager;
 
@@ -58,7 +58,7 @@ export class HWebAuth {
     async signIn(providerId: string, credentials: Record<string, string>): Promise<{ session: Session; token: string } | { redirectUrl: string } | null> {
         const provider = this.config.providers.find(p => p.id === providerId);
         if (!provider) {
-            console.error(`[hweb-auth] Provider not found: ${providerId}`);
+            console.error(`[vatts-auth] Provider not found: ${providerId}`);
             return null;
         }
 
@@ -91,7 +91,7 @@ export class HWebAuth {
 
             return sessionResult;
         } catch (error) {
-            console.error(`[hweb-auth] Error signing in with provider ${providerId}:`, error);
+            console.error(`[vatts-auth] Error signing in with provider ${providerId}:`, error);
             return null;
         }
     }
@@ -109,14 +109,14 @@ export class HWebAuth {
                 try {
                     await provider.handleSignOut();
                 } catch (error) {
-                    console.error(`[hweb-auth] Signout error on provider ${provider.id}:`, error);
+                    console.error(`[vatts-auth] Signout error on provider ${provider.id}:`, error);
                 }
             }
         }
 
         return VattsResponse
             .json({ success: true })
-            .clearCookie('hweb-auth-token', {
+            .clearCookie('vatts-auth-token', {
                 path: '/',
                 httpOnly: true,
                 secure: this.config.secureCookies || false,
@@ -182,7 +182,7 @@ export class HWebAuth {
     createAuthResponse(token: string, data: any): VattsResponse {
         return VattsResponse
             .json(data)
-            .cookie('hweb-auth-token', token, {
+            .cookie('vatts-auth-token', token, {
                 httpOnly: true,
                 secure: this.config.secureCookies || false, // Always secure, even in development
                 sameSite: 'strict', // Prevent CSRF attacks
@@ -190,10 +190,14 @@ export class HWebAuth {
                 path: '/',
                 domain: undefined // Let browser set automatically for security
             })
+            // SECURITY: Comprehensive security headers
             .header('X-Content-Type-Options', 'nosniff')
             .header('X-Frame-Options', 'DENY')
             .header('X-XSS-Protection', '1; mode=block')
-            .header('Referrer-Policy', 'strict-origin-when-cross-origin');
+            .header('Referrer-Policy', 'strict-origin-when-cross-origin')
+            .header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';")
+            .header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+            .header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     }
 
     /**
@@ -201,7 +205,7 @@ export class HWebAuth {
      */
     private getTokenFromRequest(req: VattsRequest): string | null {
         // Primeiro tenta pegar do cookie
-        const cookieToken = req.cookie('hweb-auth-token');
+        const cookieToken = req.cookie('vatts-auth-token');
         if (cookieToken) return cookieToken;
 
         // Depois tenta do header Authorization

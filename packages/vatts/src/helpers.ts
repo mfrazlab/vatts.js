@@ -23,7 +23,7 @@ import os from 'os';
 import {URLSearchParams} from 'url'; // API moderna, substitui 'querystring'
 import path from 'path';
 // Helpers para integração com diferentes frameworks
-import hweb, {FrameworkAdapterFactory} from './index'; // Importando o tipo
+import vatts, {FrameworkAdapterFactory} from './index'; // Importando o tipo
 import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
 import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https'; // <-- ADICIONAR
@@ -36,9 +36,9 @@ registerLoaders({ projectDir: process.cwd() });
 // --- Tipagem ---
 
 /**
- * Interface para a instância principal do hweb, inferida pelo uso.
+ * Interface para a instância principal do vatts, inferida pelo uso.
  */
-interface HWebApp {
+interface VattsApp {
     prepare: () => Promise<void>;
     // O handler pode ter assinaturas diferentes dependendo do framework
     getRequestHandler: () => (req: any, res: any, next?: any) => Promise<void> | void;
@@ -49,7 +49,7 @@ interface HWebApp {
 /**
  * Estende a request nativa do Node para incluir o body parseado.
  */
-interface HWebIncomingMessage extends IncomingMessage {
+interface VattsIncomingMessage extends IncomingMessage {
     body?: object | string | null;
 }
 
@@ -336,23 +336,23 @@ const parseBody = (req: IncomingMessage): Promise<object | string | null> => {
 /**
  * Inicializa servidor nativo do Vatts.js usando HTTP ou HTTPS
  */
-async function initNativeServer(hwebApp: HWebApp, options: VattsOptions, port: number, hostname: string) {
+async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port: number, hostname: string) {
     const time = Date.now();
 
-    await hwebApp.prepare();
+    await vattsApp.prepare();
 
 
     const projectDir = options.dir || process.cwd();
     const phase = options.dev ? 'development' : 'production';
     const vattsConfig = await loadVattsConfig(projectDir, phase);
 
-    const handler = hwebApp.getRequestHandler();
+    const handler = vattsApp.getRequestHandler();
     const msg = Console.dynamicLine(`${Colors.Bright}Starting Vatts.js on port ${options.port}${Colors.Reset}`);
 
     // --- LÓGICA DO LISTENER (REUTILIZÁVEL) ---
     // Extraímos a lógica principal para uma variável
     // para que possa ser usada tanto pelo servidor HTTP quanto HTTPS.
-    const requestListener = async (req: HWebIncomingMessage, res: ServerResponse) => {
+    const requestListener = async (req: VattsIncomingMessage, res: ServerResponse) => {
         const requestStartTime = Date.now();
         const method = req.method || 'GET';
         const url = req.url || '/';
@@ -497,7 +497,7 @@ async function initNativeServer(hwebApp: HWebApp, options: VattsOptions, port: n
         };
 
         // 1. Cria o servidor HTTPS principal
-        server = https.createServer(sslOptions, requestListener as any); // (any para contornar HWebIncomingMessage)
+        server = https.createServer(sslOptions, requestListener as any);
 
         // 2. Cria o servidor de REDIRECIONAMENTO (HTTP -> HTTPS)
         const httpRedirectPort = options.ssl.redirectPort;
@@ -531,7 +531,7 @@ async function initNativeServer(hwebApp: HWebApp, options: VattsOptions, port: n
     } else {
         // --- MODO HTTP (Original) ---
         // Cria o servidor HTTP nativo
-        server = http.createServer(requestListener as any); // (any para contornar HWebIncomingMessage)
+        server = http.createServer(requestListener as any);
     }
 
     // Configurações de segurança do servidor (usa configuração personalizada)
@@ -546,8 +546,8 @@ async function initNativeServer(hwebApp: HWebApp, options: VattsOptions, port: n
     });
 
     // Configura WebSocket para hot reload (Comum a ambos)
-    hwebApp.setupWebSocket(server);
-    hwebApp.executeInstrumentation();
+    vattsApp.setupWebSocket(server);
+    vattsApp.executeInstrumentation();
     return server;
 }
 
@@ -557,21 +557,21 @@ export function app(options: VattsOptions = {}) {
     const framework = options.framework || 'native';
     FrameworkAdapterFactory.setFramework(framework)
 
-    // Tipando a app principal do hweb
-    const hwebApp: HWebApp = hweb(options);
+    // Tipando a app principal do vatts
+    const vattsApp: VattsApp = vatts(options);
 
     return {
-        ...hwebApp,
+        ...vattsApp,
 
         /**
          * Integra com uma aplicação de qualquer framework (Express, Fastify, etc)
          * O 'serverApp: any' é mantido para flexibilidade, já que pode ser de tipos diferentes.
          */
         integrate: async (serverApp: any) => {
-            await hwebApp.prepare();
-            const handler = hwebApp.getRequestHandler();
+            await vattsApp.prepare();
+            const handler = vattsApp.getRequestHandler();
 
-            // O framework é setado nas opções do hweb, que deve
+            // O framework é setado nas opções do vatts, que deve
             // retornar o handler correto em getRequestHandler()
             // A lógica de integração original parece correta.
 
@@ -586,7 +586,7 @@ export function app(options: VattsOptions = {}) {
                 serverApp.use(express.json());
                 serverApp.use(express.urlencoded({ extended: true }));
                 serverApp.use(handler);
-                hwebApp.setupWebSocket(serverApp);
+                vattsApp.setupWebSocket(serverApp);
 
             } else if (framework === 'fastify') {
                 try {
@@ -602,15 +602,15 @@ export function app(options: VattsOptions = {}) {
                 await serverApp.register(async (fastify: any) => {
                     fastify.all('*', handler);
                 });
-                hwebApp.setupWebSocket(serverApp);
+                vattsApp.setupWebSocket(serverApp);
 
             } else {
                 // Generic integration (assume Express-like)
                 serverApp.use(handler);
-                hwebApp.setupWebSocket(serverApp);
+                vattsApp.setupWebSocket(serverApp);
             }
 
-            hwebApp.executeInstrumentation();
+            vattsApp.executeInstrumentation();
             return serverApp;
         },
 
@@ -660,7 +660,7 @@ ${Colors.Bright + Colors.FgRed}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite}  
 
 
 
-            return await initNativeServer(hwebApp, options, actualPort, actualHostname);
+            return await initNativeServer(vattsApp, options, actualPort, actualHostname);
         }
     }
 }

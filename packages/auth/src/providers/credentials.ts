@@ -129,10 +129,36 @@ export class CredentialsProvider implements AuthProviderClass {
     }
 
     /**
-     * Validação simples de email
+     * Validação robusta de email (RFC 5322 simplificado)
      */
     private isValidEmail(email: string): boolean {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
+        // SECURITY: Validate email length to prevent DoS
+        if (!email || email.length > 320) { // RFC 5321: max 320 chars
+            return false;
+        }
+
+        // SECURITY: More robust email validation regex
+        // Prevents common bypasses like multiple @, script tags, etc.
+        const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+
+        if (!emailRegex.test(email)) {
+            return false;
+        }
+
+        // SECURITY: Validate parts separately
+        const parts = email.split('@');
+        if (parts.length !== 2) return false;
+
+        const [local, domain] = parts;
+        if (local.length > 64 || domain.length > 255) { // RFC 5321 limits
+            return false;
+        }
+
+        // SECURITY: Prevent consecutive dots
+        if (email.includes('..')) {
+            return false;
+        }
+
+        return true;
     }
 }
