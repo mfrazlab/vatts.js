@@ -316,6 +316,8 @@ const smartAssetPlugin = (isProduction) => {
 function createRollupConfig(entryPoint, outdir, isProduction) {
     return {
         input: entryPoint,
+        // Para evitar bare imports no browser (sem import map), em DEV também bundle React/ReactDOM.
+        // O HMR evita "Invalid hook call" removendo o script antigo e recarregando main.js.
         external: nodeBuiltIns,
         // Otimização: Em prod usa 'recommended' para limpar código morto
         treeshake: isProduction ? 'recommended' : false,
@@ -477,31 +479,18 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
 
     // DEBUG: stack trace rate-limited
     let lastTraceAt = 0;
-    const trace = (label) => {
-        try {
-            const now = Date.now();
-            if (now - lastTraceAt < 500) return;
-            lastTraceAt = now;
-            const err = new Error(`[VATTS_TRACE] ${label}`);
-            if (Error.captureStackTrace) Error.captureStackTrace(err, trace);
-            console.log(err.stack || err.message);
-        } catch { /* noop */ }
-    };
+
 
     watcher.on('event', event => {
-        // DEBUG LOGS (Mantidos a pedido)
-        console.log(`[DEBUG_BUILDER] Event code: ${event.code}`);
 
         if (event.code === 'START') {
             currentBuildId += 1;
             lastStartedBuildId = currentBuildId;
-            console.log(`[DEBUG_BUILDER] START - buildId=${currentBuildId}`);
         }
 
         if (event.code === 'ERROR') {
             // Marca erro para o build atualmente em andamento.
             erroredBuildIds.add(currentBuildId);
-            console.log(`[DEBUG_BUILDER] ERROR detected!`, event.error?.message);
 
             const errDetails = {
                 message: event.error?.message || 'Unknown build error',
@@ -514,8 +503,6 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
 
             // Notifica erro imediatamente
             if (hotReloadManager) {
-                console.log(`[DEBUG_BUILDER] Sending onBuildComplete(false) to manager (buildId=${currentBuildId})`);
-                trace(`builder.handleWatcherEvents -> onBuildComplete(false) buildId=${currentBuildId}`);
                 hotReloadManager.onBuildComplete(false, errDetails);
             }
             else Console.error("Build Error:", event.error);
@@ -529,22 +516,13 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
             const endBuildId = currentBuildId;
             const hadError = erroredBuildIds.has(endBuildId);
 
-            console.log(`[DEBUG_BUILDER] END - buildId=${endBuildId} hadError=${hadError} lastStartedBuildId=${lastStartedBuildId}`);
 
             // Só emite sucesso se:
             //  1) esse END é do build mais recentemente iniciado (evita END atrasado)
             //  2) esse build não teve ERROR
             if (endBuildId === lastStartedBuildId && !hadError) {
                 if (hotReloadManager) {
-                    console.log(`[DEBUG_BUILDER] Sending onBuildComplete(true) to manager (buildId=${endBuildId})`);
-                    trace(`builder.handleWatcherEvents -> onBuildComplete(true) buildId=${endBuildId}`);
                     hotReloadManager.onBuildComplete(true, { buildId: endBuildId });
-                }
-            } else {
-                if (hadError) {
-                    console.log(`[DEBUG_BUILDER] Build ended but buildId=${endBuildId} hasError=true. NOT sending success.`);
-                } else {
-                    console.log(`[DEBUG_BUILDER] Ignoring END for buildId=${endBuildId} because a newer build has started.`);
                 }
             }
 
@@ -574,10 +552,9 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
 
         const outputOptions = {
             dir: outdir,
-            format: 'iife',
-            name: 'HwebApp',
+            // Em DEV usamos ESM para suportar externals como react/react-dom sem output.globals
+            format: 'es',
             entryFileNames: 'main.js',
-            inlineDynamicImports: true,
             sourcemap: true
         };
 
@@ -613,9 +590,8 @@ async function watch(entryPoint, outfile, hotReloadManager = null) {
 
         const outputOptions = {
             file: outfile,
-            format: 'iife',
-            name: 'HwebApp',
-            inlineDynamicImports: true,
+            // Em DEV usamos ESM para suportar externals como react/react-dom sem output.globals
+            format: 'es',
             sourcemap: true
         };
 

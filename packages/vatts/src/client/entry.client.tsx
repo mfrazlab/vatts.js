@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 import React, {useState, useEffect, useCallback} from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import { router } from './clientRouter';
 import { ErrorModal, VattsBuildError } from './ErrorModal';
 import type {Metadata} from "../types";
@@ -126,51 +126,18 @@ function App({ componentMap, routes, initialComponentPath, initialParams, layout
         const handleHMRUpdate = async (event: CustomEvent) => {
             const { file, timestamp } = event.detail;
             const fileName = file ? file.split('/').pop()?.split('\\').pop() : 'unknown';
-            console.log('🔥 HMR: Hot reloading...', fileName);
+            console.log('🔥 HMR: Component Update Triggered', fileName);
+
+            // Neste modelo onde o script main.js é recarregado por completo,
+            // a atualização real acontece via reinicialização do initializeClient.
+            // Este listener serve mais para feedback visual ou atualizações parciais se implementadas.
 
             try {
-                // Aguarda um pouco para o esbuild terminar de recompilar
-                await new Promise(resolve => setTimeout(resolve, 300));
-
-                // Re-importa o módulo principal com cache busting
-                const mainScript = document.querySelector('script[src*="main.js"]') as HTMLScriptElement;
-                if (mainScript) {
-                    const mainSrc = mainScript.src.split('?')[0];
-                    const cacheBustedSrc = `${mainSrc}?t=${timestamp}`;
-
-                    // Cria novo script
-                    const newScript = document.createElement('script');
-                    newScript.type = 'module';
-                    newScript.src = cacheBustedSrc;
-
-                    // Quando o novo script carregar, força re-render
-                    newScript.onload = () => {
-                        console.log('✅ HMR: Modules reloaded');
-
-                        // Força re-render do componente
-                        setHmrTimestamp(timestamp);
-
-                        // Marca sucesso
-                        (window as any).__HMR_SUCCESS__ = true;
-                        setTimeout(() => {
-                            (window as any).__HMR_SUCCESS__ = false;
-                        }, 3000);
-                    };
-
-                    newScript.onerror = () => {
-                        console.error('❌ HMR: Failed to reload modules');
-                        (window as any).__HMR_SUCCESS__ = false;
-                    };
-
-                    // Remove o script antigo e adiciona o novo
-                    // (não remove para não quebrar o app)
-                    document.head.appendChild(newScript);
-                } else {
-                    // Se não encontrou o script, apenas força re-render
-                    console.log('⚡ HMR: Forcing re-render');
-                    setHmrTimestamp(timestamp);
-                    (window as any).__HMR_SUCCESS__ = true;
-                }
+                setHmrTimestamp(timestamp);
+                (window as any).__HMR_SUCCESS__ = true;
+                setTimeout(() => {
+                    (window as any).__HMR_SUCCESS__ = false;
+                }, 3000);
             } catch (error) {
                 console.error('❌ HMR Error:', error);
                 (window as any).__HMR_SUCCESS__ = false;
@@ -288,8 +255,14 @@ function deobfuscateData(obfuscated: string): any {
     }
 }
 
-function initializeClient() {
+// Armazena a referência global do root para poder desmontar no Hot Reload
+declare global {
+    interface Window {
+        __VATTS_ROOT__?: Root;
+    }
+}
 
+function initializeClient() {
     try {
         // Lê os dados do atributo data-h
         const dataElement = document.getElementById('__vatts_data__');
@@ -329,8 +302,28 @@ function initializeClient() {
             return;
         }
 
+        // --- CORREÇÃO DO HOT RELOAD ---
+        // Verifica se já existe um root montado (acontece durante o reload do main.js)
+        if (window.__VATTS_ROOT__) {
+            // console.log('[Vatts] HMR: Unmounting previous root...');
+            try {
+                // Desmonta o app anterior para limpar event listeners e nós do DOM
+                // Isso evita o erro "NotFoundError: Failed to execute 'removeChild'"
+                window.__VATTS_ROOT__.unmount();
+
+                // Limpa o container explicitamente para garantir que o framer-motion/animações
+                // não deixaram lixo para trás que confunda o novo React
+                container.innerHTML = '';
+            } catch (e) {
+                console.warn('[Vatts] Warning during unmount:', e);
+            }
+        }
+
         // Usar createRoot para render inicial (CSR)
         const root = createRoot(container);
+
+        // Salva a referência globalmente
+        window.__VATTS_ROOT__ = root;
 
         root.render(
             <App

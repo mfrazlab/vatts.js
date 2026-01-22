@@ -1,7 +1,7 @@
 packages:
   - packages/*
   - examples/*
-  - documentation/
+  - docs/
 
 ignoredBuiltDependencies:
   - esbuild

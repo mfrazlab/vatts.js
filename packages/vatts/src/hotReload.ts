@@ -534,19 +534,55 @@ export class HotReloadManager {
                                 window.location.reload();
                                 return;
                             }
+
+                            // Recarrega main.js (o bundle do app) com cache-busting.
+                            // Em DEV, React/ReactDOM agora são externos, então isso não duplica hooks.
                             await waitForMainToBeUpdated(5000, 120);
-                            const ts = Date.now();
-                            window.dispatchEvent(new CustomEvent('hmr:component-update', { detail: { file: data.file, timestamp: ts } }));
-                            setTimeout(() => requestBuildStatus('after-frontend-reload'), 50);
+
+                            const script = document.querySelector('script[src*="main.js"]');
+                            if (script) {
+                                const mainUrl = (script.getAttribute('src') || script.src || '');
+                                const base = String(mainUrl).split('?')[0];
+
+                                // Remove scripts antigos de main.js para evitar múltiplas execuções do bundle
+                                try {
+                                    document.querySelectorAll('script[src*="main.js"]').forEach(s => {
+                                        if (s && s.parentNode) s.parentNode.removeChild(s);
+                                    });
+                                } catch {}
+
+                                const newScript = document.createElement('script');
+                                newScript.type = 'module';
+                                newScript.src = base + '?t=' + Date.now();
+
+                                newScript.onload = () => {
+                                    // depois de carregar o novo bundle, pede render/update
+                                    const ts = Date.now();
+                                    window.dispatchEvent(new CustomEvent('hmr:component-update', { detail: { file: data.file, timestamp: ts } }));
+                                    setTimeout(() => requestBuildStatus('after-frontend-reload'), 50);
+                                };
+
+                                newScript.onerror = () => {
+                                    window.location.reload();
+                                };
+
+                                document.head.appendChild(newScript);
+                            } else {
+                                // fallback
+                                const ts = Date.now();
+                                window.dispatchEvent(new CustomEvent('hmr:component-update', { detail: { file: data.file, timestamp: ts } }));
+                                setTimeout(() => requestBuildStatus('after-frontend-reload'), 50);
+                            }
+
                             setTimeout(() => {
                                 if (window.__HMR_SUCCESS__) {
                                     notifyHotReloadState('idle', { success: true, file: data.file });
                                     requestBuildStatus('after-hmr-success');
                                     return;
                                 }
-                                console.log('[vatts] Soft reload failed, falling back to full reload');
+                 
                                 window.location.reload();
-                            }, 1200);
+                            }, 1600);
                         }
                         
                         ws.onclose = function(event) {
@@ -588,7 +624,7 @@ export class HotReloadManager {
     onFrontendChange(callback: () => void) { this.frontendChangeCallback = callback; }
     setHotReloadListener(listener: (file: string) => Promise<void> | void) {
         this.customHotReloadListener = listener;
-        Console.info('🔌 Hot reload custom listener registered');
+        Console.info('Hot reload custom listener registered');
     }
     removeHotReloadListener() { this.customHotReloadListener = null; }
 
@@ -600,15 +636,6 @@ export class HotReloadManager {
             // Rate limit pra não floodar o console
             if (now - this.lastBuildCompleteTraceAt < 500) return;
             this.lastBuildCompleteTraceAt = now;
-
-            const buildId = typeof (error as any)?.buildId === 'number' ? (error as any).buildId : undefined;
-            const tag = success ? 'SUCCESS' : 'ERROR';
-
-            const err = new Error(`[VATTS_TRACE] onBuildComplete(${tag}) buildId=${buildId ?? 'n/a'}`);
-            // remove este método da stack e mostra o resto
-            if (Error.captureStackTrace) Error.captureStackTrace(err, this.traceBuildComplete);
-
-            Console.warn(String(err.stack || err.message));
         } catch {
             // noop
         }
