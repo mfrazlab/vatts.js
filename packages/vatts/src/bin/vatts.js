@@ -179,7 +179,7 @@ program
         }
 
         const assetsDirUrl = relAssetsToExport.split(path.sep).join('/').replace(/^\.?\/?/, '');
-        const assetsBaseHref = './' + (assetsDirUrl.length ? assetsDirUrl + '/' : '');
+        const assetsBaseHref = '/.' + (assetsDirUrl.length ? assetsDirUrl + '/' : '');
 
         Console.info('Starting export process...');
 
@@ -212,8 +212,7 @@ program
             const publicDir = path.join(projectDirResolved, 'public');
             if (fs.existsSync(publicDir)) {
                 Console.info('Copying public files...');
-                const exportPublicDir = path.join(exportDirResolved, 'public');
-                copyDirRecursive(publicDir, exportPublicDir);
+                copyDirRecursive(publicDir, exportDirResolved);
             }
 
             // 5. Gera index.html

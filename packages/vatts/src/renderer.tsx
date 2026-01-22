@@ -142,10 +142,11 @@ interface ServerRootProps {
     metaTagsHtml: string;
     initialDataScript: string;
     hotReloadScript: string;
+    dataScript: React.ReactNode;
     children: React.ReactNode;
 }
 
-function ServerRoot({ lang, title, metaTagsHtml, initialDataScript, hotReloadScript, children }: ServerRootProps) {
+function ServerRoot({ lang, title, metaTagsHtml, initialDataScript, hotReloadScript, dataScript, children }: ServerRootProps) {
     return (
         <html lang={lang}>
         <head>
@@ -154,9 +155,11 @@ function ServerRoot({ lang, title, metaTagsHtml, initialDataScript, hotReloadScr
             <span dangerouslySetInnerHTML={{ __html: metaTagsHtml }} />
         </head>
         <body>
+        {dataScript}
         <div id="root">{children}</div>
         {/* O React injeta os bootstrapScripts/bootstrapModules automaticamente no final do body */}
-        {hotReloadScript && <script dangerouslySetInnerHTML={{ __html: hotReloadScript }} />}
+        {/* FIX: Alterado de <script> para <span> pois hotReloadScript já contém as tags <script> */}
+        {hotReloadScript && <span dangerouslySetInnerHTML={{ __html: hotReloadScript }} />}
         </body>
         </html>
     );
@@ -259,13 +262,15 @@ export async function renderAsStream({ req, res, route, params, allRoutes }: Ren
                 // Recriando o script de dados exatamente como o client espera
                 initialDataScript={`/* Data Injection */`}
                 hotReloadScript={hotReloadScript}
+                dataScript={
+                    <script
+                        id="__vatts_data__"
+                        type="text/plain"
+                        data-h={obfuscatedData}
+                    />
+                }
             >
                 {/* Injetamos o script de dados como um elemento React para garantir que esteja no DOM */}
-                <script
-                    id="__vatts_data__"
-                    type="text/plain"
-                    data-h={obfuscatedData}
-                />
                 {AppTree}
             </ServerRoot>,
             {
