@@ -1,6 +1,6 @@
 {
   "name": "vatts-framework",
-  "version": "1.0.1-alpha.2",
+  "version": "1.0.1",
   "description": "Monorepo for the Vatts.js framework",
   "private": true,
   "author": "itsmuzin",
