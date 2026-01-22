@@ -174,39 +174,31 @@ interface ServerRootProps {
 }
 
 function ServerRoot({ lang, title, metaTagsHtml, initialDataScript, hotReloadScript, dataScript, children }: ServerRootProps) {
+    // Concatena tudo que vai no head em uma única string
+    const headContent = `
+        <meta charset="utf-8" />
+        <title>${title}</title>
+        ${initialDataScript ? `<script>${initialDataScript}</script>` : ''}
+        ${metaTagsHtml || ''}
+    `;
+
     return (
         <html lang={lang}>
-        <head>
-            <meta charSet="utf-8" />
-            <title>{title}</title>
-
-            {/* Script de dados iniciais */}
-            {initialDataScript && (
-                <script dangerouslySetInnerHTML={{ __html: initialDataScript }} />
-            )}
-
-            {/* Meta tags / links / preloads gerados no servidor */}
-            {metaTagsHtml && (
-                <script
-                    dangerouslySetInnerHTML={{
-                        __html: `
-                (() => {
-                  const tpl = document.createElement('template');
-                  tpl.innerHTML = ${JSON.stringify(metaTagsHtml)};
-                  document.head.append(...tpl.content.childNodes);
-                })();
-              `
-                    }}
-                />
-            )}
-        </head>
+        {/* O React não vai tentar hidratar o conteúdo interno, eliminando o erro e o script injetor */}
+        <head dangerouslySetInnerHTML={{ __html: headContent }} />
 
         <body>
         {dataScript}
+
         <div id="root">{children}</div>
-        {/* O React injeta os bootstrapScripts/bootstrapModules automaticamente no final do body */}
-        {/* FIX: Alterado de <script> para <span> pois hotReloadScript já contém as tags <script> */}
-        {hotReloadScript && <span dangerouslySetInnerHTML={{ __html: hotReloadScript }} />}
+
+        {/* Usa display: none para garantir que scripts extras não afetem o layout visual */}
+        {hotReloadScript && (
+            <div
+                style={{ display: 'none' }}
+                dangerouslySetInnerHTML={{ __html: hotReloadScript }}
+            />
+        )}
         </body>
         </html>
     );
