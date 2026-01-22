@@ -21,134 +21,157 @@ import { WebSocketServer as WSServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { URL } from 'url';
 import Console from "./api/console"
-import {FrameworkAdapterFactory} from "./adapters/factory";
-import {VattsRequest} from "./api/http";
+import { FrameworkAdapterFactory } from "./adapters/factory";
+import { VattsRequest } from "./api/http";
 
-// --- Roteamento do Frontend ---
+// --- Tipos Internos Otimizados ---
 
-// Guarda todas as rotas de PÁGINA (React) encontradas
-// A rota agora também armazena o caminho do arquivo para ser usado como um ID único no cliente
-let allRoutes: (RouteConfig & { componentPath: string })[] = [];
+interface CompiledRoute {
+    config: RouteConfig;
+    componentPath: string;
+    regex: RegExp; // Regex pré-compilada para performance
+    paramNames: string[]; // Nomes dos parâmetros extraídos para evitar re-parse
+}
 
-// Guarda o layout se existir
+interface CompiledBackendRoute {
+    config: BackendRouteConfig;
+    regex: RegExp;
+    paramNames: string[];
+}
+
+// --- Estado Global ---
+
+let allRoutes: CompiledRoute[] = [];
+let allBackendRoutes: CompiledBackendRoute[] = [];
+let allWebSocketRoutes: { regex: RegExp; handler: WebSocketHandler; middleware?: VattsMiddleware[]; config: BackendRouteConfig }[] = [];
+
+// Cache de arquivos para Hot Reload
+const loadedFiles = new Set<string>();
+
+// Componentes Especiais
 let layoutComponent: { componentPath: string; metadata?: any } | null = null;
-
-// Guarda o componente 404 personalizado se existir
 let notFoundComponent: { componentPath: string } | null = null;
 
-// Cache de arquivos carregados para limpeza
-let loadedRouteFiles: Set<string> = new Set();
-let loadedLayoutFiles: Set<string> = new Set();
-let loadedNotFoundFiles: Set<string> = new Set();
+// Conexões ativas
+let wsConnections: Set<WebSocket> = new Set();
 
-/**
- * Limpa o cache do require para um arquivo específico
- * @param filePath Caminho do arquivo para limpar
- */
-function clearRequireCache(filePath: string) {
+// --- Helpers de Regex ---
+
+// Re-implementação da compilação usando Named Groups para segurança e facilidade (como no original, mas cached)
+function compileRoutePatternWithGroups(pattern: string): RegExp {
+    const regexPattern = pattern
+        .replace(/\[\[\.\.\.(\w+)\]\]/g, '(?<$1>.+)?')
+        .replace(/\[\.\.\.(\w+)\]/g, '(?<$1>.+)')
+        .replace(/\/\[\[(\w+)\]\]/g, '(?:/(?<$1>[^/]+))?')
+        .replace(/\[\[(\w+)\]\]/g, '(?<$1>[^/]+)?')
+        .replace(/\[(\w+)\]/g, '(?<$1>[^/]+)');
+
+    return new RegExp(`^${regexPattern}/?$`);
+}
+
+
+// --- Gerenciamento de Cache ---
+
+function safeClearCache(filePath: string) {
     try {
-        const resolvedPath = require.resolve(filePath);
-        delete require.cache[resolvedPath];
-
-        // Também limpa arquivos temporários relacionados (apenas se existir no cache)
-        const tempFile = filePath.replace(/\.(tsx|ts|jsx|js)$/, '.temp.$1');
-        const tempResolvedPath = require.cache[require.resolve(tempFile)];
-        if (tempResolvedPath) {
-            delete require.cache[require.resolve(tempFile)];
+        // Tenta deletar direto pela chave do caminho absoluto (mais rápido)
+        if (require.cache[filePath]) {
+            delete require.cache[filePath];
+            return;
         }
-    } catch {
-        // Arquivo pode não estar no cache ou não ser resolvível
+
+        // Fallback: resolve o caminho (tem custo de I/O)
+        const resolved = require.resolve(filePath);
+        if (require.cache[resolved]) {
+            delete require.cache[resolved];
+        }
+    } catch (e) {
+        // Ignora erro se arquivo não for resolvível
     }
 }
 
-// Nota: Suporte apenas para TypeScript (.ts, .tsx). Não tratamos .jsx aqui.
-
-/**
- * Limpa todo o cache de rotas carregadas
- */
 export function clearAllRouteCache() {
-    // Limpa cache das rotas
-    loadedRouteFiles.forEach(filePath => {
-        clearRequireCache(filePath);
-    });
-    loadedRouteFiles.clear();
-
-    // Limpa cache do layout
-    loadedLayoutFiles.forEach(filePath => {
-        clearRequireCache(filePath);
-    });
-    loadedLayoutFiles.clear();
-
-    // Limpa cache do notFound
-    loadedNotFoundFiles.forEach(filePath => {
-        clearRequireCache(filePath);
-    });
-    loadedNotFoundFiles.clear();
+    loadedFiles.forEach(file => safeClearCache(file));
+    loadedFiles.clear();
 }
 
-/**
- * Limpa o cache de um arquivo específico e recarrega as rotas se necessário
- * @param changedFilePath Caminho do arquivo que foi alterado
- */
 export function clearFileCache(changedFilePath: string) {
-    const absolutePath = path.isAbsolute(changedFilePath) ? changedFilePath : path.resolve(changedFilePath);
+    const absolutePath = path.resolve(changedFilePath);
 
-    // Limpa o cache do arquivo específico
-    clearRequireCache(absolutePath);
-
-    // Remove das listas de arquivos carregados
-    loadedRouteFiles.delete(absolutePath);
-    loadedLayoutFiles.delete(absolutePath);
-    loadedNotFoundFiles.delete(absolutePath);
+    // Só tenta limpar se realmente já foi carregado (evita I/O desnecessário)
+    if (loadedFiles.has(absolutePath)) {
+        safeClearCache(absolutePath);
+        loadedFiles.delete(absolutePath);
+    }
 }
 
 /**
- * Carrega o layout.tsx se existir no diretório web
- * @param webDir O diretório web onde procurar o layout
- * @returns O layout carregado ou null se não existir
+ * Hook para ignorar importações de CSS/SCSS/SASS durante o require do servidor.
+ * Isso evita a necessidade de processar arquivos pesados que não afetam a rota.
  */
+function requireWithoutStyles<T>(modulePath: string): T {
+    const extensions = ['.css', '.scss', '.sass', '.less', '.png', '.jpg', '.jpeg', '.gif', '.svg'];
+    const originalHandlers: Record<string, any> = {};
+
+    // Salva handlers originais e substitui por no-op
+    extensions.forEach(ext => {
+        originalHandlers[ext] = require.extensions[ext];
+        require.extensions[ext] = (m: NodeModule, filename: string) => {
+            // Retorna módulo vazio para imports de estilo/assets
+            // @ts-ignore
+            m.exports = {};
+        };
+    });
+
+    try {
+        // Não chamamos safeClearCache aqui explicitamente; quem chama loadRoutes já deve ter gerenciado o ciclo
+        return require(modulePath);
+    } finally {
+        // Restaura handlers originais
+        extensions.forEach(ext => {
+            if (originalHandlers[ext]) {
+                require.extensions[ext] = originalHandlers[ext];
+            } else {
+                delete require.extensions[ext];
+            }
+        });
+    }
+}
+
+
+// --- Carregamento de Layout (Otimizado - Sem I/O de Disco) ---
+
 export function loadLayout(webDir: string): { componentPath: string; metadata?: any } | null {
-    const layoutPath = path.join(webDir, 'layout.tsx');
-    const layoutPathTs = path.join(webDir, 'layout.ts');
-    const layoutFile = fs.existsSync(layoutPath) ? layoutPath :
-        fs.existsSync(layoutPathTs) ? layoutPathTs : null;
+    const extensions = ['layout.tsx', 'layout.ts'];
+    let layoutFile: string | null = null;
+
+    for (const ext of extensions) {
+        const fullPath = path.join(webDir, ext);
+        if (fs.existsSync(fullPath)) {
+            layoutFile = fullPath;
+            break;
+        }
+    }
 
     if (layoutFile) {
         const absolutePath = path.resolve(layoutFile);
         const componentPath = path.relative(process.cwd(), layoutFile).replace(/\\/g, '/');
 
         try {
-            // HACK: Cria uma versão temporária do layout SEM imports de CSS para carregar no servidor
-            const layoutContent = fs.readFileSync(layoutFile, 'utf8');
-            const tempContent = layoutContent
-                .replace(/import\s+['"][^'"]*\.css['"];?/g, '// CSS import removido para servidor')
-                .replace(/import\s+['"][^'"]*\.scss['"];?/g, '// SCSS import removido para servidor')
-                .replace(/import\s+['"][^'"]*\.sass['"];?/g, '// SASS import removido para servidor');
+            // Se já carregamos antes, limpa o cache para garantir reload
+            if (loadedFiles.has(absolutePath)) {
+                safeClearCache(absolutePath);
+            }
 
-            // Escreve um arquivo temporário .temp.tsx ou .temp.ts sem imports de CSS
-            const ext = path.extname(layoutFile).toLowerCase();
-            const tempFile = layoutFile.replace(/\.(tsx|ts)$/i, '.temp.$1');
-            fs.writeFileSync(tempFile, tempContent, 'utf8');
+            // OTIMIZAÇÃO: Carrega em memória ignorando CSS
+            const layoutModule = requireWithoutStyles<any>(layoutFile);
 
-            // Otimização: limpa cache apenas se existir
-            try {
-                const resolvedPath = require.resolve(tempFile);
-                if (require.cache[resolvedPath]) {
-                    delete require.cache[resolvedPath];
-                }
-            } catch {}
+            loadedFiles.add(absolutePath);
 
-            const layoutModule = require(tempFile);
-
-            // Remove o arquivo temporário
-            try { fs.unlinkSync(tempFile); } catch {}
-
-            const metadata = layoutModule.metadata || null;
-
-            // Registra o arquivo como carregado
-            loadedLayoutFiles.add(absolutePath);
-
-            layoutComponent = { componentPath, metadata };
+            layoutComponent = {
+                componentPath,
+                metadata: layoutModule.metadata || null
+            };
             return layoutComponent;
         } catch (error) {
             Console.error(`Error loading layout ${layoutFile}:`, error);
@@ -161,321 +184,220 @@ export function loadLayout(webDir: string): { componentPath: string; metadata?: 
     return null;
 }
 
-/**
- * Retorna o layout atual se carregado
- */
-export function getLayout(): { componentPath: string; metadata?: any } | null {
-    return layoutComponent;
-}
+export function getLayout() { return layoutComponent; }
 
-/**
- * Carrega dinamicamente todas as rotas de frontend do diretório do usuário.
- * @param routesDir O diretório onde as rotas de página estão localizadas.
- * @returns A lista de rotas de página que foram carregadas.
- */
+
+// --- Carregamento de Rotas Frontend ---
+
 export function loadRoutes(routesDir: string): (RouteConfig & { componentPath: string })[] {
     if (!fs.existsSync(routesDir)) {
-        Console.warn(`Frontend routes directory not found at ${routesDir}. No page will be loaded.`);
+        Console.warn(`Frontend routes directory not found at ${routesDir}.`);
         allRoutes = [];
-        return allRoutes;
+        return [];
     }
 
-    // Otimização: usa função recursiva manual para evitar overhead do recursive: true
-    const routeFiles: string[] = [];
-    const scanDirectory = (dir: string, baseDir: string = '') => {
+    const loaded: CompiledRoute[] = [];
+    const cwdPath = process.cwd();
+
+    // Função recursiva otimizada
+    const scanAndLoad = (dir: string) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
+
         for (const entry of entries) {
-            const relativePath = baseDir ? path.join(baseDir, entry.name) : entry.name;
+            const name = entry.name;
+            // Skip arquivos ocultos ou de sistema para acelerar scan
+            if (name.startsWith('.') || name.startsWith('_')) continue;
+
+            const fullPath = path.join(dir, name);
 
             if (entry.isDirectory()) {
-                // Pula diretório backend inteiro
-                if (entry.name === 'backend') continue;
-                scanDirectory(path.join(dir, entry.name), relativePath);
-            } else if (entry.isFile()) {
-                // Filtra apenas arquivos .ts/.tsx
-                if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
-                    routeFiles.push(relativePath);
+                if (name === 'backend') continue;
+                scanAndLoad(fullPath);
+            } else if (entry.isFile() && (name.endsWith('.tsx') || name.endsWith('.ts'))) {
+                try {
+                    const absolutePath = path.resolve(fullPath);
+
+                    // OTIMIZAÇÃO CRÍTICA: Só limpa cache se o arquivo já foi carregado antes.
+                    // Isso evita chamadas caras de require.resolve() na inicialização do servidor.
+                    if (loadedFiles.has(absolutePath)) {
+                        safeClearCache(absolutePath);
+                    }
+
+                    // OTIMIZAÇÃO: Usa requireWithoutStyles também para rotas!
+                    // Isso evita que o Node tente processar imports de CSS/Assets dentro das páginas durante o roteamento.
+                    const routeModule = requireWithoutStyles<any>(absolutePath);
+                    const defaultConfig = routeModule.default;
+
+                    if (defaultConfig?.pattern && defaultConfig?.component) {
+                        const componentPath = path.relative(cwdPath, fullPath).replace(/\\/g, '/');
+
+                        // OTIMIZAÇÃO: Pré-compila a regex aqui
+                        const regex = compileRoutePatternWithGroups(defaultConfig.pattern);
+
+                        loaded.push({
+                            config: defaultConfig,
+                            componentPath,
+                            regex,
+                            paramNames: [] // Usando named groups na regex, não precisamos mapear manual
+                        });
+
+                        loadedFiles.add(absolutePath);
+                    }
+                } catch (error) {
+                    Console.error(`Error loading route ${fullPath}:`, error);
                 }
             }
         }
     };
 
-    scanDirectory(routesDir);
+    scanAndLoad(routesDir);
 
-    const loaded: (RouteConfig & { componentPath: string })[] = [];
-    const cwdPath = process.cwd();
-
-    // Otimização: processa arquivos em lote
-    for (const file of routeFiles) {
-        const filePath = path.join(routesDir, file);
-        const absolutePath = path.resolve(filePath);
-
-        try {
-            // Otimização: limpa cache apenas se já existir
-            const resolvedPath = require.resolve(filePath);
-            if (require.cache[resolvedPath]) {
-                delete require.cache[resolvedPath];
-            }
-
-            const routeModule = require(filePath);
-            if (routeModule.default?.pattern && routeModule.default?.component) {
-                // Otimização: calcula componentPath apenas uma vez
-                const componentPath = path.relative(cwdPath, filePath).replace(/\\/g, '/');
-                loaded.push({ ...routeModule.default, componentPath });
-                loadedRouteFiles.add(absolutePath);
-            }
-        } catch (error) {
-            Console.error(`Error loading page route ${filePath}:`, error);
-        }
-    }
-
+    // Atualiza variável global e retorna formato esperado pelo sistema (sem a regex exposta para não quebrar tipagem antiga se for estrita)
     allRoutes = loaded;
-    return allRoutes;
+    return allRoutes.map(r => ({ ...r.config, componentPath: r.componentPath }));
 }
 
-/**
- * Encontra a rota de página correspondente para uma URL.
- * @param pathname O caminho da URL (ex: "/users/123").
- * @returns Um objeto com a rota e os parâmetros, ou null se não encontrar.
- */
 export function findMatchingRoute(pathname: string) {
+    // OTIMIZAÇÃO: Loop usando regex pré-compilada. Muito mais rápido.
     for (const route of allRoutes) {
-        if (!route.pattern) continue;
-
-        const regexPattern = route.pattern
-            // [[...param]] → opcional catch-all
-            .replace(/\[\[\.\.\.(\w+)\]\]/g, '(?<$1>.+)?')
-            // [...param] → obrigatório catch-all
-            .replace(/\[\.\.\.(\w+)\]/g, '(?<$1>.+)')
-            // /[[param]] → opcional com barra também opcional
-            .replace(/\/\[\[(\w+)\]\]/g, '(?:/(?<$1>[^/]+))?')
-            // [[param]] → segmento opcional (sem barra anterior)
-            .replace(/\[\[(\w+)\]\]/g, '(?<$1>[^/]+)?')
-            // [param] → segmento obrigatório
-            .replace(/\[(\w+)\]/g, '(?<$1>[^/]+)');
-
-        // permite / opcional no final
-        const regex = new RegExp(`^${regexPattern}/?$`);
-        const match = pathname.match(regex);
-
+        const match = pathname.match(route.regex);
         if (match) {
             return {
-                route,
+                route: { ...route.config, componentPath: route.componentPath },
                 params: match.groups || {}
             };
         }
     }
-
     return null;
 }
 
 
-// --- Roteamento do Backend ---
+// --- Carregamento de Rotas Backend ---
 
-// Guarda todas as rotas de API encontradas
-let allBackendRoutes: BackendRouteConfig[] = [];
+// Cache de middlewares simples
+const middlewareCache = new Map<string, VattsMiddleware[]>();
 
-// Cache de middlewares carregados por diretório
-let loadedMiddlewares: Map<string, VattsMiddleware[]> = new Map();
+function getMiddlewaresForDir(dir: string): VattsMiddleware[] {
+    if (middlewareCache.has(dir)) return middlewareCache.get(dir)!;
 
-/**
- * Carrega middlewares de um diretório específico
- * @param dir O diretório onde procurar por middleware.ts
- * @returns Array de middlewares encontrados
- */
-function loadMiddlewareFromDirectory(dir: string): VattsMiddleware[] {
-    const middlewares: VattsMiddleware[] = [];
+    const files = ['middleware.ts', 'middleware.tsx'];
+    let middlewares: VattsMiddleware[] = [];
 
-    // Procura por middleware.ts, middleware.tsx
-    const middlewarePath = path.join(dir, 'middleware.ts');
-    const middlewarePathTsx = path.join(dir, 'middleware.tsx');
+    for (const file of files) {
+        const fullPath = path.join(dir, file);
+        if (fs.existsSync(fullPath)) {
+            try {
+                const absolutePath = path.resolve(fullPath);
+                if (loadedFiles.has(absolutePath)) {
+                    safeClearCache(absolutePath);
+                }
 
-    const middlewareFile = fs.existsSync(middlewarePath) ? middlewarePath :
-        fs.existsSync(middlewarePathTsx) ? middlewarePathTsx : null;
+                // Middlewares backend não usam requireWithoutStyles pois não devem ter CSS,
+                // e podem precisar de outros módulos backend.
+                const mod = require(fullPath);
+                loadedFiles.add(absolutePath);
 
-    if (middlewareFile) {
-        try {
-            const absolutePath = path.resolve(middlewareFile);
-            clearRequireCache(absolutePath);
+                // Extração robusta de exports
+                if (typeof mod.default === 'function') middlewares.push(mod.default);
+                else if (Array.isArray(mod.default)) middlewares.push(...mod.default);
 
-            const middlewareModule = require(middlewareFile);
-
-            // Suporte para export default (função única) ou export { middleware1, middleware2 }
-            if (typeof middlewareModule.default === 'function') {
-                middlewares.push(middlewareModule.default);
-            } else if (middlewareModule.default && Array.isArray(middlewareModule.default)) {
-                middlewares.push(...middlewareModule.default);
-            } else {
-                // Procura por exports nomeados que sejam funções
-                Object.keys(middlewareModule).forEach(key => {
-                    if (key !== 'default' && typeof middlewareModule[key] === 'function') {
-                        middlewares.push(middlewareModule[key]);
+                Object.keys(mod).forEach(key => {
+                    if (key !== 'default' && typeof mod[key] === 'function') {
+                        middlewares.push(mod[key]);
                     }
                 });
-            }
 
-        } catch (error) {
-            Console.error(`Error loading middleware ${middlewareFile}:`, error);
+                // Só processa o primeiro arquivo de middleware encontrado na pasta
+                break;
+            } catch (e) {
+                Console.error(`Error loading middleware ${fullPath}`, e);
+            }
         }
     }
 
+    middlewareCache.set(dir, middlewares);
     return middlewares;
 }
 
-/**
- * Coleta middlewares do diretório específico da rota (não herda dos pais)
- * @param routeFilePath Caminho completo do arquivo de rota
- * @param backendRoutesDir Diretório raiz das rotas de backend
- * @returns Array com middlewares apenas do diretório da rota
- */
-function collectMiddlewaresForRoute(routeFilePath: string, backendRoutesDir: string): VattsMiddleware[] {
-    const relativePath = path.relative(backendRoutesDir, routeFilePath);
-    const routeDir = path.dirname(path.join(backendRoutesDir, relativePath));
-
-    // Carrega middlewares APENAS do diretório específico da rota (não herda dos pais)
-    if (!loadedMiddlewares.has(routeDir)) {
-        const middlewares = loadMiddlewareFromDirectory(routeDir);
-        loadedMiddlewares.set(routeDir, middlewares);
-    }
-
-    return loadedMiddlewares.get(routeDir) || [];
-}
-
-/**
- * Carrega dinamicamente todas as rotas de API do diretório de backend.
- * @param backendRoutesDir O diretório onde as rotas de API estão localizadas.
- */
 export function loadBackendRoutes(backendRoutesDir: string) {
     if (!fs.existsSync(backendRoutesDir)) {
-        // É opcional ter uma API, então não mostramos um aviso se a pasta não existir.
         allBackendRoutes = [];
         return;
     }
 
-    // Limpa cache de middlewares para recarregar
-    loadedMiddlewares.clear();
+    middlewareCache.clear(); // Limpa cache de middleware ao recarregar rotas
+    const loaded: CompiledBackendRoute[] = [];
 
-    // Otimização: usa função recursiva manual e coleta middlewares durante o scan
-    const routeFiles: string[] = [];
-    const middlewareFiles: Map<string, string> = new Map(); // dir -> filepath
-
-    const scanDirectory = (dir: string, baseDir: string = '') => {
+    const scanAndLoadAPI = (dir: string) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
 
+        // Primeiro carrega middleware deste diretório para cachear
+        getMiddlewaresForDir(dir);
+
         for (const entry of entries) {
-            const relativePath = baseDir ? path.join(baseDir, entry.name) : entry.name;
+            const name = entry.name;
+            if (name.startsWith('.') || name.startsWith('_')) continue;
+
+            const fullPath = path.join(dir, name);
 
             if (entry.isDirectory()) {
-                scanDirectory(path.join(dir, entry.name), relativePath);
-            } else if (entry.isFile()) {
-                const isSupported = entry.name.endsWith('.ts') || entry.name.endsWith('.tsx');
-                if (!isSupported) continue;
+                scanAndLoadAPI(fullPath);
+            } else if (entry.isFile() && (name.endsWith('.ts') || name.endsWith('.tsx'))) {
+                if (name.startsWith('middleware')) continue;
 
-                // Identifica middlewares durante o scan
-                if (entry.name.startsWith('middleware')) {
-                    const dirPath = path.dirname(path.join(backendRoutesDir, relativePath));
-                    middlewareFiles.set(dirPath, path.join(backendRoutesDir, relativePath));
-                } else {
-                    routeFiles.push(relativePath);
+                try {
+                    const absolutePath = path.resolve(fullPath);
+                    if (loadedFiles.has(absolutePath)) {
+                        safeClearCache(absolutePath);
+                    }
+
+                    const mod = require(fullPath);
+                    loadedFiles.add(absolutePath);
+
+                    const config = mod.default;
+
+                    if (config?.pattern) {
+                        // Aplica middleware automaticamente se não definido
+                        if (!config.middleware) {
+                            const dirMiddlewares = getMiddlewaresForDir(dir);
+                            if (dirMiddlewares.length > 0) {
+                                config.middleware = dirMiddlewares;
+                            }
+                        }
+
+                        // OTIMIZAÇÃO: Pré-compila regex
+                        loaded.push({
+                            config,
+                            regex: compileRoutePatternWithGroups(config.pattern),
+                            paramNames: []
+                        });
+                    }
+                } catch (e) {
+                    Console.error(`Error loading API route ${fullPath}`, e);
                 }
             }
         }
     };
 
-    scanDirectory(backendRoutesDir);
-
-    // Otimização: pré-carrega todos os middlewares em um único passe
-    for (const [dirPath, middlewarePath] of middlewareFiles) {
-        try {
-            const resolvedPath = require.resolve(middlewarePath);
-            if (require.cache[resolvedPath]) {
-                delete require.cache[resolvedPath];
-            }
-
-            const middlewareModule = require(middlewarePath);
-            const middlewares: VattsMiddleware[] = [];
-
-            if (typeof middlewareModule.default === 'function') {
-                middlewares.push(middlewareModule.default);
-            } else if (Array.isArray(middlewareModule.default)) {
-                middlewares.push(...middlewareModule.default);
-            } else {
-                // Exports nomeados
-                for (const key in middlewareModule) {
-                    if (key !== 'default' && typeof middlewareModule[key] === 'function') {
-                        middlewares.push(middlewareModule[key]);
-                    }
-                }
-            }
-
-            if (middlewares.length > 0) {
-                loadedMiddlewares.set(dirPath, middlewares);
-            }
-        } catch (error) {
-            Console.error(`Error loading middleware ${middlewarePath}:`, error);
-        }
-    }
-
-    // Otimização: processa rotas com cache já limpo
-    const loaded: BackendRouteConfig[] = [];
-    for (const file of routeFiles) {
-        const filePath = path.join(backendRoutesDir, file);
-
-        try {
-            // Otimização: limpa cache apenas se existir
-            const resolvedPath = require.resolve(filePath);
-            if (require.cache[resolvedPath]) {
-                delete require.cache[resolvedPath];
-            }
-
-            const routeModule = require(filePath);
-            if (routeModule.default?.pattern) {
-                const routeConfig = { ...routeModule.default };
-                // Se a rota NÃO tem middleware definido, usa os da pasta
-                if (!routeConfig.hasOwnProperty('middleware')) {
-                    const routeDir = path.dirname(path.resolve(filePath));
-                    const folderMiddlewares = loadedMiddlewares.get(routeDir);
-                    if (folderMiddlewares && folderMiddlewares.length > 0) {
-                        routeConfig.middleware = folderMiddlewares;
-                    }
-                }
-
-                loaded.push(routeConfig);
-            }
-        } catch (error) {
-            Console.error(`Error loading API route ${filePath}:`, error);
-        }
-    }
-
+    scanAndLoadAPI(backendRoutesDir);
     allBackendRoutes = loaded;
+
+    // Processa WebSockets após carregar rotas HTTP
+    processWebSocketRoutes();
 }
 
-/**
- * Encontra a rota de API correspondente para uma URL e método HTTP.
- * @param pathname O caminho da URL (ex: "/api/users/123").
- * @param method O método HTTP da requisição (GET, POST, etc.).
- * @returns Um objeto com a rota e os parâmetros, ou null se não encontrar.
- */
 export function findMatchingBackendRoute(pathname: string, method: string) {
+    const methodUpper = method.toUpperCase();
+
     for (const route of allBackendRoutes) {
-        // Verifica se a rota tem um handler para o método HTTP atual
-        if (!route.pattern || !route[method.toUpperCase() as keyof BackendRouteConfig]) continue;
-        const regexPattern = route.pattern
-            // [[...param]] → opcional catch-all
-            .replace(/\[\[\.\.\.(\w+)\]\]/g, '(?<$1>.+)?')
-            // [...param] → obrigatório catch-all
-            .replace(/\[\.\.\.(\w+)\]/g, '(?<$1>.+)')
-            // [[param]] → segmento opcional
-            .replace(/\[\[(\w+)\]\]/g, '(?<$1>[^/]+)?')
-            // [param] → segmento obrigatório
-            .replace(/\[(\w+)\]/g, '(?<$1>[^/]+)');
+        // Verifica método antes de rodar regex (otimização barata)
+        // @ts-ignore
+        if (!route.config[methodUpper]) continue;
 
-        const regex = new RegExp(`^${regexPattern}/?$`);
-        const match = pathname.match(regex);
-
+        const match = pathname.match(route.regex);
         if (match) {
             return {
-                route,
+                route: route.config,
                 params: match.groups || {}
             };
         }
@@ -483,37 +405,27 @@ export function findMatchingBackendRoute(pathname: string, method: string) {
     return null;
 }
 
-/**
- * Carrega o notFound.tsx se existir no diretório web
- * @param webDir O diretório web onde procurar o notFound
- * @returns O notFound carregado ou null se não existir
- */
+
+// --- 404 Not Found ---
+
 export function loadNotFound(webDir: string): { componentPath: string } | null {
-    const notFoundPath = path.join(webDir, 'notFound.tsx');
-    const notFoundPathTs = path.join(webDir, 'notFound.ts');
-    const notFoundFile = fs.existsSync(notFoundPath) ? notFoundPath :
-        fs.existsSync(notFoundPathTs) ? notFoundPathTs : null;
+    const files = ['notFound.tsx', 'notFound.ts'];
 
-    if (notFoundFile) {
-        const absolutePath = path.resolve(notFoundFile);
-        const componentPath = path.relative(process.cwd(), notFoundFile).replace(/\\/g, '/');
+    for (const file of files) {
+        const fullPath = path.join(webDir, file);
+        if (fs.existsSync(fullPath)) {
+            const absolutePath = path.resolve(fullPath);
+            const componentPath = path.relative(process.cwd(), fullPath).replace(/\\/g, '/');
 
-        try {
-            // Otimização: limpa cache apenas se existir
-            try {
-                const resolvedPath = require.resolve(notFoundFile);
-                if (require.cache[resolvedPath]) {
-                    delete require.cache[resolvedPath];
-                }
-            } catch {}
+            if (loadedFiles.has(absolutePath)) {
+                safeClearCache(absolutePath);
+            }
 
-            // Registra o arquivo como carregado
-            loadedNotFoundFiles.add(absolutePath);
+            // Também usa requireWithoutStyles para o 404
+            requireWithoutStyles(absolutePath);
 
-            notFoundComponent = { componentPath };
-            return notFoundComponent;
-        } catch (error) {
-            Console.error(`Error loading notFound ${notFoundFile}:`, error);
+            loadedFiles.add(absolutePath);
+
             notFoundComponent = { componentPath };
             return notFoundComponent;
         }
@@ -523,59 +435,32 @@ export function loadNotFound(webDir: string): { componentPath: string } | null {
     return null;
 }
 
-/**
- * Retorna o componente 404 atual se carregado
- */
-export function getNotFound(): { componentPath: string } | null {
-    return notFoundComponent;
-}
+export function getNotFound() { return notFoundComponent; }
 
-// --- WebSocket Functions ---
 
-// Guarda todas as rotas WebSocket encontradas
-let allWebSocketRoutes: { pattern: string; handler: WebSocketHandler; middleware?: VattsMiddleware[] }[] = [];
+// --- WebSocket (Mantendo lógica, otimizando lookup) ---
 
-// Conexões WebSocket ativas
-let wsConnections: Set<WebSocket> = new Set();
-
-/**
- * Processa e registra rotas WebSocket encontradas nas rotas backend
- */
 export function processWebSocketRoutes() {
-    allWebSocketRoutes = [];
-
-    for (const route of allBackendRoutes) {
-        if (route.WS) {
-            const wsRoute = {
-                pattern: route.pattern,
-                handler: route.WS,
-                middleware: route.middleware
-            };
-
-            allWebSocketRoutes.push(wsRoute);
-        }
-    }
+    allWebSocketRoutes = allBackendRoutes
+        .filter(r => r.config.WS)
+        .map(r => ({
+            config: r.config,
+            regex: r.regex, // Reusa a regex já compilada da rota HTTP!
+            handler: r.config.WS!,
+            middleware: r.config.middleware
+        }));
 }
 
-/**
- * Encontra a rota WebSocket correspondente para uma URL
- */
 export function findMatchingWebSocketRoute(pathname: string) {
-    for (const route of allWebSocketRoutes) {
-        if (!route.pattern) continue;
-
-        const regexPattern = route.pattern
-            .replace(/\[\[\.\.\.(\w+)\]\]/g, '(?<$1>.+)?')
-            .replace(/\[\.\.\.(\w+)\]/g, '(?<$1>.+)')
-            .replace(/\[\[(\w+)\]\]/g, '(?<$1>[^/]+)?')
-            .replace(/\[(\w+)\]/g, '(?<$1>[^/]+)');
-
-        const regex = new RegExp(`^${regexPattern}/?$`);
-        const match = pathname.match(regex);
-
+    for (const wsRoute of allWebSocketRoutes) {
+        const match = pathname.match(wsRoute.regex);
         if (match) {
             return {
-                route,
+                route: {
+                    pattern: wsRoute.config.pattern,
+                    handler: wsRoute.handler,
+                    middleware: wsRoute.middleware
+                },
                 params: match.groups || {}
             };
         }
@@ -583,150 +468,83 @@ export function findMatchingWebSocketRoute(pathname: string) {
     return null;
 }
 
-/**
- * Trata uma nova conexão WebSocket
- */
 function handleWebSocketConnection(ws: WebSocket, req: IncomingMessage, hwebReq: VattsRequest) {
     if (!req.url) return;
-
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const pathname = url.pathname;
 
-    const matchedRoute = findMatchingWebSocketRoute(pathname);
-    if (!matchedRoute) {
+    const match = findMatchingWebSocketRoute(url.pathname);
+    if (!match) {
         ws.close(1000, 'Route not found');
         return;
     }
-
-    const params = extractWebSocketParams(pathname, matchedRoute.route.pattern);
-    const query = Object.fromEntries(url.searchParams.entries());
 
     const context: WebSocketContext = {
         vattsReq: hwebReq,
         ws,
         req,
         url,
-        params,
-        query,
+        params: match.params,
+        query: Object.fromEntries(url.searchParams.entries()),
         send: (data: any) => {
             if (ws.readyState === WebSocket.OPEN) {
-                const message = typeof data === 'string' ? data : JSON.stringify(data);
-                ws.send(message);
+                ws.send(typeof data === 'string' ? data : JSON.stringify(data));
             }
         },
-        close: (code?: number, reason?: string) => {
-            ws.close(code || 1000, reason);
-        },
-        broadcast: (data: any, exclude?: WebSocket[]) => {
-            const message = typeof data === 'string' ? data : JSON.stringify(data);
+        close: (code, reason) => ws.close(code || 1000, reason),
+        broadcast: (data, exclude) => {
+            const msg = typeof data === 'string' ? data : JSON.stringify(data);
             const excludeSet = new Set(exclude || []);
-            wsConnections.forEach(connection => {
-                if (connection.readyState === WebSocket.OPEN && !excludeSet.has(connection)) {
-                    connection.send(message);
+            for (const conn of wsConnections) {
+                if (conn.readyState === WebSocket.OPEN && !excludeSet.has(conn)) {
+                    conn.send(msg);
                 }
-            });
+            }
         }
     };
 
     try {
-        matchedRoute.route.handler(context);
+        match.route.handler(context);
     } catch (error) {
         console.error('Error in WebSocket handler:', error);
         ws.close(1011, 'Internal server error');
     }
 }
 
-/**
- * Extrai parâmetros da URL para WebSocket
- */
-function extractWebSocketParams(pathname: string, pattern: string): Record<string, string> {
-    const params: Record<string, string> = {};
-
-    const regexPattern = pattern
-        .replace(/\[\[\.\.\.(\w+)\]\]/g, '(?<$1>.+)?')
-        .replace(/\[\.\.\.(\w+)\]/g, '(?<$1>.+)')
-        .replace(/\[\[(\w+)\]\]/g, '(?<$1>[^/]+)?')
-        .replace(/\[(\w+)\]/g, '(?<$1>[^/]+)');
-
-    const regex = new RegExp(`^${regexPattern}/?$`);
-    const match = pathname.match(regex);
-
-    if (match && match.groups) {
-        Object.assign(params, match.groups);
-    }
-
-    return params;
-}
-
-/**
- * Configura WebSocket upgrade no servidor HTTP existente
- * @param server Servidor HTTP (Express, Fastify ou Native)
- * @param hotReloadManager Instância do gerenciador de hot-reload para coordenação
- */
 export function setupWebSocketUpgrade(server: any, hotReloadManager?: any) {
-    // NÃO remove listeners existentes para preservar hot-reload
-    // Em vez disso, coordena com o sistema existente
+    if (server.listeners('upgrade').length > 0) return;
 
-    // Verifica se já existe um listener de upgrade
-    const existingListeners = server.listeners('upgrade');
-
-    // Se não há listeners, ou se o hot-reload ainda não foi configurado, adiciona o nosso
-    if (existingListeners.length === 0) {
-        server.on('upgrade', (request: any, socket: any, head: Buffer) => {
-
-            handleWebSocketUpgrade(request, socket, head, hotReloadManager);
-        });
-    }
-}
-
-function handleWebSocketUpgrade(request: any, socket: any, head: Buffer, hotReloadManager?: any) {
-    const adapter = FrameworkAdapterFactory.getCurrentAdapter()
-    if (!adapter) {
-        console.error('❌ Framework adapter not detected. Unable to process WebSocket upgrade.');
-        socket.destroy();
-        return;
-    }
-    const genericReq = adapter.parseRequest(request);
-    const hwebReq = new VattsRequest(genericReq);
-    const { pathname } = new URL(request.url, `http://${request.headers.host}`);
-
-    // Prioridade 1: Hot reload (sistema interno)
-    if (pathname === '/hweb-hotreload/') {
-
-        if (hotReloadManager) {
-            hotReloadManager.handleUpgrade(request, socket, head);
-        } else {
+    server.on('upgrade', (request: any, socket: any, head: Buffer) => {
+        const adapter = FrameworkAdapterFactory.getCurrentAdapter();
+        if (!adapter) {
             socket.destroy();
+            return;
         }
-        return;
-    }
 
-    // Prioridade 2: Rotas WebSocket do usuário
-    const matchedRoute = findMatchingWebSocketRoute(pathname);
-    if (matchedRoute) {
-        // Faz upgrade para WebSocket usando noServer
-        const wss = new WSServer({
-            noServer: true,
-            perMessageDeflate: false, // Melhor performance
-            maxPayload: 1024 * 1024 // Limite de 1MB
-        });
+        const { pathname } = new URL(request.url, `http://${request.headers.host}`);
 
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wsConnections.add(ws);
+        // Prioridade 1: Hot Reload
+        if (pathname === '/hweb-hotreload/') {
+            if (hotReloadManager) hotReloadManager.handleUpgrade(request, socket, head);
+            else socket.destroy();
+            return;
+        }
 
-            ws.on('close', () => {
-                wsConnections.delete(ws);
+        // Prioridade 2: Rotas App
+        const match = findMatchingWebSocketRoute(pathname);
+        if (match) {
+            const wss = new WSServer({ noServer: true, perMessageDeflate: false, maxPayload: 1024 * 1024 });
+
+            wss.handleUpgrade(request, socket, head, (ws) => {
+                wsConnections.add(ws);
+                ws.on('close', () => wsConnections.delete(ws));
+                ws.on('error', () => wsConnections.delete(ws));
+
+                const hwebReq = new VattsRequest(adapter.parseRequest(request));
+                handleWebSocketConnection(ws, request, hwebReq);
             });
+            return;
+        }
 
-            ws.on('error', (error) => {
-                wsConnections.delete(ws);
-            });
-
-            // Processa a conexão
-            handleWebSocketConnection(ws, request, hwebReq);
-        });
-        return;
-    }
-
-    socket.destroy();
+        socket.destroy();
+    });
 }

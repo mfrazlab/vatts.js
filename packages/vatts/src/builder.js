@@ -319,7 +319,11 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
         external: nodeBuiltIns,
         // Otimização: Em prod usa 'recommended' para limpar código morto
         treeshake: isProduction ? 'recommended' : false,
-        cache: true,
+
+        // CORREÇÃO CRÍTICA: Desativa cache em desenvolvimento (watch mode)
+        // Isso previne que o Rollup emita "sucesso" baseado em um cache obsoleto quando o arquivo ainda tem erro.
+        cache: isProduction ? true : false,
+
         perf: false,
         plugins: [
             // CRÍTICO: 'replace' deve vir PRIMEIRO para injetar NODE_ENV antes que
@@ -465,22 +469,55 @@ async function build(entryPoint, outfile, isProduction = false) {
  * Helper para lidar com notificações do Watcher
  */
 function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
-    let hasError = false;
+    // Controla o estado do build por "geração" para evitar END atrasado
+    // (ou múltiplos ciclos) emitirem sucesso após um erro.
+    let currentBuildId = 0;
+    let lastStartedBuildId = 0;
+    const erroredBuildIds = new Set();
+
+    // DEBUG: stack trace rate-limited
+    let lastTraceAt = 0;
+    const trace = (label) => {
+        try {
+            const now = Date.now();
+            if (now - lastTraceAt < 500) return;
+            lastTraceAt = now;
+            const err = new Error(`[VATTS_TRACE] ${label}`);
+            if (Error.captureStackTrace) Error.captureStackTrace(err, trace);
+            console.log(err.stack || err.message);
+        } catch { /* noop */ }
+    };
 
     watcher.on('event', event => {
-        if (event.code === 'START') hasError = false;
+        // DEBUG LOGS (Mantidos a pedido)
+        console.log(`[DEBUG_BUILDER] Event code: ${event.code}`);
+
+        if (event.code === 'START') {
+            currentBuildId += 1;
+            lastStartedBuildId = currentBuildId;
+            console.log(`[DEBUG_BUILDER] START - buildId=${currentBuildId}`);
+        }
 
         if (event.code === 'ERROR') {
-            hasError = true;
+            // Marca erro para o build atualmente em andamento.
+            erroredBuildIds.add(currentBuildId);
+            console.log(`[DEBUG_BUILDER] ERROR detected!`, event.error?.message);
+
             const errDetails = {
                 message: event.error?.message || 'Unknown build error',
                 name: event.error?.name,
                 stack: event.error?.stack,
                 id: event.error?.id,
-                loc: event.error?.loc
+                loc: event.error?.loc,
+                buildId: currentBuildId
             };
 
-            if (hotReloadManager) hotReloadManager.onBuildComplete(false, errDetails);
+            // Notifica erro imediatamente
+            if (hotReloadManager) {
+                console.log(`[DEBUG_BUILDER] Sending onBuildComplete(false) to manager (buildId=${currentBuildId})`);
+                trace(`builder.handleWatcherEvents -> onBuildComplete(false) buildId=${currentBuildId}`);
+                hotReloadManager.onBuildComplete(false, errDetails);
+            }
             else Console.error("Build Error:", event.error);
 
             if (resolveFirstBuild) resolveFirstBuild();
@@ -489,7 +526,34 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
         if (event.code === 'BUNDLE_END') event.result.close();
 
         if (event.code === 'END') {
-            if (!hasError && hotReloadManager) hotReloadManager.onBuildComplete(true);
+            const endBuildId = currentBuildId;
+            const hadError = erroredBuildIds.has(endBuildId);
+
+            console.log(`[DEBUG_BUILDER] END - buildId=${endBuildId} hadError=${hadError} lastStartedBuildId=${lastStartedBuildId}`);
+
+            // Só emite sucesso se:
+            //  1) esse END é do build mais recentemente iniciado (evita END atrasado)
+            //  2) esse build não teve ERROR
+            if (endBuildId === lastStartedBuildId && !hadError) {
+                if (hotReloadManager) {
+                    console.log(`[DEBUG_BUILDER] Sending onBuildComplete(true) to manager (buildId=${endBuildId})`);
+                    trace(`builder.handleWatcherEvents -> onBuildComplete(true) buildId=${endBuildId}`);
+                    hotReloadManager.onBuildComplete(true, { buildId: endBuildId });
+                }
+            } else {
+                if (hadError) {
+                    console.log(`[DEBUG_BUILDER] Build ended but buildId=${endBuildId} hasError=true. NOT sending success.`);
+                } else {
+                    console.log(`[DEBUG_BUILDER] Ignoring END for buildId=${endBuildId} because a newer build has started.`);
+                }
+            }
+
+            // Limpa estados antigos pra não crescer sem limite.
+            // (qualquer build mais antigo que o último START não faz mais sentido manter)
+            for (const id of erroredBuildIds) {
+                if (id < lastStartedBuildId) erroredBuildIds.delete(id);
+            }
+
             if (resolveFirstBuild) {
                 resolveFirstBuild();
                 resolveFirstBuild = null;
@@ -594,3 +658,4 @@ async function cleanDirectoryExcept(dirPath, excludeFolder) {
 }
 
 module.exports = { build, watch, buildWithChunks, watchWithChunks };
+

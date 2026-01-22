@@ -105,7 +105,7 @@ export default function LoginPage() {
                     <div className="hidden lg:flex lg:col-span-5 p-12 flex-col justify-between bg-gradient-to-br from-black/40 to-transparent border-r border-white/5">
                         <div className="space-y-6">
                             <div className="flex items-center gap-4">
-                                <img src="https://i.imgur.com/fz5N4jL.png" alt="Vatts" className="w-10 h-10 object-contain" />
+                                <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" alt="Vatts" className="w-10 h-10 object-contain" />
                                 <h2 className="text-2xl font-black tracking-tighter text-white">Vatts<span style={{ color: primaryColor }}>.js</span></h2>
                             </div>
                             <h3 className="text-4xl font-bold text-white leading-tight">
@@ -129,7 +129,7 @@ export default function LoginPage() {
                     {/* Painel de Login */}
                     <div className="lg:col-span-7 p-8 sm:p-16 flex flex-col justify-center">
                         <div className="mb-10 lg:hidden flex flex-col items-center">
-                            <img src="https://i.imgur.com/zUTrtM5.png" alt="Vatts" className="w-16 h-16 mb-4" />
+                            <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" alt="Vatts" className="w-16 h-16 mb-4" />
                             <h1 className="text-2xl font-bold text-white">Vatts<span style={{ color: primaryColor }}>.js</span></h1>
                         </div>
 

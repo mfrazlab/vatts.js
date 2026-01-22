@@ -274,9 +274,21 @@ export default function hweb(options: VattsOptions) {
     // Função para regenerar o entry file
     const regenerateEntryFile = () => {
         // Recarrega todas as rotas e componentes
-        frontendRoutes = loadRoutes(userWebRoutesDir);
-        loadLayout(userWebDir);
-        loadNotFound(userWebDir);
+        const newFrontendRoutes = loadRoutes(userWebRoutesDir);
+        const newLayout = loadLayout(userWebDir);
+        const newNotFound = loadNotFound(userWebDir);
+
+        // Se nada mudou, não reescreve o entry file (evita disparar rebuild extra)
+        const oldKey = frontendRoutes.map(r => `${(r as any).pattern ?? ''}:${r.componentPath}`).join('|');
+        const newKey = newFrontendRoutes.map(r => `${(r as any).pattern ?? ''}:${r.componentPath}`).join('|');
+
+        if (oldKey === newKey) {
+            // Ainda atualiza refs internas de layout/notFound, mas evita re-gerar o entry.
+            frontendRoutes = newFrontendRoutes;
+            return;
+        }
+
+        frontendRoutes = newFrontendRoutes;
 
         // Regenera o entry file
         entryPoint = createEntryFile(dir, frontendRoutes);

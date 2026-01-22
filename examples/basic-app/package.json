@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "start": "vatts start",
-    "dev": "vatts dev"
+    "dev": "vatts dev",
+    "export": "vatts export"
   },
   "dependencies": {
     "@vatts/auth": "workspace:*",

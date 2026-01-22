@@ -38,6 +38,7 @@ export default function App() {
     const primaryRgb = "255, 107, 53";
 
     return (
+
         <div className="min-h-screen bg-[#0d0d0d] text-slate-200 selection:bg-[#ff6b35]/30 font-sans antialiased overflow-x-hidden">
             <style>
                 {`
@@ -93,7 +94,7 @@ export default function App() {
                     <div className="space-y-4">
                         <div className="flex items-center gap-5">
                             <img
-                                src="https://i.imgur.com/fz5N4jL.png"
+                                src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png"
                                 alt="Vatts Logo"
                                 className="w-16 h-16 object-contain"
                             />
