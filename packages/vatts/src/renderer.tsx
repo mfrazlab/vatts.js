@@ -74,18 +74,45 @@ function generateMetaTags(metadata: Metadata): string {
     if (metadata.canonical) tags.push(`<link rel="canonical" href="${metadata.canonical}">`);
     if (metadata.favicon) tags.push(`<link rel="icon" href="${metadata.favicon}">`);
 
+    // Apple & Manifest
+    if (metadata.appleTouchIcon) tags.push(`<link rel="apple-touch-icon" href="${metadata.appleTouchIcon}">`);
+    if (metadata.manifest) tags.push(`<link rel="manifest" href="${metadata.manifest}">`);
+
+    // Open Graph
     if (metadata.openGraph) {
         const og = metadata.openGraph;
         if (og.title) tags.push(`<meta property="og:title" content="${og.title}">`);
         if (og.description) tags.push(`<meta property="og:description" content="${og.description}">`);
         if (og.type) tags.push(`<meta property="og:type" content="${og.type}">`);
         if (og.url) tags.push(`<meta property="og:url" content="${og.url}">`);
+        if (og.siteName) tags.push(`<meta property="og:site_name" content="${og.siteName}">`);
+        if (og.locale) tags.push(`<meta property="og:locale" content="${og.locale}">`);
+
         if (og.image) {
             const imgUrl = typeof og.image === 'string' ? og.image : og.image.url;
             tags.push(`<meta property="og:image" content="${imgUrl}">`);
+
+            if (typeof og.image !== 'string') {
+                if (og.image.width) tags.push(`<meta property="og:image:width" content="${og.image.width}">`);
+                if (og.image.height) tags.push(`<meta property="og:image:height" content="${og.image.height}">`);
+                if (og.image.alt) tags.push(`<meta property="og:image:alt" content="${og.image.alt}">`);
+            }
         }
     }
 
+    // Twitter Card
+    if (metadata.twitter) {
+        const tw = metadata.twitter;
+        if (tw.card) tags.push(`<meta name="twitter:card" content="${tw.card}">`);
+        if (tw.site) tags.push(`<meta name="twitter:site" content="${tw.site}">`);
+        if (tw.creator) tags.push(`<meta name="twitter:creator" content="${tw.creator}">`);
+        if (tw.title) tags.push(`<meta name="twitter:title" content="${tw.title}">`);
+        if (tw.description) tags.push(`<meta name="twitter:description" content="${tw.description}">`);
+        if (tw.image) tags.push(`<meta name="twitter:image" content="${tw.image}">`);
+        if (tw.imageAlt) tags.push(`<meta name="twitter:image:alt" content="${tw.imageAlt}">`);
+    }
+
+    // Custom Meta Tags
     if (metadata.other) {
         for (const [key, value] of Object.entries(metadata.other)) {
             tags.push(`<meta name="${key}" content="${value}">`);
@@ -150,10 +177,30 @@ function ServerRoot({ lang, title, metaTagsHtml, initialDataScript, hotReloadScr
     return (
         <html lang={lang}>
         <head>
+            <meta charSet="utf-8" />
             <title>{title}</title>
-            <script dangerouslySetInnerHTML={{ __html: initialDataScript }} />
-            <span dangerouslySetInnerHTML={{ __html: metaTagsHtml }} />
+
+            {/* Script de dados iniciais */}
+            {initialDataScript && (
+                <script dangerouslySetInnerHTML={{ __html: initialDataScript }} />
+            )}
+
+            {/* Meta tags / links / preloads gerados no servidor */}
+            {metaTagsHtml && (
+                <script
+                    dangerouslySetInnerHTML={{
+                        __html: `
+                (() => {
+                  const tpl = document.createElement('template');
+                  tpl.innerHTML = ${JSON.stringify(metaTagsHtml)};
+                  document.head.append(...tpl.content.childNodes);
+                })();
+              `
+                    }}
+                />
+            )}
         </head>
+
         <body>
         {dataScript}
         <div id="root">{children}</div>
