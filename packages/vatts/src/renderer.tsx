@@ -118,6 +118,14 @@ function generateMetaTags(metadata: Metadata): string {
             tags.push(`<meta name="${key}" content="${value}">`);
         }
     }
+    if(metadata.scripts) {
+        for(const [key, value] of Object.entries(metadata.scripts)) {
+            const rest = Object.entries(value).map((r) => {
+                return '' + r[0] + '="' + r[1] + '"'
+            })
+            tags.push(`<script src="${key}" ${rest.join(" ")}></script>`)
+        }
+    }
 
     return tags.join('\n');
 }
