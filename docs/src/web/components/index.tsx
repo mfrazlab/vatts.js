@@ -1,18 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-    Zap,
-    Shield,
-    Globe,
-    Box,
-    Wrench,
-    Github,
-    Search,
-    X,
-    Cpu,
-    Layout,
-    ArrowRight,
-    Terminal, Palette, Wifi
-} from 'lucide-react';
+    FaBolt, FaShieldHalved, FaGlobe, FaBox, FaWrench, FaGithub,
+    FaMagnifyingGlass, FaXmark, FaMicrochip, FaLayerGroup,
+    FaArrowRight, FaTerminal, FaPalette, FaWifi, FaShield
+} from 'react-icons/fa6';
 import { Link } from "vatts/react"
 import { sidebarConfig } from './docs';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
@@ -156,7 +147,7 @@ const VattsLanding = () => {
                             </div>
                         </button>
                         <a href="https://github.com/mfrazlab/vatts.js" className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full" target="_blank" rel="noreferrer">
-                            <Github size={20} />
+                            <FaGithub size={20} />
                         </a>
                     </div>
                 </div>
@@ -206,7 +197,7 @@ const VattsLanding = () => {
                         <div className="relative flex items-center justify-between gap-4 px-6 py-4 bg-[#0a0a0c] border border-white/10 rounded-xl text-sm font-mono shadow-2xl">
                             <span style={{ color: primaryColor }}>$</span>
                             <span className="text-slate-300 flex-1 text-left">npx create-vatts-app@latest</span>
-                            <Terminal size={16} className="text-slate-600" />
+                            <FaTerminal size={16} className="text-slate-600" />
                         </div>
                     </div>
                 </div>
@@ -226,7 +217,7 @@ const VattsLanding = () => {
                             <div>
                                 <div className="flex justify-between items-start mb-6 relative z-10">
                                     <div className="p-3 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                                        <Globe size={28} />
+                                        <FaGlobe size={28} />
                                     </div>
                                     <div className="text-[10px] font-bold text-cyan-500/80 uppercase tracking-widest border border-cyan-500/20 px-2 py-1 rounded bg-cyan-950/30">Core</div>
                                 </div>
@@ -256,7 +247,7 @@ const VattsLanding = () => {
                     <div className="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-orange-500/20 transition-all duration-500 vatts-tilt vatts-sheen">
                         <div className="relative h-full bg-[#0a0a0c] rounded-[10px] p-8 overflow-hidden border border-white/5 transition-all duration-500 flex flex-col">
                             <div className="p-3 rounded-lg bg-blue-500/10 text-blue-400 w-fit mb-6 border border-blue-500/20">
-                                <Shield size={28} />
+                                <FaShield size={28} />
                             </div>
                             <h3 className="text-2xl font-bold text-white mb-3">Vatts Auth</h3>
                             <p className="text-slate-400 mb-6">Secure session management built-in. Protect your routes and data effortlessly.</p>
@@ -281,7 +272,7 @@ const VattsLanding = () => {
 
                     {[
                         {
-                            icon: Layout,
+                            icon: FaLayerGroup,
                             title: "Pattern Routing",
                             desc: "Flexible route matching with regex support. Not just file-system based.",
                             color: "text-purple-400",
@@ -289,7 +280,7 @@ const VattsLanding = () => {
                             border: "hover:border-purple-500/30"
                         },
                         {
-                            icon: Zap,
+                            icon: FaBolt,
                             title: "Powered by Rollup",
                             desc: "Designed for fast builds and maximum production performance.",
                             color: "text-orange-400",
@@ -297,7 +288,7 @@ const VattsLanding = () => {
                             border: "hover:border-orange-500/30"
                         },
                         {
-                            icon: Wifi,
+                            icon: FaWifi,
                             title: "Native WebSockets",
                             desc: "Real-time ready. Upgrade any route to a persistent connection.",
                             color: "text-emerald-400",
@@ -331,7 +322,7 @@ const VattsLanding = () => {
                             <div className="relative z-10">
                                 <div className="flex justify-between items-start mb-6">
                                     <div className="p-3 bg-yellow-500/10 rounded-lg text-yellow-400">
-                                        <Zap size={24} />
+                                        <FaBolt size={24} />
                                     </div>
                                     <span className="text-xs font-mono text-slate-500">@latest</span>
                                 </div>
@@ -359,7 +350,7 @@ const VattsLanding = () => {
                             <div className="relative z-10">
                                 <div className="flex justify-between items-start mb-6">
                                     <div className="p-3 bg-cyan-500/10 rounded-lg text-cyan-400">
-                                        <Box size={24} />
+                                        <FaBox size={24} />
                                     </div>
                                     <span className="text-xs font-mono text-slate-500">React 19</span>
                                 </div>
@@ -386,7 +377,7 @@ const VattsLanding = () => {
                             <div className="relative z-10">
                                 <div className="flex justify-between items-start mb-6">
                                     <div className="p-3 bg-pink-500/10 rounded-lg text-pink-400">
-                                        <Palette size={24} />
+                                        <FaPalette size={24} />
                                     </div>
                                     <span className="text-xs font-mono text-slate-500">v4.0</span>
                                 </div>
@@ -419,7 +410,7 @@ const VattsLanding = () => {
                         © {new Date().getFullYear()} Vatts.js. Built for the modern web.
                     </div>
                     <a href="https://github.com/mfrazlab/vatts.js" className="text-slate-400 hover:text-white transition-all flex items-center gap-2">
-                        <Github size={24} />
+                        <FaGithub size={24} />
                     </a>
                 </div>
             </footer>

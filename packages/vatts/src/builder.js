@@ -27,6 +27,8 @@ const nodeResolve = require('@rollup/plugin-node-resolve').default;
 const commonjs = require('@rollup/plugin-commonjs').default;
 const replace = require('@rollup/plugin-replace').default;
 const esbuild = require('rollup-plugin-esbuild').default;
+const jsonPlugin = require("@rollup/plugin-json").default
+
 const { loadTsConfigPaths, resolveTsConfigAlias } = require('./tsconfigPaths');
 
 const tsconfigPathsPlugin = (projectDir = process.cwd()) => {
@@ -348,6 +350,8 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
             // Assets Otimizados (menos Base64)
             smartAssetPlugin(isProduction),
 
+            jsonPlugin(),
+
             esbuild({
                 include: /\.[jt]sx?$/,
                 exclude: /node_modules/,
@@ -358,7 +362,7 @@ function createRollupConfig(entryPoint, outdir, isProduction) {
                 target: isProduction ? 'es2020' : 'esnext',
                 jsx: 'automatic',
                 define: { __VERSION__: '"1.0.0"' },
-                loaders: { '.json': 'json', '.js': 'jsx' }
+                loaders: { '.js': 'jsx' }
             })
         ],
         onwarn(warning, warn) {

@@ -7,6 +7,7 @@ const api = importServer<typeof import("../../backend/helper")>("../../backend/h
 const { getServerDiagnostics, getPackageVersion } = api;
 
 export default function App() {
+
     const { data: session, status, signOut } = useSession();
     const [serverData, setServerData] = useState<any>(null);
     const [isLoadingServer, setIsLoadingServer] = useState(false);

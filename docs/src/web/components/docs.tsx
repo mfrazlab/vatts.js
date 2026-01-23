@@ -1,26 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-    Search,
-    Home,
-    Download,
-    FileText,
-    Code,
-    GitBranch,
-    Wrench,
-    BookOpen,
-    Settings,
-    Palette,
-    Globe,
-    Zap,
-    Box,
-    FileCode,
-    Book,
-    ChevronLeft,
-    ChevronRight,
-    GithubIcon,
-    Shield,
-    Lock
-} from 'lucide-react';
+
 import { marked } from 'marked';
 import Prism from 'prismjs';
 
@@ -55,6 +34,19 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { useParallax } from '../hooks/useParallax';
 import SearchModal from './SearchModal';
 import type { SearchDoc } from '../lib/searchIndex';
+import {
+    FaBolt, FaBook,
+    FaBookOpen, FaBox,
+    FaChevronLeft,
+    FaChevronRight,
+    FaDownload,
+    FaFile, FaGear,
+    FaGit,
+    FaGithub, FaGlobe, FaPalette, FaShield,
+    FaWrench,
+    FaCode, FaLock, FaCodeCompare,
+} from "react-icons/fa6";
+import {FaSearch, FaHome} from "react-icons/fa";
 
 // Configurações de Cores Reutilizáveis
 const primaryColor = "#ff6b35";
@@ -66,32 +58,32 @@ export const sidebarConfig = {
             id: 'vatts',
             title: "Vatts.js",
             items: [
-                { id: "introduction", icon: "Home", label: "Introduction", file: introductionMd },
-                { id: "installation", icon: "Download", label: "Installation", file: installationMd },
-                { id: "project-structure", icon: "Box", label: "Project Structure", file: projectStructureMd },
-                { id: "layout", icon: "Palette", label: "Layout System", file: layoutMd },
-                { id: "routing", icon: "GitBranch", label: "Routing", file: routingMd },
-                { id: "rpc", icon: "Globe", label: "RPC System", file: rpcMd },
-                { id: "middlewares", icon: "Wrench", label: "Middlewares", file: middlewaresMd },
+                { id: "introduction", icon: "FaHome", label: "Introduction", file: introductionMd },
+                { id: "installation", icon: "FaDownload", label: "Installation", file: installationMd },
+                { id: "project-structure", icon: "FaBox", label: "Project Structure", file: projectStructureMd },
+                { id: "layout", icon: "FaPalette", label: "Layout System", file: layoutMd },
+                { id: "routing", icon: "FaCodeCompare", label: "Routing", file: routingMd },
+                { id: "rpc", icon: "FaGlobe", label: "RPC System", file: rpcMd },
+                { id: "middlewares", icon: "FaWrench", label: "Middlewares", file: middlewaresMd },
             ]
         },
         {
             id: 'auth',
             title: "Vatts Auth",
             items: [
-                { id: 'introduction-auth', icon: 'Shield', label: 'Overview', file: gettingStartAuthMd },
-                { id: 'installation-auth', icon: 'Download', label: 'Setup Auth', file: installationAuthMd },
-                { id: "providers", icon: "Zap", label: "Providers", file: providersAuthMd },
-                { id: "sessions", icon: "FileCode", label: "Sessions", file: sessionsAuthMd},
-                { id: 'protecting-routes', icon: 'Lock', label: 'Protecting Routes', file: protectingRoutesAuthMd },
-                { id: 'custom-providers', icon: 'Code', label: 'Custom Providers', file: customProvidersAuthMd },
+                { id: 'introduction-auth', icon: 'FaShield', label: 'Overview', file: gettingStartAuthMd },
+                { id: 'installation-auth', icon: 'FaDownload', label: 'Setup Auth', file: installationAuthMd },
+                { id: "providers", icon: "FaBolt", label: "Providers", file: providersAuthMd },
+                { id: "sessions", icon: "FaFile", label: "Sessions", file: sessionsAuthMd},
+                { id: 'protecting-routes', icon: 'FaLock', label: 'Protecting Routes', file: protectingRoutesAuthMd },
+                { id: 'custom-providers', icon: 'FaCode', label: 'Custom Providers', file: customProvidersAuthMd },
             ]
         }
     ]
 };
 
 const iconMap: { [key: string]: any } = {
-    Home, Download, FileText, Code, GitBranch, Wrench, BookOpen, Settings, Palette, Globe, Zap, Box, FileCode, Book, Shield, Lock
+    FaHome, FaDownload, FaFile, FaCode, FaCodeCompare, FaWrench, FaBookOpen, FaGear, FaPalette, FaGlobe, FaBolt, FaBox, FaBook, FaShield, FaLock
 };
 
 const generateId = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -244,7 +236,7 @@ export default function VattsDocs({ params }: any) {
                                 </h3>
                                 <div className="space-y-1">
                                     {section.items.map((item) => {
-                                        const Icon = iconMap[item.icon] || FileText;
+                                        const Icon = iconMap[item.icon] || FaFile;
                                         const isActive = activeSection === item.id;
                                         return (
                                             <button
@@ -277,7 +269,7 @@ export default function VattsDocs({ params }: any) {
                                 onClick={() => setIsSearchOpen(true)}
                                 className="flex items-center gap-3 w-full max-w-2xl bg-white/[0.03] ring-1 ring-white/10 rounded-full px-4 py-2.5 text-sm text-slate-400 hover:text-white hover:bg-white/[0.05] transition-all"
                             >
-                                <Search size={18} className="text-slate-500" />
+                                <FaSearch size={18} className="text-slate-500" />
                                 <span className="flex-1 text-left">Search documentation...</span>
                                 <span className="flex gap-1 text-[10px] text-slate-500">
                                     <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">⌘</kbd>
@@ -286,7 +278,7 @@ export default function VattsDocs({ params }: any) {
                             </button>
 
                             <div className="flex items-center gap-6 text-slate-400">
-                                <a href="https://github.com/mfrazlab/vatts.js" className="hover:text-[#ff6b35] transition-colors"><GithubIcon size={20} /></a>
+                                <a href="https://github.com/mfrazlab/vatts.js" className="hover:text-[#ff6b35] transition-colors"><FaGithub size={20} /></a>
                                 <div className="h-4 w-px bg-white/10" />
                             </div>
                         </header>
@@ -305,7 +297,7 @@ export default function VattsDocs({ params }: any) {
                                             onClick={() => navigateToPage(getNavigationPages(activeSection).previous!.id)}
                                             className="p-6 rounded-2xl bg-white/[0.01] border border-white/[0.05] hover:border-[#ff6b35]/30 transition-all text-left group"
                                         >
-                                            <span className="text-xs text-slate-500 flex items-center gap-2 mb-2"><ChevronLeft size={14} /> Previous</span>
+                                            <span className="text-xs text-slate-500 flex items-center gap-2 mb-2"><FaChevronLeft size={14} /> Previous</span>
                                             <div className="text-white font-bold group-hover:text-[#ff6b35] transition-colors">{getNavigationPages(activeSection).previous!.label}</div>
                                         </button>
                                     ) : <div />}
@@ -315,7 +307,7 @@ export default function VattsDocs({ params }: any) {
                                             onClick={() => navigateToPage(getNavigationPages(activeSection).next!.id)}
                                             className="p-6 rounded-2xl bg-white/[0.01] border border-white/[0.05] hover:border-[#ff6b35]/30 transition-all text-right group"
                                         >
-                                            <span className="text-xs text-slate-500 flex items-center justify-end gap-2 mb-2">Next <ChevronRight size={14} /></span>
+                                            <span className="text-xs text-slate-500 flex items-center justify-end gap-2 mb-2">Next <FaChevronRight size={14} /></span>
                                             <div className="text-white font-bold group-hover:text-[#ff6b35] transition-colors">{getNavigationPages(activeSection).next!.label}</div>
                                         </button>
                                     ) : <div />}
