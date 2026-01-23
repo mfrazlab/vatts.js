@@ -10,7 +10,6 @@ This guide explains the folder structure, special files, and conventions used th
 
 A typical Vatts.js project follows this structure:
 
-
 ```
 my-project/
 ├── src/
@@ -38,15 +37,13 @@ my-project/
 └── package.json
 ```
 
-
-
 ---
 
 ## Root Directories
 
 ### `/src`
 
-The main source directory where all application logic lives, including frontend, backend, and startup logic.
+The main source directory where all application logic lives, including frontend, backend, and startup logic. You can use `.ts`, `.tsx`, `.js`, or `.jsx` files for your code.
 
 ### `/public`
 
@@ -63,11 +60,13 @@ Examples:
 
 The `/src/web` directory contains all frontend-related code.
 
-### `/src/web/routes`
+### Frontend Routing Structure
 
-This directory contains your frontend route modules (pages).
+Vatts supports two different routing strategies, which affects how you structure your files.
 
-Vatts.js uses the folder/file structure as a convention to help you *organize* routes (including dynamic segments with square brackets), but you still need to **register/export** each route configuration (e.g. a `RouteConfig`) so the router can load it.
+#### 1. `RouteConfig` (Default)
+
+By default, routes are defined in `/src/web/routes`. In this system, you explicitly export a `RouteConfig` object from each file to define a route's pattern and component.
 
 | File                         | Route           |
 |------------------------------|-----------------|
@@ -78,6 +77,16 @@ Vatts.js uses the folder/file structure as a convention to help you *organize* r
 | `routes/user/profile.tsx`    | `/user/profile` |
 
 To learn how to register routes (patterns, dynamic params, metadata, etc.), see the **Routing** guide: `/docs/vatts/routing`.
+
+#### 2. `pathRouter` (File-based)
+
+Alternatively, you can enable `pathRouter: true` in `vatts.config.ts`. This activates a file-system-based routing convention where the file structure inside `/src/web/` directly maps to URL routes.
+
+- `/src/web/page.tsx` -> `/`
+- `/src/web/about/page.tsx` -> `/about`
+- `/src/web/blog/[id]/page.tsx` -> `/blog/:id`
+
+This approach is more conventional if you prefer a file-system-driven routing experience.
 
 ---
 
@@ -113,7 +122,6 @@ You can fully customize this page with your own UI and branding.
 
 ---
 
-
 ### `/src/web/globals.css`
 
 Global styles applied to the entire application.
@@ -125,7 +133,6 @@ This file is imported in `layout.tsx` and typically includes resets, typography,
 ## Backend Directory
 
 The `/src/backend` directory contains all server-side logic.
-
 
 ### `/src/backend/routes`
 
@@ -199,7 +206,7 @@ This is the ideal place for one-time application setup logic.
 
 ### `vatts.config.ts`
 
-The main configuration file for Vatts.js, located at the project root.
+The main configuration file for Vatts.js, located at the project root. You can also use `vatts.config.js`.
 
 Used to:
 
@@ -207,6 +214,7 @@ Used to:
 - Register plugins and middleware
 - Control runtime and build settings
 - Customize development and production behavior
+- Enable `pathRouter` for file-based routing
 
 Any server-level customization belongs here.
 
@@ -226,7 +234,7 @@ Required configuration:
 }
 ```
 
-Including `vatts/global` is required for Vatts.js global types.
+Including `vatts/global` is required for Vatts.js global types. This file is required when using JavaScript or TypeScript.
 
 ---
 

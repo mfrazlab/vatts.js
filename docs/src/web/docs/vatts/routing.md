@@ -4,18 +4,28 @@ Vatts.js has a flexible routing system for both **frontend** and **backend**. Th
 
 ---
 
-## Frontend Routes
+## Routing Strategies
 
-Frontend routes live in `/src/web/routes`.
+Vatts provides two routing strategies for the frontend:
+
+1.  **RouteConfig (Default)**: This strategy is based on explicitly defining route configurations in files located in `/src/web/routes`. Each file exports a `RouteConfig` object that specifies the URL pattern and the component to render.
+2.  **PathRouter (File-based)**: This is an alternative, file-system-based routing strategy. When `pathRouter: true` is set in your `vatts.config.ts` (or `.js`), Vatts will automatically create routes based on the file structure in `/src/web/`. For example, `/src/web/page.tsx` maps to the `/` route, and `/src/web/blog/[id]/page.tsx` maps to the `/blog/:id` route.
+
+This guide primarily focuses on the `RouteConfig` strategy. For more details on `pathRouter`, see the file-based routing section below.
+
+---
+
+## Frontend Routes with `RouteConfig`
+
+When using the default `RouteConfig` strategy, frontend routes live in `/src/web/routes`.
 
 > Important: **creating a route file is not enough by itself**.
 >
 > Unlike fully file-based frameworks, in Vatts.js you typically **must register your routes** so they become active.
-> 
 
 ### Basic Route
 
-The simplest route exports a `RouteConfig` with a `pattern` and a `component`:
+The simplest route exports a `RouteConfig` with a `pattern` and a `component`. You can use `.tsx`, `.ts`, `.jsx`, or `.js` files.
 
 ```tsx
 import { Metadata, RouteConfig } from "vatts/react";
@@ -140,6 +150,24 @@ export default config;
 
 ---
 
+## File-based Routing with `pathRouter`
+
+If you prefer a file-system-based routing convention, you can enable the `pathRouter` option in your `vatts.config.ts` or `vatts.config.js`:
+
+```ts
+// vatts.config.ts
+export default {
+  pathRouter: true,
+};
+```
+
+When `pathRouter` is enabled, Vatts will automatically create routes based on the file structure in `/src/web/`.
+
+-   A file at `/src/web/page.tsx` will correspond to the `/` URL path.
+-   A file at `/src/web/blog/[id]/page.tsx` will correspond to the `/blog/:id` URL path.
+
+---
+
 ## Backend Routes
 
 Backend routes live in `/src/backend/routes`. Each file exports a `BackendRouteConfig`.
@@ -209,7 +237,7 @@ const route: BackendRouteConfig = {
     },
 
     // Update user
-    PUT: async (request, params) => {
+    PUT: async (request, params) => {.
         if (!params.id) return VattsResponse.badRequest();
         const user = await request.json();
         users.set(params.id, { ...user, id: params.id });

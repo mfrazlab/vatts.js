@@ -54,13 +54,15 @@ export default function Layout({ children }) {
 }
 
 
-export function vattsConfigTemplate(typescript: boolean) {
+export function vattsConfigTemplate(typescript: boolean, pathRouter: boolean) {
 
   if(!typescript) {
     return `
-
-const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
-    return defaultConfig;
+const vattsConfig = (phase, { defaultConfig }) => {
+    return {
+        ...defaultConfig${pathRouter ? `,
+        pathRouter: true` : ''}
+    };
 };
 
 export default vattsConfig;
@@ -70,7 +72,10 @@ export default vattsConfig;
   return `import type { VattsConfigFunction } from 'vatts';
 
 const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
-    return defaultConfig;
+    return {
+        ...defaultConfig${pathRouter ? `,
+        pathRouter: true` : ''}
+    };
 };
 
 export default vattsConfig;`;

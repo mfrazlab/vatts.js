@@ -23,7 +23,7 @@ export async function buildPackageJson(ctx: Pick<CreateAppContext, "appName" | "
       dev: "vatts dev",
     },
     dependencies: {
-      vatts: `${version}`,
+      vatts: `^${version}`,
       react: "^19.2.3",
       "react-dom": "^19.2.3"
     },

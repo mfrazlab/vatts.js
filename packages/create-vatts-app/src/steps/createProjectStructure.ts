@@ -15,7 +15,7 @@ export async function createProjectStructure(ctx: CreateAppContext) {
   }
 
   writeFile(path.join(ctx.rootDir, "src", "web", "globals.css"), globalsCssTemplate(ctx.willTailwind));
-  writeFile(path.join(ctx.rootDir, "src", "web", `layout.${ctx.typeScript ? 'tsx' : '.jsx'}`), ctx.typeScript? layoutTsxTemplate() : layoutJsxTemplate());
+  writeFile(path.join(ctx.rootDir, "src", "web", `layout.${ctx.typeScript ? 'tsx' : 'jsx'}`), ctx.typeScript? layoutTsxTemplate() : layoutJsxTemplate());
 
   dynamic.end("Created project structure");
 }

@@ -15,7 +15,7 @@ It allows you to build complete web applications, from frontend components to ba
 Vatts.js is designed around the following principles:
 
 - Instant development feedback
-- Native TypeScript support
+- Native TypeScript and JavaScript support
 - Automatic routing for both frontend and backend
 - Seamless and secure integration between frontend and backend, allowing client code to safely call server functions directly
 - Built-in performance optimizations
@@ -30,10 +30,16 @@ Before working with Vatts, you should be familiar with:
 
 - HTML for markup
 - CSS for styling
-- TypeScript for application logic
+- TypeScript and JavaScript for application logic
 - React for building user interfaces
 
-A basic understanding of React will help you quickly understand the concepts and workflow used by Nyte.js.
+A basic understanding of React will help you quickly understand the concepts and workflow used by Vatts.js.
+
+---
+
+## About the Documentation
+
+The examples in this documentation are written in TypeScript to demonstrate the framework's type-safe nature. However, Vatts.js fully supports JavaScript. You can adapt the code examples by simply removing the type annotations. All features are available in both languages, and you can use `.js` and `.jsx` files for your components and routes.
 
 ## Next Steps
 
@@ -63,4 +69,3 @@ A basic understanding of React will help you quickly understand the concepts and
     <p>Discover middleware: functions that run before routes for authentication, logging, and request transformation.</p>
   </a>
 </div>
-

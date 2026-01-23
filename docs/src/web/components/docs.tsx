@@ -22,13 +22,13 @@ import sessionsAuthMd from '../docs/auth/session.md';
 import protectingRoutesAuthMd from '../docs/auth/protecting-routes.md';
 import customProvidersAuthMd from '../docs/auth/custom-providers.md';
 
-import introductionMd from '../docs/gettingstarted/getting-started.md';
-import installationMd from '../docs/gettingstarted/installation.md';
-import projectStructureMd from '../docs/gettingstarted/project-structure.md';
-import routingMd from '../docs/gettingstarted/routing.md';
-import layoutMd from '../docs/gettingstarted/layout.md';
-import rpcMd from '../docs/gettingstarted/rpc.md';
-import middlewaresMd from '../docs/gettingstarted/middleware.md';
+import introductionMd from '../docs/vatts/getting-started.md';
+import installationMd from '../docs/vatts/installation.md';
+import projectStructureMd from '../docs/vatts/project-structure.md';
+import routingMd from '../docs/vatts/routing.md';
+import layoutMd from '../docs/vatts/layout.md';
+import rpcMd from '../docs/vatts/rpc.md';
+import middlewaresMd from '../docs/vatts/middleware.md';
 
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { useParallax } from '../hooks/useParallax';
