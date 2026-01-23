@@ -10,6 +10,10 @@ export type CreateAppOptions = {
 
   /** Alias prefix to use when moduleAlias=true (default: "@/") */
   alias?: string;
+
+  pathRouter?: boolean
+
+  typeScript?: boolean
 };
 
 export type CreateAppContext = {
@@ -20,6 +24,8 @@ export type CreateAppContext = {
   willInstallDependencies: boolean;
 
   willUseModuleAlias: boolean;
+  pathRouter: boolean
+
   /** Normalized alias prefix (ex: "@/") */
   moduleAlias: string;
 
@@ -27,4 +33,5 @@ export type CreateAppContext = {
   vattsVersion: string;
 
   packageJson: Record<string, any>;
+  typeScript: boolean
 };

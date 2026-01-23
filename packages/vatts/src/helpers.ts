@@ -128,6 +128,7 @@ async function loadVattsConfig(projectDir: string, phase: string): Promise<Vatts
         maxUrlLength: 2048,
         accessLogging: true,
         envFiles: [],
+        pathRouter: false
     };
 
     try {
@@ -334,6 +335,8 @@ const parseBody = (req: IncomingMessage): Promise<object | string | null> => {
     });
 };
 
+export let config: VattsConfig | undefined
+
 /**
  * Inicializa servidor nativo do Vatts.js usando HTTP ou HTTPS
  */
@@ -343,7 +346,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port:
     const projectDir = options.dir || process.cwd();
     const phase = options.dev ? 'development' : 'production';
     const vattsConfig = await loadVattsConfig(projectDir, phase);
-    
+    config = vattsConfig
     // Passa envFiles da config para as opções do vatts
     options.envFiles = vattsConfig.envFiles;
 

@@ -1,7 +1,7 @@
 import type { CreateAppContext } from "./types";
 import Console from "vatts/console";
 
-export async function buildPackageJson(ctx: Pick<CreateAppContext, "appName" | "vattsVersion" | "willTailwind">) {
+export async function buildPackageJson(ctx: Pick<CreateAppContext, "appName" | "vattsVersion" | "willTailwind" | "typeScript">) {
   async function verifyVersion(): Promise<string> {
     // node fetch
     try {
@@ -25,14 +25,23 @@ export async function buildPackageJson(ctx: Pick<CreateAppContext, "appName" | "
     dependencies: {
       vatts: `${version}`,
       react: "^19.2.3",
-      "react-dom": "^19.2.3",
-      "ts-node": "^10.9.2",
+      "react-dom": "^19.2.3"
     },
     devDependencies: {
       "@types/react": "^19.2.8",
-      typescript: "^5.9.3",
     },
   };
+
+  if(ctx.typeScript) {
+    packageJson.devDependencies = {
+      ...packageJson.devDependencies,
+      typescript: "^5.9.3",
+    }
+    packageJson.dependencies = {
+      ...packageJson.dependencies,
+      "ts-node": "^10.9.2",
+    }
+  }
 
   if (ctx.willTailwind) {
     packageJson.dependencies = {

@@ -50,6 +50,7 @@ import { loadEnv } from './env/env';
 // RPC
 import { executeRpc } from './rpc/server';
 import { RPC_ENDPOINT } from './rpc/types';
+import {config} from "./helpers";
 
 // Helpers de segurança para servir arquivos estáticos sem path traversal
 function isSuspiciousPathname(p: string): boolean {
@@ -147,9 +148,16 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
             ? `import NotFoundComponent from '${path.relative(tempDir, notFound.componentPath).replace(/\\/g, '/')}';`
             : '';
 
-        const componentRegistration = routes
-            .map((route, index) => `  '${route.componentPath}': route${index}.component || route${index}.default?.component,`)
-            .join('\n');
+        let componentRegistration: string;
+        if(config?.pathRouter === true) {
+            componentRegistration = routes
+                .map((route, index) => `  '${route.componentPath}': route${index} || route${index}.default,`)
+                .join('\n');
+        } else {
+            componentRegistration = routes
+                .map((route, index) => `  '${route.componentPath}': route${index}.component || route${index}.default?.component,`)
+                .join('\n');
+        }
 
         const layoutRegistration = layout
             ? `window.__VATTS_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
@@ -330,7 +338,7 @@ export default function vatts(options: VattsOptions) {
         },
 
         executeInstrumentation: () => {
-            const instrumentationFile = fs.readdirSync(path.join(dir, 'src')).find(file => /^vattsweb\.(tsx|jsx|js|ts)$/.test(file));
+            const instrumentationFile = fs.readdirSync(path.join(dir, 'src')).find(file => /^vattsweb\.(js|ts)$/.test(file));
             if (instrumentationFile) {
                 const instrumentationPath = path.join(dir, 'src', instrumentationFile);
                 const instrumentation = require(instrumentationPath);

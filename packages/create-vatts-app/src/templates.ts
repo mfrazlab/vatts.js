@@ -30,14 +30,50 @@ export default function Layout({ children }: LayoutProps) {
 `;
 }
 
-export function vattsConfigTemplate() {
-  return `import type { VattsConfigFunction } from 'vatts';
 
-const hightConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
+
+export function layoutJsxTemplate() {
+  // keeping same content/behavior as original generator
+  return `import React from 'react';
+import './globals.css';
+
+
+export const metadata = {
+    title: "Vatts JS | The Fast and Simple Web Framework for React",
+    description: "The fastest and simplest web framework for React! Start building high-performance web applications today with Vatts JS.",
+    keywords: ["Vatts JS", "web framework", "React", "JavaScript", "TypeScript", "web development", "fast", "simple", "SSR", "frontend"],
+    author: "Vatts JS Team",
+};
+
+export default function Layout({ children }) {
+    return (
+        <>{children}</>
+    );
+}
+`;
+}
+
+
+export function vattsConfigTemplate(typescript: boolean) {
+
+  if(!typescript) {
+    return `
+
+const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
     return defaultConfig;
 };
 
-export default hightConfig;`;
+export default vattsConfig;
+    `
+  }
+
+  return `import type { VattsConfigFunction } from 'vatts';
+
+const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
+    return defaultConfig;
+};
+
+export default vattsConfig;`;
 }
 
 export function tsconfigTemplate(opts?: { moduleAlias?: string | false }) {
@@ -64,6 +100,7 @@ export function tsconfigTemplate(opts?: { moduleAlias?: string | false }) {
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "allowJs": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "rootDir": "./src",
@@ -103,13 +140,16 @@ module.exports = {
 }`;
 }
 
-export function webIndexRouteTemplate(willTailwind: boolean) {
+export function webIndexRouteTemplate(willTailwind: boolean, pathRouter: boolean, typescript: boolean) {
+  const functionName = pathRouter ? 'export default function' : 'function'
+
+
   let base = `import React from 'react'; 
 import {RouteConfig} from "vatts/react";`;
 
   if (willTailwind) {
     base += `
-function Welcome() {
+${functionName} Welcome() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-4 text-center">
       <div className="group relative">
@@ -130,11 +170,11 @@ function Welcome() {
 `;
   } else {
     base += `
-function Welcome() {
+${functionName} Welcome() {
   const [isHovered, setIsHovered] = React.useState(false);
 
   // Definição dos estilos
-  const styles: { [key: string]: React.CSSProperties } = {
+  const styles${typescript? ': { [key: string]: React.CSSProperties }': ''} = {
     container: {
       display: 'flex',
       minHeight: '100vh',
@@ -218,9 +258,10 @@ function Welcome() {
 }`;
   }
 
-  base += `
+  if(!pathRouter) {
+    base += `
 
-export const config: RouteConfig = {
+export const config${typescript ? ': RouteConfig': ''} = {
     pattern: '/',
     component: Welcome,
     generateMetadata: () => ({
@@ -230,11 +271,35 @@ export const config: RouteConfig = {
 
 export default config;
 `;
+  }
 
   return base;
 }
 
-export function backendExampleRouteTemplate() {
+export function backendExampleRouteTemplate(typescript: boolean) {
+
+  if(!typescript) {
+    return `import {VattsResponse} from "vatts"
+
+const ExampleRoute = {
+    pattern: '/api/example',
+    GET(request, params) {
+        return VattsResponse.json({
+            message: 'Welcome to the Example API!'
+        })
+    },
+    POST: async (request, params) => {
+        const data = await request.json();
+        return VattsResponse.json({
+            message: 'POST request received at Example API!',
+            body: data
+        })
+    }
+};
+
+export default ExampleRoute;`
+  }
+
   return `import {BackendRouteConfig, VattsRequest, VattsResponse} from "vatts"
 
 const ExampleRoute: BackendRouteConfig = {

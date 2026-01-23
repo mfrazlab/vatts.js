@@ -56,6 +56,13 @@ export interface VattsOptions {
  * Essas configurações podem ser definidas no arquivo vatts.config.js
  */
 export interface VattsConfig {
+
+    /**
+     * Prefere utilizar rotas por path, sem precisar registrar?
+     * Padrão: false
+     */
+    pathRouter?: boolean;
+
     /**
      * Limita o número máximo de headers HTTP permitidos por requisição.
      * Padrão: 100

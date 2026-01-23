@@ -324,7 +324,7 @@ function initializeClient() {
 
         // Salva a referência globalmente
         window.__VATTS_ROOT__ = root;
-
+        console.log(componentMap, initialData)
         root.render(
             <App
                 componentMap={componentMap}

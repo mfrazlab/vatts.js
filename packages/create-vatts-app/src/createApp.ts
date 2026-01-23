@@ -1,21 +1,13 @@
 import type { CreateAppContext, CreateAppOptions } from "./types";
 import { parseArgs, promptForMissingOptions } from "./cli";
-import {
-  printSummary,
-  stepCreateExampleRoutes,
-  stepCreateProjectDirAndPackageJson,
-  stepCreateProjectStructure,
-  stepInstallDependencies,
-  stepSetupTailwind,
-  stepWriteVattsConfig,
-  stepWriteTsConfig,
-} from "./steps";
+import { steps } from "./steps";
+import { printSummary } from "./summary";
 import * as path from "node:path";
 import { assertTargetDirIsSafeEmpty, validateAppName } from "./validate";
 
 function resolveOwnPackageJson() {
 
-  const pkgPath = path.resolve(__dirname, "..", "..", "package.json");
+  const pkgPath = path.resolve(__dirname, "..", "package.json");
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   return require(pkgPath);
 }
@@ -48,17 +40,18 @@ export async function createApp(options: CreateAppOptions) {
 
     vattsVersion: ownPkg.version,
     packageJson: {},
+    pathRouter: resolved.pathRouter,
+    typeScript: resolved.typeScript
   };
 
   console.clear();
 
-  await stepCreateProjectDirAndPackageJson(ctx);
-  await stepCreateProjectStructure(ctx);
-  await stepWriteVattsConfig(ctx);
-  await stepWriteTsConfig(ctx);
-  await stepSetupTailwind(ctx);
-  await stepCreateExampleRoutes(ctx);
-  await stepInstallDependencies(ctx);
+  for (const step of steps) {
+    if (step.condition?.(ctx) === false) {
+      continue;
+    }
+    await step.action(ctx);
+  }
 
   printSummary(ctx);
 }

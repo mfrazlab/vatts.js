@@ -23,6 +23,7 @@ import { URL } from 'url';
 import Console from "./api/console"
 import { FrameworkAdapterFactory } from "./adapters/factory";
 import { VattsRequest } from "./api/http";
+import {config} from "./helpers";
 
 // --- Tipos Internos Otimizados ---
 
@@ -142,7 +143,7 @@ function requireWithoutStyles<T>(modulePath: string): T {
 // --- Carregamento de Layout (Otimizado - Sem I/O de Disco) ---
 
 export function loadLayout(webDir: string): { componentPath: string; metadata?: any } | null {
-    const extensions = ['layout.tsx', 'layout.ts'];
+    const extensions = ['layout.tsx', 'layout.jsx'];
     let layoutFile: string | null = null;
 
     for (const ext of extensions) {
@@ -187,11 +188,124 @@ export function loadLayout(webDir: string): { componentPath: string; metadata?: 
 export function getLayout() { return layoutComponent; }
 
 
+
+
+
+
 // --- Carregamento de Rotas Frontend ---
 
-export function loadRoutes(routesDir: string): (RouteConfig & { componentPath: string })[] {
+
+
+// Helper para converter o caminho do arquivo no padrão de URL (Next.js style)
+function convertPathToRoutePattern(absolutePath: string, routesDir: string): string {
+    // 1. Pega o caminho relativo e normaliza as barras
+    let relPath = path.relative(routesDir, absolutePath).replace(/\\/g, '/');
+
+    // 2. Remove o nome do arquivo (page.tsx, page.ts, page.jsx ou page.js) do final
+    relPath = relPath.replace(/\/?page\.(?:ts|js)x?$/, '');
+
+    // 3. Remove os "Route Groups" do Next.js, ex: (auth)/login vira /login
+    relPath = relPath.replace(/\/\([^)]+\)/g, '').replace(/^\([^)]+\)\/?/, '');
+
+    // 4. Se a string ficou vazia, é a rota raiz
+    if (!relPath) return '/';
+
+    // 5. Garante que comece com "/"
+    return '/' + relPath;
+}
+
+export function loadPathRoutes(routesDir: string): (RouteConfig & { componentPath: string })[] {
     if (!fs.existsSync(routesDir)) {
-        Console.warn(`Frontend routes directory not found at ${routesDir}.`);
+        allRoutes = [];
+        return [];
+    }
+
+    const loaded: CompiledRoute[] = [];
+    const cwdPath = process.cwd();
+
+    const scanAndLoad = (dir: string) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+            const name = entry.name;
+
+            // Ignora arquivos/pastas ocultas, de sistema ou de componentes (ex: _components)
+            if (name.startsWith('.') || name.startsWith('_')) continue;
+
+            const fullPath = path.join(dir, name);
+
+            if (entry.isDirectory()) {
+                if (name === 'backend' || name === 'api') continue;
+                scanAndLoad(fullPath);
+            } else if (entry.isFile() && (name === 'page.tsx' || name === 'page.ts' || name === 'page.jsx' || name === 'page.js')) {
+                // SÓ carrega se for um arquivo "page"
+                try {
+                    const absolutePath = path.resolve(fullPath);
+
+                    // OTIMIZAÇÃO: Limpa cache apenas se já existia
+                    if (loadedFiles.has(absolutePath)) {
+                        safeClearCache(absolutePath);
+                    }
+
+                    // Importa o módulo ignorando estilos
+                    const routeModule = requireWithoutStyles<any>(absolutePath);
+
+                    // O "default" agora é o Componente React em si
+                    const PageComponent = routeModule.default;
+
+                    if (PageComponent) {
+                        const componentPath = path.relative(cwdPath, fullPath).replace(/\\/g, '/');
+
+                        // Gera o pattern baseado na pasta (ex: /blog/[id])
+                        const pattern = convertPathToRoutePattern(absolutePath, routesDir);
+
+                        // Monta o config dinamicamente
+                        const generatedConfig: RouteConfig = {
+                            pattern,
+                            component: PageComponent,
+                            generateMetadata: routeModule.generateMetadata || (() => ({})),
+                        };
+
+                        // OTIMIZAÇÃO: Pré-compila a regex
+                        const regex = compileRoutePatternWithGroups(pattern);
+
+                        loaded.push({
+                            config: generatedConfig,
+                            componentPath,
+                            regex,
+                            paramNames: [] // Seus named groups cuidam disso
+                        });
+
+                        loadedFiles.add(absolutePath);
+                    }
+                } catch (error) {
+                    Console.error(`Error loading page ${fullPath}:`, error);
+                }
+            }
+        }
+    };
+
+    scanAndLoad(routesDir);
+
+    // Ordena as rotas para que rotas estáticas tenham prioridade sobre rotas dinâmicas [id]
+    loaded.sort((a, b) => {
+        const aDynamic = a.config.pattern.includes('[');
+        const bDynamic = b.config.pattern.includes('[');
+        if (aDynamic && !bDynamic) return 1;
+        if (!aDynamic && bDynamic) return -1;
+        return b.config.pattern.length - a.config.pattern.length; // Mais específicas primeiro
+    });
+
+    allRoutes = loaded;
+    return allRoutes.map(r => ({ ...r.config, componentPath: r.componentPath }));
+}
+
+
+export function loadRoutes(routesDir: string): (RouteConfig & { componentPath: string })[] {
+    if(config?.pathRouter == true) {
+        return loadPathRoutes(path.join(routesDir, "../"))
+    }
+    if (!fs.existsSync(routesDir)) {
         allRoutes = [];
         return [];
     }
@@ -213,7 +327,7 @@ export function loadRoutes(routesDir: string): (RouteConfig & { componentPath: s
             if (entry.isDirectory()) {
                 if (name === 'backend') continue;
                 scanAndLoad(fullPath);
-            } else if (entry.isFile() && (name.endsWith('.tsx') || name.endsWith('.ts'))) {
+            } else if (entry.isFile() && (name.endsWith('.tsx') || name.endsWith('.ts') || name.endsWith(".jsx") || name.endsWith(".js"))) {
                 try {
                     const absolutePath = path.resolve(fullPath);
 
@@ -280,7 +394,7 @@ const middlewareCache = new Map<string, VattsMiddleware[]>();
 function getMiddlewaresForDir(dir: string): VattsMiddleware[] {
     if (middlewareCache.has(dir)) return middlewareCache.get(dir)!;
 
-    const files = ['middleware.ts', 'middleware.tsx'];
+    const files = ['middleware.ts', 'middleware.js'];
     let middlewares: VattsMiddleware[] = [];
 
     for (const file of files) {
@@ -342,7 +456,7 @@ export function loadBackendRoutes(backendRoutesDir: string) {
 
             if (entry.isDirectory()) {
                 scanAndLoadAPI(fullPath);
-            } else if (entry.isFile() && (name.endsWith('.ts') || name.endsWith('.tsx'))) {
+            } else if (entry.isFile() && (name.endsWith('.ts') || name.endsWith(".js"))) {
                 if (name.startsWith('middleware')) continue;
 
                 try {
@@ -390,7 +504,6 @@ export function findMatchingBackendRoute(pathname: string, method: string) {
     const methodUpper = method.toUpperCase();
 
     for (const route of allBackendRoutes) {
-        // Verifica método antes de rodar regex (otimização barata)
         // @ts-ignore
         if (!route.config[methodUpper]) continue;
 
@@ -409,7 +522,7 @@ export function findMatchingBackendRoute(pathname: string, method: string) {
 // --- 404 Not Found ---
 
 export function loadNotFound(webDir: string): { componentPath: string } | null {
-    const files = ['notFound.tsx', 'notFound.ts'];
+    const files = ['notFound.tsx', 'notFound.jsx'];
 
     for (const file of files) {
         const fullPath = path.join(webDir, file);

@@ -1,4 +1,4 @@
-import type { VattsConfig, VattsConfigFunction } from 'vatts';
+
 
 /**
  * Vatts.js Configuration File
@@ -6,9 +6,9 @@ import type { VattsConfig, VattsConfigFunction } from 'vatts';
  * This file allows you to customize server settings for your application.
  * You can export either a static configuration object or a function that returns the configuration.
  */
-const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
-    const config: VattsConfig = {
-        pathRouter: true,
+const vattsConfig = (phase, { defaultConfig }) => {
+    const config = {
+        pathRouter: false,
         /**
          * Maximum number of HTTP headers allowed per request
          * Default: 100
