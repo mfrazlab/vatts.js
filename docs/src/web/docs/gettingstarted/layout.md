@@ -224,6 +224,7 @@ export interface Metadata {
     
     // Custom meta tags
     other?: Record<string, string>;
+    scripts?: Record<string, Record<string, string>>;
 }
 ```
 
