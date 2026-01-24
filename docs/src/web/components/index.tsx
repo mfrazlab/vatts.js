@@ -4,7 +4,7 @@ import {
     FaMagnifyingGlass, FaXmark, FaMicrochip, FaLayerGroup,
     FaArrowRight, FaTerminal, FaPalette, FaWifi, FaShield, FaReact, FaCode
 } from 'react-icons/fa6';
-import {importServer, Link} from "vatts/react"
+import {importServer, Link, VattsImage} from "vatts/react"
 import { sidebarConfig } from './docs';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { useScrollReveal } from '../hooks/useScrollReveal';
@@ -21,7 +21,6 @@ const VattsLanding = () => {
 
     useState(async () => {
         const v = await PackageVersion()
-        console.log(v)
         if(v !== null) {
             setVersion(v)
         }
@@ -93,7 +92,7 @@ const VattsLanding = () => {
                 <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto">
                     <div className="flex items-center gap-6">
                         <div className="relative group cursor-pointer flex items-center gap-3 mr-3">
-                            <img src="/logo-all-white.png" alt="Vatts" className="relative h-8 rounded-lg" />
+                            <VattsImage src="/logo-all-white.png" height={"32px"} alt="Vatts" className="relative rounded-lg" />
                         </div>
                         <Link href="/docs" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Docs</Link>
                         <a href="https://npmjs.com/vatts" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Npm</a>
@@ -301,7 +300,7 @@ const VattsLanding = () => {
                             <div className="relative h-full bg-[#111111] rounded-[10px] p-8 overflow-hidden border border-white/5 flex flex-col">
                                 <div className="flex items-start gap-5 mb-8 relative z-10">
                                     <div className="shrink-0 p-2.5 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-                                        <img src="https://rollupjs.org/rollup-logo.svg" alt="Rollup" className="w-7 h-7" />
+                                        <VattsImage src="https://rollupjs.org/rollup-logo.svg" width="28px" height="28px" alt="Rollup"  />
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex justify-between items-center mb-1">
@@ -651,7 +650,7 @@ const VattsLanding = () => {
                         {/* Brand & Status */}
                         <div className="flex flex-col items-center md:items-start gap-3">
                             <div className="flex items-center gap-3">
-                                <img src="/logo-all-white.png" alt="Vatts" className="h-7 brightness-125 opacity-80" />
+                                <VattsImage src="/logo-all-white.png" alt="Vatts" height={"28px"} className="h-7 brightness-125 opacity-80" />
                                 <span className="hidden md:block w-px h-4 bg-white/10" />
                                 <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/20">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

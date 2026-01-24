@@ -22,3 +22,5 @@ export { router } from './clientRouter';
 
 // RPC (client-side)
 export { importServer } from './rpc';
+export { default as Image} from "./image/Image"
+export { default as VattsImage } from "./image/Image"

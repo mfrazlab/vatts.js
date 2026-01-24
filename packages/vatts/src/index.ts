@@ -17,6 +17,7 @@
 
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto'; // Adicionado para gerar hash do cache
 import {ExpressAdapter} from './adapters/express';
 import {build, buildWithChunks, watch, watchWithChunks} from './builder';
 import {
@@ -69,6 +70,163 @@ function resolveWithin(baseDir: string, unsafePath: string): string | null {
     const baseWithSep = absBase.endsWith(path.sep) ? absBase : absBase + path.sep;
     if (abs !== absBase && !abs.startsWith(baseWithSep)) return null;
     return abs;
+}
+
+// Handler de Otimização de Imagem
+async function handleImageOptimization(req: GenericRequest, res: GenericResponse, projectDir: string) {
+    const urlObj = new URL(req.url, `http://localhost`);
+    const params = urlObj.searchParams;
+
+    const imageUrl = params.get('url');
+    const widthStr = params.get('w');
+    const heightStr = params.get('h');
+    const qualityStr = params.get('q');
+
+    if (!imageUrl) {
+        res.status(400).text('Missing "url" parameter');
+        return;
+    }
+
+    if (isSuspiciousPathname(imageUrl)) {
+        res.status(400).text('Invalid path');
+        return;
+    }
+
+    // Resolve o caminho do arquivo no disco
+    let filePath: string | null = null;
+
+    if (imageUrl.startsWith('/_vatts/')) {
+        // Arquivos de build (assets gerados pelo Rollup)
+        const relPath = imageUrl.replace('/_vatts/', '');
+        filePath = resolveWithin(path.join(projectDir, '.vatts'), relPath);
+    } else {
+        // Arquivos públicos
+        filePath = resolveWithin(path.join(projectDir, 'public'), imageUrl);
+    }
+
+    if (!filePath || !fs.existsSync(filePath)) {
+        res.status(404).text('Image not found');
+        return;
+    }
+
+    // Cache headers agressivos (o navegador deve cachear isso por muito tempo)
+    res.header('Cache-Control', 'public, max-age=31536000, immutable');
+    res.header('Vary', 'Accept');
+
+    // Tenta carregar o sharp
+    let sharp: any;
+    try {
+        // @ts-ignore
+        sharp = require('sharp');
+    } catch (e) {
+        // Se não tiver sharp, avisa uma vez e serve o arquivo original
+        if (!(global as any).__vatts_sharp_warned) {
+            Console.warn('Package "sharp" not found. Image optimization is disabled. Install it with: npm install sharp');
+            (global as any).__vatts_sharp_warned = true;
+        }
+    }
+
+    // Se não tiver Sharp ou parâmetros, serve original
+    if (!sharp || (!widthStr && !heightStr && !qualityStr)) {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentTypes: Record<string, string> = {
+            '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp', '.avif': 'image/avif', '.gif': 'image/gif',
+            '.svg': 'image/svg+xml'
+        };
+        res.header('Content-Type', contentTypes[ext] || 'application/octet-stream');
+        const fileBuffer = await fs.promises.readFile(filePath);
+        res.send(fileBuffer);
+        return;
+    }
+
+    try {
+        // --- SISTEMA DE CACHE EM DISCO (TEMPORÁRIO EM .vatts) ---
+        const cacheDir = path.join(projectDir, '.vatts', 'cache', 'images');
+
+        // Garante que a pasta existe (síncrono na primeira vez é ok, ou async)
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+
+        const width = widthStr ? parseInt(widthStr, 10) : undefined;
+        const height = heightStr ? parseInt(heightStr, 10) : undefined;
+        const quality = qualityStr ? parseInt(qualityStr, 10) : 75;
+
+        // Gera um hash único baseado em TODOS os parâmetros
+        // Ex: /img.png?w=100&h=200&q=80 -> hash unico
+        const cacheKey = `${imageUrl}?w=${width}&h=${height}&q=${quality}`;
+        const hash = crypto.createHash('md5').update(cacheKey).digest('hex');
+
+        // Define a extensão do arquivo de cache
+        const extOriginal = path.extname(filePath).toLowerCase();
+        let extOutput = '.webp'; // Padrão é converter para WebP
+
+        // Exceções que não viram WebP
+        if (extOriginal === '.svg' || extOriginal === '.gif') {
+            extOutput = extOriginal;
+        }
+
+        const cachedFilePath = path.join(cacheDir, `${hash}${extOutput}`);
+
+        // 1. VERIFICA SE JÁ EXISTE NO CACHE
+        if (fs.existsSync(cachedFilePath)) {
+            // Serve direto do cache (Disco)
+            // console.log(`[Vatts] Serving cached image: ${imageUrl}`);
+
+            const contentTypes: Record<string, string> = {
+                '.webp': 'image/webp',
+                '.svg': 'image/svg+xml',
+                '.gif': 'image/gif'
+            };
+            res.header('Content-Type', contentTypes[extOutput] || 'application/octet-stream');
+
+            const cachedBuffer = await fs.promises.readFile(cachedFilePath);
+            res.send(cachedBuffer);
+            return;
+        }
+
+        // 2. SE NÃO EXISTIR, PROCESSA COM SHARP
+        // console.log(`[Vatts] Processing image: ${imageUrl}`);
+
+        const transformer = sharp(filePath);
+        transformer.rotate();
+
+        const isValidWidth = width && !isNaN(width);
+        const isValidHeight = height && !isNaN(height);
+
+        if (isValidWidth || isValidHeight) {
+            transformer.resize(isValidWidth ? width : null, isValidHeight ? height : null, { withoutEnlargement: true });
+        }
+
+        if (extOriginal === '.png' || extOriginal === '.jpg' || extOriginal === '.jpeg' || extOriginal === '.webp') {
+            transformer.webp({ quality });
+            res.header('Content-Type', 'image/webp');
+        } else {
+            // Outros tipos mantêm original
+            const contentTypes: Record<string, string> = {
+                '.svg': 'image/svg+xml',
+                '.gif': 'image/gif'
+            };
+            res.header('Content-Type', contentTypes[extOriginal] || 'application/octet-stream');
+        }
+
+        const optimizedBuffer = await transformer.toBuffer();
+
+        // 3. SALVA NO CACHE PARA A PRÓXIMA VEZ
+        // Escreve em background para não bloquear totalmente, mas aguarda para segurança
+        try {
+            await fs.promises.writeFile(cachedFilePath, optimizedBuffer);
+        } catch (writeErr) {
+            Console.error('Failed to write image cache:', writeErr);
+        }
+
+        res.send(optimizedBuffer);
+
+    } catch (error) {
+        Console.error('Error optimizing image:', error);
+        res.status(500).text('Image optimization failed');
+    }
 }
 
 // Exporta apenas os tipos e classes para o backend
@@ -369,8 +527,8 @@ export default function vatts(options: VattsOptions) {
 
                 const {hostname} = req.headers;
                 const method = (genericReq.method || 'GET').toUpperCase();
-                const pathname = new URL(genericReq.url, `http://${hostname}:${port}`).pathname;
-
+                const urlObj = new URL(genericReq.url, `http://${hostname}:${port}`);
+                const pathname = urlObj.pathname;
                 if (pathname === RPC_ENDPOINT && method === 'POST') {
                     try {
                         const result = await executeRpc(
@@ -393,6 +551,14 @@ export default function vatts(options: VattsOptions) {
                 if (pathname === '/hweb-hotreload/' && genericReq.headers.upgrade === 'websocket' && hotReloadManager) {
                     return;
                 }
+
+                // --- SISTEMA DE OTIMIZAÇÃO DE IMAGEM ---
+                if (pathname.includes('/_vatts/image')) {
+
+                    await handleImageOptimization(genericReq, genericRes, dir);
+                    return;
+                }
+                // ---------------------------------------
 
                 if (pathname !== '/' && !pathname.startsWith('/api/') && !pathname.startsWith('/.vatts')) {
                     const publicDir = path.join(dir, 'public');

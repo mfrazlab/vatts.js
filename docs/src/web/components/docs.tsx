@@ -12,7 +12,7 @@ import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-markdown';
-import { Link } from "vatts/react"
+import {Link, VattsImage} from "vatts/react"
 
 // Docs Imports
 import gettingStartAuthMd from '../docs/auth/getting-started.md';
@@ -226,7 +226,7 @@ export default function VattsDocs({ params }: any) {
                 {/* Sidebar */}
                 <aside className="z-20 w-80 min-w-80 max-w-80 h-screen sticky top-0 hidden lg:flex flex-col bg-white/[0.01] backdrop-blur-xl border-r border-white/[0.05] flex-none overflow-hidden">
                     <Link href="/" className="p-8 flex items-center gap-4 justify-center grayscale hover:grayscale-0 transition-all duration-500">
-                        <img src="/logo-all-white.png" alt="Vatts" className="h-8 rounded-lg object-contain" />
+                        <VattsImage src="/logo-all-white.png" alt="Vatts" className="h-8 rounded-lg object-contain" />
                     </Link>
 
                     <nav className="flex-1 px-4 py-2 overflow-y-auto custom-scrollbar">
