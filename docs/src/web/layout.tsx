@@ -11,7 +11,7 @@ interface LayoutProps {
 export const metadata: Metadata = {
     title: "Vatts.js | The Fastest Framework for React",
     description: "The fastest and simplest web framework for React! Start building high-performance web applications today with Vatts.js.",
-    favicon: '/logo-v.png',
+    favicon: '/logo.png',
     scripts: {
         "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2662588853991140": {
             "crossorigin": 'anonymous',

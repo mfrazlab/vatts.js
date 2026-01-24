@@ -26,6 +26,7 @@ export async function getServerDiagnostics(_req: VattsRequest, message: string) 
     const freeMem = os.freemem() / 1024 / 1024;
     const totalMem = os.totalmem() / 1024 / 1024;
     console.log(message)
+    os.platform()
     return {
         hostname: os.hostname(),
         platform: getOSName(),
