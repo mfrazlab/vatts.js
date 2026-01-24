@@ -35,8 +35,8 @@ export default function ErrorPage() {
         body {
             margin: 0;
             padding: 0;
-            background-color: #0d0d0d; 
-            color: #e2e8f0;
+            background-color: #000000; 
+            color: #ffffff;
             font-family: 'Inter', system-ui, sans-serif;
             overflow: hidden;
             height: 100vh;
@@ -48,10 +48,10 @@ export default function ErrorPage() {
 
     // --- INLINE STYLES ---
 
-    // Definindo a nova paleta de cores (Vermelho/Laranja)
-    const primaryColor = '#ff6b35'; // Cor principal vibrante
-    const primaryColorDark = '#e85d04'; // Para gradientes
-    const primaryRgb = '255, 107, 53'; // Para usar em rgba()
+    // Paleta Estilo Next.js (Preto, Branco, Cinza)
+    const primaryColor = '#ffffff';
+    const primaryColorDark = '#64748b';
+    const primaryRgb = '255, 255, 255';
 
     const containerStyle: React.CSSProperties = {
         position: 'fixed',
@@ -66,16 +66,16 @@ export default function ErrorPage() {
         justifyContent: 'center',
         width: '100vw',
         height: '100vh',
-        background: '#0d0d0d',
+        background: '#000000',
     };
 
     const cardStyle: React.CSSProperties = {
         width: 'min(90%, 500px)',
         display: 'flex',
         flexDirection: 'column',
-        background: 'rgba(10, 10, 12, 0.95)',
-        // COR ALTERADA: Borda sutil laranja
-        boxShadow: `0 0 0 1px rgba(${primaryRgb}, 0.15), 0 40px 80px -20px rgba(0, 0, 0, 0.8)`,
+        background: '#0a0a0a',
+        // Borda sutil branca/cinza
+        boxShadow: `0 0 0 1px rgba(255, 255, 255, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9)`,
         borderRadius: 20,
         overflow: 'hidden',
         position: 'relative',
@@ -84,10 +84,10 @@ export default function ErrorPage() {
     const neonLine: React.CSSProperties = {
         height: '1px',
         width: '100%',
-        // COR ALTERADA: Gradiente laranja/vermelho
-        background: `linear-gradient(90deg, transparent, ${primaryColorDark}, ${primaryColor}, transparent)`,
-        // COR ALTERADA: Brilho laranja
-        boxShadow: `0 0 15px rgba(${primaryRgb}, 0.6)`,
+        // Gradiente monocromático
+        background: `linear-gradient(90deg, transparent, #334155, #ffffff, #334155, transparent)`,
+        // Brilho branco suave
+        boxShadow: `0 0 15px rgba(255, 255, 255, 0.1)`,
     };
 
     const contentStyle: React.CSSProperties = {
@@ -104,21 +104,20 @@ export default function ErrorPage() {
         lineHeight: 1,
         letterSpacing: '-0.04em',
         color: '#fff',
-        background: 'linear-gradient(180deg, #ffffff 0%, #94a3b8 100%)',
+        background: 'linear-gradient(180deg, #ffffff 0%, #475569 100%)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         marginBottom: 16,
-        // COR ALTERADA: Sombra do texto 404
-        filter: `drop-shadow(0 0 20px rgba(${primaryRgb}, 0.15))`,
+        filter: `drop-shadow(0 0 20px rgba(255, 255, 255, 0.05))`,
     };
 
     const terminalBoxStyle: React.CSSProperties = {
         width: '100%',
-        background: 'rgba(0, 0, 0, 0.4)',
+        background: 'rgba(255, 255, 255, 0.02)',
         borderRadius: 12,
         padding: '16px',
         marginBottom: 24,
-        border: '1px solid rgba(255, 255, 255, 0.05)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: 12,
         textAlign: 'left',
@@ -135,7 +134,7 @@ export default function ErrorPage() {
             fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
-            transition: 'background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
+            transition: 'all 0.2s ease',
             border: 'none',
             outline: 'none',
             textDecoration: 'none',
@@ -143,20 +142,19 @@ export default function ErrorPage() {
         };
 
         if (kind === 'primary') {
-            // COR ALTERADA: Estilos do botão primário para laranja
             return {
                 ...base,
-                background: hovering ? `rgba(${primaryRgb}, 0.15)` : `rgba(${primaryRgb}, 0.1)`,
-                color: primaryColor,
-                boxShadow: hovering ? `0 0 20px rgba(${primaryRgb}, 0.25)` : `inset 0 0 0 1px rgba(${primaryRgb}, 0.2)`,
+                background: hovering ? '#ffffff' : '#f8fafc',
+                color: '#000000',
+                boxShadow: hovering ? `0 0 20px rgba(255, 255, 255, 0.2)` : 'none',
             };
         }
         return {
             ...base,
-            background: hovering ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+            background: hovering ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
             color: hovering ? '#fff' : 'rgba(255, 255, 255, 0.6)',
-            border: '1px solid transparent',
-            borderColor: hovering ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderColor: hovering ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.1)',
         };
     };
 
@@ -183,17 +181,16 @@ export default function ErrorPage() {
                         <div style={codeStyle}>404</div>
 
                         <div style={terminalBoxStyle}>
-                            <div style={{ display: 'flex', gap: 6, marginBottom: 8, opacity: 0.5 }}>
-                                <div style={{width: 8, height: 8, borderRadius: '50%', background: '#f87171'}}/>
-                                <div style={{width: 8, height: 8, borderRadius: '50%', background: '#fbbf24'}}/>
-                                <div style={{width: 8, height: 8, borderRadius: '50%', background: '#4ade80'}}/>
+                            <div style={{ display: 'flex', gap: 6, marginBottom: 8, opacity: 0.3 }}>
+                                <div style={{width: 8, height: 8, borderRadius: '50%', background: '#fff'}}/>
+                                <div style={{width: 8, height: 8, borderRadius: '50%', background: '#fff'}}/>
+                                <div style={{width: 8, height: 8, borderRadius: '50%', background: '#fff'}}/>
                             </div>
                             <div>
-                                <span style={{ color: '#c084fc' }}>GET</span>{' '}
-                                {/* COR ALTERADA: O caminho (path) agora é laranja */}
-                                <span style={{ color: primaryColor }}>{path}</span>
+                                <span style={{ color: '#64748b' }}>GET</span>{' '}
+                                <span style={{ color: '#fff' }}>{path}</span>
                             </div>
-                            <div style={{ marginTop: 4, color: '#f87171' }}>
+                            <div style={{ marginTop: 4, color: '#475569' }}>
                                 <span>Error: Route not found</span>
                             </div>
                         </div>
@@ -230,22 +227,18 @@ export default function ErrorPage() {
 
                     <div style={{
                         padding: '12px 32px',
-                        background: 'rgba(0,0,0,0.3)',
-                        borderTop: '1px solid rgba(255,255,255,0.03)',
+                        background: 'rgba(255,255,255,0.02)',
+                        borderTop: '1px solid rgba(255,255,255,0.05)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         fontSize: 11,
-                        color: 'rgba(255,255,255,0.2)'
+                        color: 'rgba(255,255,255,0.3)'
                     }}>
                         <span>Vatts Server</span>
                         <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                                <line x1="12" y1="9" x2="12" y2="13" />
-                                <line x1="12" y1="17" x2="12.01" y2="17" />
-                            </svg>
-                            <span style={{ color: '#f87171' }}>Not Found</span>
+                            <div style={{width: 6, height: 6, borderRadius: '50%', background: '#475569'}} />
+                            <span style={{ color: '#94a3b8' }}>Not Found</span>
                         </div>
                     </div>
                 </div>
@@ -258,11 +251,10 @@ export default function ErrorPage() {
                     onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                     onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
                 >
-                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" alt="Vatts Logo" style={{ width: 20, height: 20 }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: primaryColor }}>
+                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" alt="Vatts Logo" style={{ width: 20, height: 20, filter: 'grayscale(1) brightness(2)' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
                         Vatts
-                        {/* COR ALTERADA: O ".js" agora é laranja */}
-                        <span style={{ color: "white" }}>.js</span>
+                        <span style={{ color: "#64748b" }}>.js</span>
                     </span>
                 </a>
             </div>

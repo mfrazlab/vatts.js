@@ -1,6 +1,6 @@
 {
   "name": "basic-app",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Basic example application for Vatts.js framework",
   "private": true,
   "author": "itsmuzin",
@@ -28,7 +28,7 @@
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
-    "vatts": "workspace:*"
+    "vatts": "^1.1.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",

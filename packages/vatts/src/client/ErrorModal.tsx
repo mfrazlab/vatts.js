@@ -31,16 +31,16 @@ export interface VattsBuildError {
     ts?: number;
 }
 
-// --- ANSI PARSER LOGIC ---
+// --- ANSI PARSER LOGIC (Monochrome Adjusted) ---
 const ANSI_COLORS: Record<string, string> = {
-    '30': '#94a3b8',
-    '31': '#f87171',
-    '32': '#4ade80',
-    '33': '#facc15',
-    '34': '#60a5fa',
-    '35': '#c084fc',
-    '36': '#ff6b35', // Alterado de Cyan para Laranja
-    '37': '#e2e8f0',
+    '30': '#475569',
+    '31': '#ef4444', // Mantido um vermelho sutil para erros no log
+    '32': '#ffffff', // Sucesso vira Branco
+    '33': '#94a3b8', // Warning vira Cinza
+    '34': '#cbd5e1',
+    '35': '#e2e8f0',
+    '36': '#ffffff', // Accent vira Branco
+    '37': '#ffffff',
     '90': '#64748b',
 };
 
@@ -105,10 +105,10 @@ export function ErrorModal({
     const [isHoveringCopy, setIsHoveringCopy] = useState(false);
     const [mounted, setMounted] = useState(false);
 
-    // Definição das novas cores
-    const primaryColor = '#ff6b35';
-    const primaryColorDark = '#e85d04';
-    const primaryRgb = '255, 107, 53';
+    // Paleta Next.js
+    const primaryColor = '#ffffff';
+    const primaryRgb = '255, 255, 255';
+    const borderColor = 'rgba(255, 255, 255, 0.1)';
 
     useEffect(() => {
         setMounted(true);
@@ -150,14 +150,14 @@ export function ErrorModal({
         width: '100vw',
         height: '100vh',
         zIndex: 2147483647,
-        background: visible ? 'rgba(5, 5, 5, 0.98)' : 'rgba(5, 5, 5, 0)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
+        background: visible ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        transition: 'background 0.3s ease, opacity 0.3s ease',
+        transition: 'all 0.3s ease',
         opacity: visible ? 1 : 0,
         boxSizing: 'border-box',
     };
@@ -168,22 +168,20 @@ export function ErrorModal({
         maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
-        background: 'rgba(10, 10, 12, 1)',
-        // COR ALTERADA: Sombra laranja
-        boxShadow: `0 0 0 1px rgba(${primaryRgb}, 0.15), 0 50px 100px -20px rgba(0, 0, 0, 1)`,
+        background: '#0a0a0a',
+        boxShadow: `0 0 0 1px ${borderColor}, 0 50px 100px -20px rgba(0, 0, 0, 1)`,
         borderRadius: 16,
         overflow: 'hidden',
         transform: visible ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(10px)',
-        transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         position: 'relative',
     };
 
     const neonLine: React.CSSProperties = {
         height: '1px',
         width: '100%',
-        // COR ALTERADA: Gradiente Laranja/Vermelho
-        background: `linear-gradient(90deg, transparent, ${primaryColorDark}, ${primaryColor}, transparent)`,
-        boxShadow: `0 0 15px rgba(${primaryRgb}, 0.6)`,
+        background: `linear-gradient(90deg, transparent, #334155, #ffffff, #334155, transparent)`,
+        boxShadow: `0 0 15px rgba(255, 255, 255, 0.05)`,
     };
 
     const headerStyle: React.CSSProperties = {
@@ -199,7 +197,7 @@ export function ErrorModal({
         padding: 24,
         overflow: 'auto',
         flex: 1,
-        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+        fontFamily: '"JetBrains Mono", monospace',
         fontSize: 13,
         lineHeight: 1.6,
         color: '#e2e8f0',
@@ -209,7 +207,7 @@ export function ErrorModal({
 
     const getBtnStyle = (kind: 'primary' | 'secondary', hovering: boolean): React.CSSProperties => {
         const base: React.CSSProperties = {
-            padding: '8px 14px',
+            padding: '8px 16px',
             borderRadius: 8,
             fontSize: 11,
             fontWeight: 700,
@@ -219,23 +217,23 @@ export function ErrorModal({
             letterSpacing: '0.05em',
             border: 'none',
             outline: 'none',
-            fontFamily: 'system-ui, sans-serif'
+            fontFamily: 'Inter, system-ui, sans-serif'
         };
 
         if (kind === 'primary') {
             return {
                 ...base,
-                // COR ALTERADA: Botão primário laranja
-                background: hovering ? `rgba(${primaryRgb}, 0.15)` : 'transparent',
-                color: primaryColor,
-                border: `1px solid rgba(${primaryRgb}, 0.3)`,
-                boxShadow: hovering ? `0 0 10px rgba(${primaryRgb}, 0.2)` : 'none',
+                background: hovering ? '#ffffff' : '#f1f5f9',
+                color: '#000000',
+                boxShadow: hovering ? `0 0 15px rgba(255, 255, 255, 0.2)` : 'none',
             };
         }
         return {
             ...base,
-            background: 'transparent',
-            color: hovering ? '#fff' : 'rgba(255,255,255,0.5)',
+            background: hovering ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            color: hovering ? '#fff' : 'rgba(255, 255, 255, 0.4)',
+            border: '1px solid transparent',
+            borderColor: hovering ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
         };
     };
 
@@ -247,21 +245,25 @@ export function ErrorModal({
                 <div style={headerStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                          <span style={{
-                             fontSize: 12,
-                             fontWeight: 800,
-                             color: '#f87171',
-                             letterSpacing: '0.1em'
+                             fontSize: 11,
+                             fontWeight: 900,
+                             color: '#ffffff',
+                             background: '#ef4444',
+                             padding: '2px 8px',
+                             borderRadius: 4,
+                             letterSpacing: '0.05em'
                          }}>
                             ERROR
                         </span>
                         {error.plugin && (
                             <span style={{
                                 fontSize: 11,
-                                color: 'rgba(255,255,255,0.3)',
-                                background: 'rgba(255,255,255,0.05)',
-                                padding: '2px 6px',
+                                color: '#64748b',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                padding: '2px 8px',
                                 borderRadius: 4,
-                                fontFamily: 'monospace'
+                                fontFamily: 'monospace',
+                                border: '1px solid rgba(255, 255, 255, 0.05)'
                             }}>
                                 {error.plugin}
                             </span>
@@ -293,24 +295,24 @@ export function ErrorModal({
                 <div style={terminalContent}>
                     <AnsiText text={rawOutput} />
                     {stackOutput && (
-                        <div style={{ marginTop: 24, opacity: 0.6, borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: 16 }}>
+                        <div style={{ marginTop: 24, opacity: 0.4, borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: 16 }}>
                             <AnsiText text={stackOutput} />
                         </div>
                     )}
                 </div>
 
                 <div style={{
-                    padding: '8px 24px',
-                    background: 'rgba(0,0,0,0.3)',
+                    padding: '10px 24px',
+                    background: 'rgba(255,255,255,0.01)',
                     borderTop: '1px solid rgba(255,255,255,0.03)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     fontSize: 11,
-                    color: 'rgba(255,255,255,0.2)'
+                    color: 'rgba(255,255,255,0.3)',
+                    fontFamily: 'Inter, sans-serif'
                 }}>
                     <span>vatts-cli</span>
-                    {/* COR ALTERADA: Status text laranja */}
-                    <span style={{ color: primaryColor }}>Watching for changes...</span>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Watching for changes...</span>
                 </div>
             </div>
         </div>

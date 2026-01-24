@@ -1,13 +1,13 @@
 <div align="center">  
   <picture>  
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png">  
-      <img alt="Vatts.js logo" src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo-v.png" height="128">  
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png">  
+      <img alt="Vatts.js logo" src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" width="128">  
     </picture>  
   <h1>Vatts.js</h1>  
 
 [![NPM](https://img.shields.io/npm/v/vatts.svg?style=for-the-badge&labelColor=000000)](https://www.npmjs.com/package/vatts)  
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge&labelColor=000000)](./LICENSE)
-
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge&labelColor=000000)](./LICENSE)  
+[![GitHub](https://img.shields.io/badge/GitHub-mfrazlab/vatts.js-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mfrazlab/vatts.js)
 </div>
 
 ___
@@ -45,3 +45,4 @@ If you believe you have found a security vulnerability in Vatts.js, we encourage
 
 To participate in our vulnerability disclosure program, please email [helpers@mfraz.ovh](mailto:help@mfraz.ovh). We will add you to the program and provide further instructions for submitting your report.
 
+___
