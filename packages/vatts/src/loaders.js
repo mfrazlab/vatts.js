@@ -1,23 +1,28 @@
 /*
  * This file is part of the Vatts.js Project.
  * Copyright (c) 2026 itsmuzin
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const {default: Console} = require("./api/console")
+// Tenta carregar o compilador do Vue e o esbuild
+let sfcCompiler;
+let esbuild;
+
+try {
+    sfcCompiler = require('vue/compiler-sfc');
+} catch (e) {
+    // Vue não instalado ou não encontrado
+}
+
+try {
+    esbuild = require('esbuild');
+} catch (e) {
+    // Esbuild não instalado
+}
+
 const {
     loadTsConfigPaths,
     resolveTsConfigAlias,
@@ -30,12 +35,8 @@ const {
 function loadTsConfigAliases(projectDir = process.cwd()) {
     const info = loadTsConfigPaths(projectDir);
 
-    // Mantém compat com a assinatura antiga (objeto alias->path),
-    // mas agora com suporte real a wildcards.
     const aliases = {};
     for (const m of info.mappings || []) {
-        // Apenas mapeamentos "prefixo" fáceis de representar (ex: "@/*")
-        // continuam disponíveis aqui. A resolução completa é feita via resolveTsConfigAlias.
         if (m.hasStar && m.keySuffix === '' && m.targetHasStar && m.targetSuffix === '') {
             const cleanAlias = m.keyPrefix.replace(/\/$/, '');
             const cleanTarget = path.resolve(m.baseUrl, m.targetPrefix.replace(/\/$/, ''));
@@ -50,19 +51,16 @@ function loadTsConfigAliases(projectDir = process.cwd()) {
 
 /**
  * Registra loaders customizados para Node.js
- * Permite importar arquivos não-JS diretamente no servidor
  */
 function registerLoaders(options = {}) {
-    // Registra resolver de aliases do tsconfig.json
     const projectDir = options.projectDir || process.cwd();
     const { aliases, info: tsconfigInfo } = loadTsConfigAliases(projectDir);
 
+    // --- Alias Resolution (Path Mapping) ---
     if (Object.keys(aliases).length > 0 || (tsconfigInfo.mappings && tsconfigInfo.mappings.length > 0)) {
-        // Guarda referência ao _resolveFilename atual (pode já ter sido modificado por source-map-support)
         const originalResolveFilename = Module._resolveFilename;
 
         Module._resolveFilename = function (request, parent, isMain, options) {
-            // 1) Tenta resolver via paths do tsconfig (com wildcard)
             const aliasCandidate = resolveTsConfigAlias(request, tsconfigInfo);
             if (aliasCandidate) {
                 const resolved = resolveWithNodeStyleExtensions(aliasCandidate);
@@ -72,7 +70,6 @@ function registerLoaders(options = {}) {
                 }
             }
 
-            // 2) Fallback: compat com aliases simples (prefix match)
             for (const [alias, aliasPath] of Object.entries(aliases)) {
                 if (request === alias || request.startsWith(alias + '/')) {
                     const relativePath = request.slice(alias.length);
@@ -85,26 +82,22 @@ function registerLoaders(options = {}) {
                     }
                 }
             }
-
-            // Chama o resolver original (que pode ser do source-map-support)
             return originalResolveFilename.call(this, request, parent, isMain, options);
         };
     }
 
-    // Loader para arquivos Markdown (.md)
+    // --- File Handlers ---
+
     require.extensions['.md'] = function (module, filename) {
         const content = fs.readFileSync(filename, 'utf8');
         module.exports = content;
     };
 
-    // Loader para arquivos de texto (.txt)
     require.extensions['.txt'] = function (module, filename) {
         const content = fs.readFileSync(filename, 'utf8');
         module.exports = content;
     };
 
-    // Loader para estilos (CSS e afins)
-    // No servidor, estilos não são executados. Exportamos o caminho do arquivo para manter consistência com assets.
     const styleExtensions = ['.css', '.scss', '.sass', '.less'];
     styleExtensions.forEach(ext => {
         require.extensions[ext] = function (module, filename) {
@@ -112,20 +105,113 @@ function registerLoaders(options = {}) {
         };
     });
 
-    // Loader para arquivos JSON (já existe nativamente, mas garantimos consistência)
-    // require.extensions['.json'] já existe
-
-    // Loader para imagens - retorna o caminho do arquivo
     const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.bmp', '.svg'];
-
     imageExtensions.forEach(ext => {
         require.extensions[ext] = function (module, filename) {
-            // No servidor, retornamos o caminho do arquivo
-            // O frontend usará o plugin do esbuild para converter em base64
             module.exports = filename;
         };
     });
+
+    // --- Loader Robusto para .vue (SSR Support) ---
+    require.extensions['.vue'] = function(module, filename) {
+        if (!sfcCompiler || !esbuild) {
+            throw new Error('Para carregar arquivos .vue no servidor, você precisa instalar "vue" e "esbuild".');
+        }
+
+        const source = fs.readFileSync(filename, 'utf8');
+
+        try {
+            // 1. Parse do SFC
+            const { descriptor, errors } = sfcCompiler.parse(source, {
+                filename,
+                sourceMap: false
+            });
+
+            if (errors.length > 0) {
+                console.error(`Erro ao parsear ${filename}:`, errors);
+            }
+
+            // 2. Compilação do Script (<script> ou <script setup>)
+            let scriptContent = 'const _sfc_main = {};';
+            let bindings = undefined;
+
+            if (descriptor.script || descriptor.scriptSetup) {
+                try {
+                    const compiledScript = sfcCompiler.compileScript(descriptor, {
+                        id: filename,
+                        isProd: false,
+                        inlineTemplate: false
+                    });
+
+                    // Truque: Substitui "export default" por uma variável local para podermos
+                    // anexar a função render antes de exportar tudo no final.
+                    // Isso é necessário pois estamos criando um arquivo único virtual.
+                    scriptContent = compiledScript.content.replace('export default', 'const _sfc_main =');
+                    bindings = compiledScript.bindings;
+                } catch (e) {
+                    console.error(`Erro ao compilar script Vue em ${filename}:`, e.message);
+                    throw e;
+                }
+            }
+
+            // 3. Compilação do Template para SSR
+            // Isso gera a função `ssrRender` necessária para o @vue/server-renderer
+            let templateContent = '';
+            if (descriptor.template) {
+                try {
+                    const templateResult = sfcCompiler.compileTemplate({
+                        source: descriptor.template.content,
+                        filename: filename,
+                        id: filename,
+                        ssr: true, // IMPORTANTE: Gera código otimizado para servidor (string concatenation)
+                        compilerOptions: {
+                            bindingMetadata: bindings // Otimiza bindings baseados no script setup
+                        },
+                        // CORREÇÃO: Passa as variáveis CSS detectadas no parse para o compilador de template
+                        ssrCssVars: descriptor.cssVars || []
+                    });
+                    templateContent = templateResult.code;
+                } catch (e) {
+                    console.error(`Erro ao compilar template Vue em ${filename}:`, e.message);
+                }
+            }
+
+            // 4. Montagem do Código Final (ESM Virtual)
+            // Combinamos o script compilado com o template compilado e unimos as partes.
+            const finalEsm = `
+                ${scriptContent}
+                ${templateContent}
+                
+                // Anexa a função de renderização SSR ao componente principal
+                if (typeof _sfc_main !== 'undefined') {
+                    if (typeof ssrRender !== 'undefined') {
+                        _sfc_main.ssrRender = ssrRender;
+                    }
+                    // Fallback para renderização cliente/hidratação se necessário (opcional no server)
+                    if (typeof render !== 'undefined') {
+                        _sfc_main.render = render;
+                    }
+                }
+                
+                export default _sfc_main;
+            `;
+
+            // 5. Transformação final para CommonJS (Node.js) via Esbuild
+            const result = esbuild.transformSync(finalEsm, {
+                loader: 'ts', // Suporta TS e JS
+                format: 'cjs',
+                target: 'node16',
+                sourcefile: filename
+            });
+
+            // 6. Execução no Node
+            module._compile(result.code, filename);
+
+        } catch (err) {
+            console.error(`Falha fatal ao carregar .vue: ${filename}`);
+            throw err;
+        }
+    };
 }
 
 module.exports = { registerLoaders };
-

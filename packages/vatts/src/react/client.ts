@@ -14,11 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Exportações do frontend
-export * from './react';
-export * from '../client';
-export * from './components';
 
-// Re-exports das funções mais usadas para conveniência
-export { useSession, useAuth, SessionProvider } from './react';
-export { AuthGuard, GuestOnly } from './components';
+// Este arquivo exporta apenas código seguro para o cliente (navegador)
+export { Link } from './Link';
+export { RouteConfig, Metadata } from "../types";
+export { router } from '../client/clientRouter';
+
+// RPC (client-side)
+export { importServer } from '../client/rpc';
+export { default as Image} from "./image/Image"
+export { default as VattsImage } from "./image/Image"

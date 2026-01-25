@@ -169,3 +169,10 @@ declare module "*.ogv" {
     export default src;
 }
 
+/* eslint-disable */
+declare module '*.vue' {
+    import type { DefineComponent } from 'vue'
+    // Define o tipo básico de um componente Vue para que o TS entenda o import
+    const component: DefineComponent<{}, {}, any>
+    export default component
+}

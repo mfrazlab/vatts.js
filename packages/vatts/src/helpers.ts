@@ -118,7 +118,7 @@ const sendBox = (options: VattsOptions) => {
  * @param phase Fase de execução ('development' ou 'production')
  * @returns Configuração mesclada com os valores padrão
  */
-async function loadVattsConfig(projectDir: string, phase: string): Promise<VattsConfig> {
+export async function loadVattsConfig(projectDir: string, phase: string): Promise<VattsConfig> {
     const defaultConfig: VattsConfig = {
         maxHeadersCount: 100,
         headersTimeout: 60000,
@@ -336,7 +336,9 @@ const parseBody = (req: IncomingMessage): Promise<object | string | null> => {
 };
 
 export let config: VattsConfig | undefined
-
+export function setConfig(newConfig: VattsConfig) {
+    config = newConfig
+}
 /**
  * Inicializa servidor nativo do Vatts.js usando HTTP ou HTTPS
  */

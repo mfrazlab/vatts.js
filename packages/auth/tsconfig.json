@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "moduleResolution": "node16",
-    "allowJs": true
+    "allowJs": true,
+    "types": ["vatts/global"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

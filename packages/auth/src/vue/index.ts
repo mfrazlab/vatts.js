@@ -15,10 +15,11 @@
  * limitations under the License.
  */
 // Exportações do frontend
-export * from './react';
-export * from '../client';
-export * from './components';
+export * from './session';
+export * from './guards';
 
 // Re-exports das funções mais usadas para conveniência
-export { useSession, useAuth, SessionProvider } from './react';
-export { AuthGuard, GuestOnly } from './components';
+export { useSession, useAuth } from './session';
+export { AuthGuard, GuestOnly } from './guards';
+import SessionProvider from "./component.vue"
+export {SessionProvider}

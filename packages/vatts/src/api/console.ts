@@ -130,8 +130,11 @@ export default class Console {
             readline.clearScreenDown(stream);
         }
 
-        if (!content.endsWith('\n')) content += '\n';
-        stream.write(content);
+        // MODIFICAÇÃO PRINCIPAL:
+        // Substituímos stream.write por console.log aqui.
+        // O console.log é interceptado pelos debuggers (VSCode, etc), o stream.write não.
+        // Removemos a quebra de linha final (\n$) pois o console.log já adiciona uma automaticamente.
+        console.log(content.replace(/\n$/, ''));
 
         if (this.activeLines.length > 0) {
             // ATUALIZADO: Garante que ao redesenhar após um log estático, o formato se mantém

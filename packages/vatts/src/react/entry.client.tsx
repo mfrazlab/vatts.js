@@ -16,7 +16,7 @@
  */
 import React, {useState, useEffect, useCallback} from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { router } from './clientRouter';
+import { router } from '../client/clientRouter';
 import { ErrorModal, VattsBuildError } from './ErrorModal';
 import type {Metadata} from "../types";
 import DevIndicator from "./DevIndicator";

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import type { Session, SessionContextType, SignInOptions, SignInResult, User } from './types';
+import type { Session, SessionContextType, SignInOptions, SignInResult, User } from '../types';
 import { router } from "vatts/react";
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);

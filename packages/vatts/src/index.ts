@@ -40,7 +40,7 @@ import {
     processWebSocketRoutes,
     setupWebSocketUpgrade
 } from './router';
-import { renderAsStream } from './renderer'; // Usando a nova função de streaming
+// import { renderAsStream } from './renderer'; // REMOVIDO: Carregamento dinâmico agora
 import {VattsRequest, VattsResponse} from './api/http';
 import {HotReloadManager} from './hotReload';
 import {FrameworkAdapterFactory} from './adapters/factory';
@@ -52,6 +52,8 @@ import { loadEnv } from './env/env';
 import { executeRpc } from './rpc/server';
 import { RPC_ENDPOINT } from './rpc/types';
 import {config} from "./helpers";
+import detectFramework from "./api/framework";
+
 
 // Helpers de segurança para servir arquivos estáticos sem path traversal
 function isSuspiciousPathname(p: string): boolean {
@@ -281,7 +283,8 @@ function isLargeProject(projectDir: string): boolean {
 }
 
 // Função para gerar o arquivo de entrada para o esbuild
-function createEntryFile(projectDir: string, routes: (RouteConfig & { componentPath: string })[]): string {
+function createEntryFile(projectDir: string, routes: (RouteConfig & { componentPath: string })[], framework: 'react' | 'vue'): string {
+
     try {
         const tempDir = path.join(projectDir, '.vatts', 'temp');
 
@@ -312,9 +315,15 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
                 .map((route, index) => `  '${route.componentPath}': route${index} || route${index}.default,`)
                 .join('\n');
         } else {
-            componentRegistration = routes
-                .map((route, index) => `  '${route.componentPath}': route${index}.component || route${index}.default?.component,`)
-                .join('\n');
+            if(framework === 'vue') {
+                componentRegistration = routes
+                    .map((route, index) => `  '${route.componentPath}': route${index} || route${index}.default,`)
+                    .join('\n');
+            } else {
+                componentRegistration = routes
+                    .map((route, index) => `  '${route.componentPath}': route${index}.component || route${index}.default?.component,`)
+                    .join('\n');
+            }
         }
 
         const layoutRegistration = layout
@@ -325,10 +334,16 @@ function createEntryFile(projectDir: string, routes: (RouteConfig & { componentP
             ? `window.__VATTS_NOT_FOUND__ = NotFoundComponent.default || NotFoundComponent;`
             : `window.__VATTS_NOT_FOUND__ = null;`;
 
+        // Define os nomes dos arquivos baseados no framework
+        const entryClientFilename = framework === 'vue' ? 'entry.client.js' : 'entry.client.js';
+        const defaultNotFoundFilename = framework === 'vue' ? 'DefaultNotFound.vue' : 'DefaultNotFound.js';
+
         const sdkDir = path.dirname(__dirname);
-        const entryClientPath = path.join(sdkDir, 'dist', 'client', 'entry.client.js');
+
+        // --- MODIFICAÇÃO: Usando a variável 'framework' para definir o diretório (react ou vue) ---
+        const entryClientPath = path.join(sdkDir, 'dist', framework, entryClientFilename);
         const relativeEntryPath = path.relative(tempDir, entryClientPath).replace(/\\/g, '/');
-        const defaultNotFoundPath = path.join(sdkDir, 'dist', 'client', 'DefaultNotFound.js');
+        const defaultNotFoundPath = path.join(sdkDir, 'dist', framework, defaultNotFoundFilename);
         const relativeDefaultNotFoundPath = path.relative(tempDir, defaultNotFoundPath).replace(/\\/g, '/');
 
         const entryContent = `// Arquivo gerado automaticamente pelo vatts
@@ -373,6 +388,12 @@ export default function vatts(options: VattsOptions) {
     const userWebRoutesDir = path.join(userWebDir, 'routes');
     const userBackendRoutesDir = path.join(dir, 'src', 'backend', 'routes');
 
+    // --- DETECÇÃO DO FRAMEWORK ---
+    const framework = detectFramework(dir);
+
+    // --- CARREGAMENTO DO RENDERER ---
+    let renderAsStream = require("./renderer").renderAsStream;
+
     async function executeMiddlewareChain(
         middlewares: VattsMiddleware[] | undefined,
         finalHandler: BackendHandler,
@@ -416,7 +437,7 @@ export default function vatts(options: VattsOptions) {
         }
 
         frontendRoutes = newFrontendRoutes;
-        entryPoint = createEntryFile(dir, frontendRoutes);
+        entryPoint = createEntryFile(dir, frontendRoutes, framework);
     };
 
     return {
@@ -457,7 +478,7 @@ export default function vatts(options: VattsOptions) {
             const outDir = path.join(dir, '.vatts');
             fs.mkdirSync(outDir, {recursive: true});
 
-            entryPoint = createEntryFile(dir, frontendRoutes);
+            entryPoint = createEntryFile(dir, frontendRoutes, framework);
             clearInterval(spinner1)
             timee.end(`Routes and components loaded in ${Date.now() - now}ms`);
 
@@ -617,7 +638,8 @@ export default function vatts(options: VattsOptions) {
                             const contentTypes: Record<string, string> = {
                                 '.js': 'application/javascript',
                                 '.css': 'text/css',
-                                '.map': 'application/json'
+                                '.map': 'application/json',
+                                '.vue': 'text/css'
                             };
 
                             genericRes.header('Content-Type', contentTypes[ext] || 'text/plain');

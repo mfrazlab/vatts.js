@@ -17,23 +17,22 @@
  * limitations under the License.
  */
 
-
-// Registra o ts-node para que o Node.js entenda TypeScript/TSX
 require('ts-node').register();
 
-// Registra loaders customizados para arquivos markdown, imagens, etc.
-const { registerLoaders} = require('../loaders');
-registerLoaders()
+const { registerLoaders } = require('../loaders');
+registerLoaders();
+
 const { program } = require('commander');
 const fs = require('fs');
 const path = require('path');
 const { Writable } = require('stream');
 
-// Importa o Console do framework
 const ConsoleModule = require('../api/console');
+const {loadVattsConfig, config, setConfig} = require("../helpers");
+const {default: detectFramework} = require("../api/framework");
+const {renderAsStream} = require("../renderer");
 const Console = ConsoleModule.default;
 const { Levels, Colors } = ConsoleModule;
-
 
 program
     .version('1.0.0')
@@ -41,51 +40,37 @@ program
 
 // --- Helpers ---
 
-/**
- * Função centralizada para iniciar a aplicação
- * @param {object} options - Opções vindas do commander
- * @param {boolean} isDev - Define se é modo de desenvolvimento
- */
 function initializeApp(options, isDev) {
     const appOptions = {
         dev: isDev,
         port: options.port,
         hostname: options.hostname,
         framework: 'native',
-        ssl: null, // Default
+        ssl: null,
     };
 
-    // 1. Verifica se a flag --ssl foi ativada
     if (options.ssl) {
         const sslDir = path.resolve(process.cwd(), 'certs');
         const keyPath = path.join(sslDir, 'key.pem');
         const certPath = path.join(sslDir, 'cert.pem');
 
-        // 2. Verifica se os arquivos existem
         if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
             appOptions.ssl = {
                 key: keyPath,
                 cert: certPath
             };
-
-            // 3. Adiciona a porta de redirecionamento
             appOptions.ssl.redirectPort = options.httpRedirectPort || 80;
-
         } else {
             Console.error(`SSL Error: Ensure that './certs/key.pem' and './certs/cert.pem' exist.`);
             process.exit(1);
         }
     }
 
-    // 4. Inicia o helper com as opções
     const helperModule = require("../helpers");
     const helper = helperModule.default(appOptions);
     helper.init();
 }
 
-/**
- * Função corrigida para copiar diretórios recursivamente.
- */
 function copyDirRecursive(src, dest) {
     try {
         fs.mkdirSync(dest, { recursive: true });
@@ -109,162 +94,136 @@ function copyDirRecursive(src, dest) {
 
 // --- Comandos ---
 
-// Comando DEV
 program
     .command('dev')
     .description('Starts the application in development mode.')
     .option('-p, --port <number>', 'Specifies the port to run on', '3000')
     .option('-H, --hostname <string>', 'Specifies the hostname to run on', '0.0.0.0')
-    .option('--ssl', 'Activates HTTPS/SSL mode (requires ./ssl/key.pem and ./ssl/cert.pem)')
+    .option('--ssl', 'Activates HTTPS/SSL mode')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
     .action((options) => {
         initializeApp(options, true);
     });
 
-// Comando START (Produção)
 program
     .command('start')
     .description('Starts the application in production mode.')
     .option('-p, --port <number>', 'Specifies the port to run on', '3000')
     .option('-H, --hostname <string>', 'Specifies the hostname to run on', '0.0.0.0')
-    .option('--ssl', 'Activates HTTPS/SSL mode (requires ./ssl/key.pem and ./ssl/cert.pem)')
+    .option('--ssl', 'Activates HTTPS/SSL mode')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
     .action((options) => {
         initializeApp(options, false);
     });
 
-
-// Comando EXPORT
 program
     .command('export')
     .description('Exports the application as static HTML to the "exported" folder.')
     .option('-o, --output <path>', 'Specifies the output directory', 'exported')
-    .option('--assets-dir <path>', 'Directory (inside output) where the .vatts assets will be written', '.vatts')
+    .option('--assets-dir <path>', 'Directory where the .vatts assets will be written', '.vatts')
     .option('--no-html', 'Do not generate index.html (assets only)')
-    .option('--output-h-data <file>', 'Write the data-h value from <script id="__vatts_data__" data-h="..."> into this file')
+    .option('--output-h-data <file>', 'Write the data-h value into this file')
     .action(async (options) => {
         const projectDir = process.cwd();
+        const outputInput = (typeof options.output === 'string' && options.output.trim()) || 'exported';
+        const exportDirResolved = path.resolve(projectDir, outputInput);
 
-        // Resolve output
-        const outputInput = typeof options.output === 'string' && options.output.trim().length
-            ? options.output.trim()
-            : 'exported';
-        const exportDir = path.isAbsolute(outputInput)
-            ? path.resolve(outputInput)
-            : path.resolve(projectDir, outputInput);
-
-        const exportDirResolved = path.resolve(exportDir);
-        const exportDirRoot = path.parse(exportDirResolved).root;
         const projectDirResolved = path.resolve(projectDir);
 
-        if (exportDirResolved === exportDirRoot) {
-            Console.error(`Refusing to use output directory at drive root: ${exportDirResolved}`);
+        if (exportDirResolved === path.parse(exportDirResolved).root) {
+            Console.error(`Refusing to use drive root: ${exportDirResolved}`);
             process.exit(1);
         }
 
-        const relExportToProject = path.relative(projectDirResolved, exportDirResolved);
-        if (relExportToProject === '' || relExportToProject === '.' || relExportToProject.startsWith('..')) {
-            Console.error(`Refusing to export to ${exportDirResolved}. Use a subfolder like "exported" or an explicit path inside the project.`);
-            process.exit(1);
-        }
-
-        // assetsDir
-        const assetsDirInputRaw = typeof options.assetsDir === 'string' ? options.assetsDir : '.vatts';
-        const assetsDirInput = assetsDirInputRaw.trim().length ? assetsDirInputRaw.trim() : '.';
+        const assetsDirInput = (typeof options.assetsDir === 'string' && options.assetsDir.trim()) || '.vatts';
         const assetsDirResolved = path.resolve(exportDirResolved, assetsDirInput);
         const relAssetsToExport = path.relative(exportDirResolved, assetsDirResolved);
-        if (relAssetsToExport.startsWith('..') || path.isAbsolute(relAssetsToExport)) {
-            Console.error(`Invalid --assets-dir: must be inside output directory. Received: ${assetsDirInputRaw}`);
-            process.exit(1);
-        }
 
-        const assetsDirUrl = relAssetsToExport.split(path.sep).join('/').replace(/^\.?\/?/, '');
-        const assetsBaseHref = '/.' + (assetsDirUrl.length ? assetsDirUrl + '/' : '');
+        const assetsBaseHref = '/.' + (relAssetsToExport.split(path.sep).join('/').replace(/^\.?\/?/, '') || '');
 
         Console.info('Starting export process...');
 
         try {
-            // 1. Limpa pasta de exportação
+            let { loadVattsConfig, setConfig, config } = require("../helpers")
+            setConfig(await loadVattsConfig(projectDirResolved, 'production'))
             if (fs.existsSync(exportDirResolved)) {
                 Console.info('Cleaning existing export folder...');
                 fs.rmSync(exportDirResolved, { recursive: true, force: true });
             }
             fs.mkdirSync(exportDirResolved, { recursive: true });
 
-            // 2. Build
             Console.info('Building application...');
             const helperModule = require("../helpers");
-            // Usando dev: false para produção
             const app = helperModule.default({ dev: false, port: 3000, hostname: '0.0.0.0', framework: 'native' });
             await app.prepare();
             Console.success('Build complete.');
 
-
-            // 3. Copia JavaScript
             const distDir = path.join(projectDirResolved, '.vatts');
             if (fs.existsSync(distDir)) {
                 Console.info('Copying JavaScript files...');
-                const exportDistDir = assetsDirResolved;
-                copyDirRecursive(distDir, exportDistDir);
+                copyDirRecursive(distDir, assetsDirResolved);
             }
 
-            // 4. Copia Public
             const publicDir = path.join(projectDirResolved, 'public');
             if (fs.existsSync(publicDir)) {
                 Console.info('Copying public files...');
                 copyDirRecursive(publicDir, exportDirResolved);
             }
 
-            // 5. Gera index.html
-            const shouldExtractHData = typeof options.outputHData === 'string' && options.outputHData.trim().length > 0;
-            const shouldRenderHtml = Boolean(options.html) || shouldExtractHData;
+            const shouldExtractHData = !!options.outputHData;
+            const shouldRenderHtml = options.html !== false || shouldExtractHData;
 
             if (shouldRenderHtml) {
-                const writeHtmlToDisk = Boolean(options.html);
+                const writeHtmlToDisk = options.html !== false;
+                Console.info(writeHtmlToDisk ? 'Generating index.html...' : 'Rendering HTML for h-data extraction...');
 
-                if (writeHtmlToDisk) {
-                    Console.info('Generating index.html...');
-                } else {
-                    Console.info('Rendering HTML for h-data extraction...');
-                }
 
+                const frameWork = detectFramework(projectDirResolved)
                 const { renderAsStream } = require('../renderer');
+
                 const { loadRoutes, loadLayout, loadNotFound } = require('../router');
 
                 const userWebDir = path.join(projectDirResolved, 'src', 'web');
                 const userWebRoutesDir = path.join(userWebDir, 'routes');
 
+                // Recarrega rotas para garantir estado limpo
                 const routes = loadRoutes(userWebRoutesDir);
                 loadLayout(userWebDir);
                 loadNotFound(userWebDir);
 
-                const rootRoute = routes.find(r => r.pattern === '/') || routes[0];
+                if (routes.length === 0) {
+                    Console.warn('No routes found in src/web/routes. Skipping HTML generation.');
+                } else {
+                    const rootRoute = routes.find(r => r.pattern === '/') || routes[0];
 
-                if (rootRoute) {
+                    let htmlResult = '';
                     const mockReq = {
-                        url: '/',
+                        url: rootRoute.pattern || '/',
                         method: 'GET',
                         headers: { host: 'localhost' },
                         hwebDev: false,
                         hotReloadManager: null
                     };
 
-                    let html = '';
-                    let resolveStream;
-                    const streamComplete = new Promise(r => resolveStream = r);
-
                     const mockRes = new Writable({
                         write(chunk, encoding, callback) {
-                            html += chunk.toString();
+                            htmlResult += chunk.toString();
                             callback();
                         }
                     });
 
+                    // Extensão do mockRes para compatibilidade com o renderer
                     mockRes.setHeader = () => {};
+                    mockRes.getHeader = () => {};
                     mockRes.statusCode = 200;
+                    mockRes.end = (chunk) => {
+                        if (chunk) htmlResult += chunk.toString();
+                        mockRes.emit('finish');
+                    };
 
-                    mockRes.on('finish', () => {
-                        resolveStream();
+                    const streamComplete = new Promise((resolve, reject) => {
+                        mockRes.on('finish', resolve);
+                        mockRes.on('error', reject);
                     });
 
                     await renderAsStream({
@@ -278,26 +237,20 @@ program
                     await streamComplete;
 
                     if (shouldExtractHData) {
-                        const m = html.match(/<script\b[^>]*\bid=["']__vatts_data__["'][^>]*\bdata-h=["']([^"']*)["'][^>]*>/i);
-                        if (!m || typeof m[1] !== 'string') {
-                            throw new Error('Could not find <script id="__vatts_data__" data-h="..."> in rendered HTML.');
+                        const m = htmlResult.match(/data-h=["']([^"']*)["']/i);
+                        if (m && m[1]) {
+                            const outputHDataPath = path.resolve(projectDirResolved, options.outputHData.trim());
+                            fs.mkdirSync(path.dirname(outputHDataPath), { recursive: true });
+                            fs.writeFileSync(outputHDataPath, m[1], 'utf8');
+                            Console.success(`h-data written to: ${path.relative(projectDirResolved, outputHDataPath)}`);
                         }
-
-                        const hDataValue = m[1];
-                        const outputHDataPathInput = options.outputHData.trim();
-                        const outputHDataPath = path.isAbsolute(outputHDataPathInput)
-                            ? path.resolve(outputHDataPathInput)
-                            : path.resolve(projectDirResolved, outputHDataPathInput);
-
-                        fs.mkdirSync(path.dirname(outputHDataPath), { recursive: true });
-                        fs.writeFileSync(outputHDataPath, hDataValue, 'utf8');
-                        Console.success(`h-data written to: ${path.relative(projectDirResolved, outputHDataPath)}`);
                     }
 
                     if (writeHtmlToDisk) {
-                        const scriptReplaced = html.replace(/\/_vatts\//g, assetsBaseHref);
+                        // Ajusta caminhos dos scripts para serem relativos ao assetsDir
+                        const finalHtml = htmlResult.replace(/\/_vatts\//g, assetsBaseHref.endsWith('/') ? assetsBaseHref : assetsBaseHref + '/');
                         const indexPath = path.join(exportDirResolved, 'index.html');
-                        fs.writeFileSync(indexPath, scriptReplaced, 'utf8');
+                        fs.writeFileSync(indexPath, finalHtml, 'utf8');
                         Console.success('index.html generated.');
                     }
                 }
