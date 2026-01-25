@@ -1,3 +1,18 @@
+import introductionMd from "../docs/vatts/getting-started.md";
+import installationMd from "../docs/vatts/installation.md";
+import projectStructureMd from "../docs/vatts/project-structure.md";
+import layoutMd from "../docs/vatts/layout.md";
+import routingMd from "../docs/vatts/routing.md";
+import rpcMd from "../docs/vatts/rpc.md";
+import middlewaresMd from "../docs/vatts/middleware.md";
+import componentsMd from "../docs/vatts/components.md";
+import gettingStartAuthMd from "../docs/auth/getting-started.md";
+import installationAuthMd from "../docs/auth/installation.md";
+import providersAuthMd from "../docs/auth/providers.md";
+import sessionsAuthMd from "../docs/auth/session.md";
+import protectingRoutesAuthMd from "../docs/auth/protecting-routes.md";
+import customProvidersAuthMd from "../docs/auth/custom-providers.md";
+
 export type SearchDoc = {
     id: string;
     label: string;
@@ -93,3 +108,34 @@ export function searchDocs(docs: SearchDoc[], query: string, limit = 12): Search
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
 }
+
+export const sidebarConfig = {
+    sections: [
+        {
+            id: 'vatts',
+            title: "Vatts.js",
+            items: [
+                { id: "introduction", icon: "FaHome", label: "Introduction", file: introductionMd },
+                { id: "installation", icon: "FaDownload", label: "Installation", file: installationMd },
+                { id: "project-structure", icon: "FaBox", label: "Project Structure", file: projectStructureMd },
+                { id: "layout", icon: "FaDiagramProject", label: "Layout System", file: layoutMd },
+                { id: "routing", icon: "FaCodeCompare", label: "Routing", file: routingMd },
+                { id: "rpc", icon: "FaGlobe", label: "RPC System", file: rpcMd },
+                { id: "middlewares", icon: "FaWrench", label: "Middlewares", file: middlewaresMd },
+                { id: 'components', icon: 'FaCube', label: 'Components', file: componentsMd }
+            ]
+        },
+        {
+            id: 'auth',
+            title: "Vatts Auth",
+            items: [
+                { id: 'introduction-auth', icon: 'FaShield', label: 'Overview', file: gettingStartAuthMd },
+                { id: 'installation-auth', icon: 'FaDownload', label: 'Setup Auth', file: installationAuthMd },
+                { id: "providers", icon: "FaBolt", label: "Providers", file: providersAuthMd },
+                { id: "sessions", icon: "FaFile", label: "Sessions", file: sessionsAuthMd },
+                { id: 'protecting-routes', icon: 'FaLock', label: 'Protecting Routes', file: protectingRoutesAuthMd },
+                { id: 'custom-providers', icon: 'FaCode', label: 'Custom Providers', file: customProvidersAuthMd },
+            ]
+        }
+    ]
+};

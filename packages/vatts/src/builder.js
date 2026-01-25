@@ -192,8 +192,9 @@ const customPostCssPlugin = (isProduction) => {
 
                 // Lógica unificada: Usa arquivo externo tanto em Dev quanto Prod.
                 // Isso libera a memória que seria usada para stringificar o CSS dentro do JS.
+                // FIX: O Rollup pode retornar um objeto URL ao invés de string. String() força a conversão.
                 return `
-                    const cssUrl = import.meta.ROLLUP_FILE_URL_${referenceId};
+                    const cssUrl = String(import.meta.ROLLUP_FILE_URL_${referenceId});
                     if (typeof document !== 'undefined') {
                         const link = document.createElement('link');
                         link.rel = 'stylesheet';
@@ -267,8 +268,9 @@ const smartAssetPlugin = (isProduction) => {
                     });
                     const content = buffer.toString('utf8');
                     buffer = null; // GC Hint
+                    // FIX: O Rollup pode retornar um objeto URL. String() resolve o erro de startsWith.
                     return `
-                        export default import.meta.ROLLUP_FILE_URL_${referenceId};
+                        export default String(import.meta.ROLLUP_FILE_URL_${referenceId});
                         export const svgContent = ${JSON.stringify(content)};
                     `;
                 }
@@ -289,7 +291,8 @@ const smartAssetPlugin = (isProduction) => {
                     source: buffer
                 });
                 buffer = null; // Libera memória
-                return `export default import.meta.ROLLUP_FILE_URL_${referenceId};`;
+                // FIX: O Rollup pode retornar um objeto URL. String() resolve o erro de startsWith.
+                return `export default String(import.meta.ROLLUP_FILE_URL_${referenceId});`;
             }
         }
     };

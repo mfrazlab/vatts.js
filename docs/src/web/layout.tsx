@@ -7,7 +7,6 @@ interface LayoutProps {
     children: React.ReactNode;
 }
 
-
 export const metadata: Metadata = {
     title: "Vatts.js | The Fastest Framework for React",
     description: "The fastest and simplest web framework for React! Start building high-performance web applications today with Vatts.js.",
@@ -21,10 +20,11 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: LayoutProps) {
+    // Animação Modernizada: Leve escala (zoom in/out) com desfoque
     const variants = {
-        hidden: { opacity: 0, y: 15 },
-        enter: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -15 },
+        hidden: { opacity: 0, scale: 0.98, filter: "blur(5px)" },
+        enter: { opacity: 1, scale: 1, filter: "blur(0px)" },
+        exit: { opacity: 0, scale: 0.98, filter: "blur(5px)" },
     };
 
     return (
@@ -38,7 +38,9 @@ export default function Layout({ children }: LayoutProps) {
                 initial="hidden"
                 animate="enter"
                 exit="exit"
-                transition={{ type: 'tween', ease: 'easeInOut', duration: 0.4 }}
+                // Curva de transição mais fluida e um pouco mais rápida
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className={"bg-black"}
             >
                 {children}
             </motion.div>

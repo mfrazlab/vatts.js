@@ -11,7 +11,7 @@
 
 body {
     /* COR ALTERADA: Fundo unificado para #0d0d0d */
-    @apply bg-[#0d0d0d] text-slate-400 antialiased;
+    @apply bg-black text-slate-400 antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 

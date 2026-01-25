@@ -5,14 +5,13 @@ import {
     FaArrowRight, FaTerminal, FaPalette, FaWifi, FaShield, FaReact, FaCode
 } from 'react-icons/fa6';
 import {importServer, Link, VattsImage} from "vatts/react"
-import { sidebarConfig } from './docs';
-import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
-import { useScrollReveal } from '../hooks/useScrollReveal';
-import { useParallax } from '../hooks/useParallax';
-import SearchModal from './SearchModal';
-import type { SearchDoc } from '../lib/searchIndex';
 
-const api = importServer<typeof import("../../backend/helper")>("../../backend/helper");
+import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion';
+import { useScrollReveal } from './hooks/useScrollReveal';
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
+const api = importServer<typeof import("../backend/helper")>("../../backend/helper");
 const { PackageVersion } = api;
 
 const VattsLanding = () => {
@@ -25,13 +24,10 @@ const VattsLanding = () => {
             setVersion(v)
         }
     })
-
-    const reducedMotion = usePrefersReducedMotion();
-
+    usePrefersReducedMotion();
     const primaryColor = "#a8a8a8";
     const primaryRgb = "82, 82, 82";
-
-    const particles = useMemo(
+    useMemo(
         () =>
             Array.from({ length: 60 }).map((_, i) => ({
                 id: i,
@@ -45,29 +41,8 @@ const VattsLanding = () => {
         []
     );
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
-                setIsSearchOpen(true);
-            }
-            if (e.key === 'Escape') setIsSearchOpen(false);
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
 
-    const docsForSearch: SearchDoc[] = useMemo(() => {
-        return sidebarConfig.sections.flatMap((section) =>
-            section.items.map((item) => ({
-                id: item.id,
-                label: item.label,
-                category: section.title,
-                href: `/docs/${section.id}/${item.id}`,
-                content: typeof (item as any).file === 'string' ? (item as any).file : '',
-            }))
-        );
-    }, []);
+
     const heroTitle = useScrollReveal({ threshold: 0.25, once: false });
     const heroSubtitle = useScrollReveal({ threshold: 0.2, once: false });
     const heroButtons = useScrollReveal({ threshold: 0.2, once: false });
@@ -81,40 +56,7 @@ const VattsLanding = () => {
         <div className={`min-h-screen bg-black text-slate-300 selection:bg-[#2b2b2a]/30 font-sans selection:text-white relative custom-scrollbar`}>
 
 
-            <SearchModal
-                open={isSearchOpen}
-                onClose={() => setIsSearchOpen(false)}
-                docs={docsForSearch}
-                placeholder="Search documentation..."
-            />
-
-            <nav className="sticky top-0 z-50 w-full border-b border-white/[0.05] bg-[#0d0d0d]/80 backdrop-blur-md">
-                <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto">
-                    <div className="flex items-center gap-6">
-                        <div className="relative group cursor-pointer flex items-center gap-3 mr-3">
-                            <VattsImage src="/logo-all-white.png" height={"32px"} alt="Vatts" className="relative rounded-lg" />
-                        </div>
-                        <Link href="/docs" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Docs</Link>
-                        <a href="https://npmjs.com/vatts" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Npm</a>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => setIsSearchOpen(true)}
-                            className="hidden md:flex items-center gap-3 bg-white/[0.05] border border-white/10 rounded-md px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:border-[#ff6b35]/30 transition-all w-64 group"
-                        >
-                            <span className="flex-1 text-left">Search docs...</span>
-                            <div className="flex gap-1 text-[10px] opacity-50">
-                                <kbd className="bg-black/20 border border-white/10 px-1.5 rounded">Ctrl</kbd>
-                                <kbd className="bg-black/20 border border-white/10 px-1.5 rounded">K</kbd>
-                            </div>
-                        </button>
-                        <a href="https://github.com/mfrazlab/vatts.js" className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full" target="_blank" rel="noreferrer">
-                            <FaGithub size={20} />
-                        </a>
-                    </div>
-                </div>
-            </nav>
+            <Navbar></Navbar>
             <section className="relative z-10 pt-24 pb-20 px-6 text-left overflow-hidden border-b border-white/5">
                 {/* --- GRADE E ELEMENTOS VISUAIS --- */}
                 <div className="grid-background" />
@@ -644,44 +586,8 @@ const VattsLanding = () => {
                 </section>
             </div>
 
-            <footer className="relative z-10 py-12 px-6 bg-[#0a0a0c]">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-                        {/* Brand & Status */}
-                        <div className="flex flex-col items-center md:items-start gap-3">
-                            <div className="flex items-center gap-3">
-                                <VattsImage src="/logo-all-white.png" alt="Vatts" height={"28px"} className="h-7 brightness-125 opacity-80" />
-                                <span className="hidden md:block w-px h-4 bg-white/10" />
-                                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-500/80">v{version}</span>
-                                </div>
-                            </div>
-                            <p className="text-slate-500 text-sm max-w-xs text-center md:text-left">
-                                The next-generation framework for building lightning-fast web applications.
-                            </p>
-                        </div>
+            <Footer version={version}></Footer>
 
-                        {/* Social & Legal */}
-                        <div className="flex flex-col items-center md:items-end gap-4">
-                            <div className="flex items-center gap-6">
-                                <a
-                                    href="https://github.com/mfrazlab/vatts.js"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-slate-400 hover:text-white transition-all transform hover:scale-110"
-                                >
-                                    <FaGithub size={22} />
-                                </a>
-                            </div>
-
-                            <div className="text-slate-600 text-[12px] tracking-tight font-medium">
-                                © {new Date().getFullYear()} <span className="text-slate-400">Vatts.js</span>. Crafted by developers, for developers.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </footer>
         </div>
     );
 };

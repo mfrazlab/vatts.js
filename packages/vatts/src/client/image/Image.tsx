@@ -19,14 +19,28 @@ const Image: React.FC<VattsImageProps> = ({
                                                    alt = "",
                                                    ...props
                                                }) => {
+    function getBaseUrl(): string | null {
+        if (typeof window === "undefined") return null
+        return window.location.origin
+    }
+
+    const baseUrl = getBaseUrl()
     // Se a imagem for Base64 (pequena) ou externa (http), não otimizamos via backend local
-    const isOptimizable = src && !src.startsWith('data:') && !src.startsWith('http');
+    const isOptimizable = src && src.startsWith && !src.startsWith('data:') && ((baseUrl && src.startsWith(baseUrl)) || !src.startsWith('http'));
+    function optimizeSrc(src: string, baseUrl: string | null) {
+        if (!baseUrl) return src
 
-    let optimizedSrc = src;
+        if (src.startsWith(baseUrl)) {
+            return src.slice(baseUrl.length) || '/'
+        }
 
+        return src
+    }
+
+    let optimizedSrc = optimizeSrc(src, baseUrl);
     if (isOptimizable) {
         const params = new URLSearchParams();
-        params.set('url', src);
+        params.set('url', optimizedSrc);
 
         // Tratamento inteligente para remover "px" se o usuário passar string
         if (width) {

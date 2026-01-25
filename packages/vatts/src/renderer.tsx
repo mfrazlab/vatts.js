@@ -354,6 +354,9 @@ export async function renderAsStream({ req, res, route, params, allRoutes }: Ren
                 if (r.generateMetadata) {
                     routeMeta = await r.generateMetadata(params, req);
                 }
+                if(!routeMeta.title) {
+                    routeMeta.title = layoutInfo?.metadata.title || 'Vatts App'
+                }
                 return {
                     pattern: r.pattern,
                     componentPath: r.componentPath,
