@@ -15,11 +15,10 @@
  * limitations under the License.
  */
 // Exportações do frontend
-export * from '../react';
+export * from './react';
 export * from '../client';
-export * from '../components';
+export * from './components';
 
 // Re-exports das funções mais usadas para conveniência
-export { getSession } from '../client';
-export { useSession, useAuth, SessionProvider } from '../react';
-export { AuthGuard, GuestOnly } from '../components';
+export { useSession, useAuth, SessionProvider } from './react';
+export { AuthGuard, GuestOnly } from './components';

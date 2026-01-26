@@ -27,11 +27,11 @@ When clicked, Link intercepts the event and uses the Vatts.js router for navigat
 
 ## VattsImage (Optimized Images)
 
-The VattsImage component (exported as `Image` or `VattsImage` from `vatts/image`) automatically optimizes images, reducing layout shift and improving performance. It is recommended for all images in your app.
+The VattsImage component (exported as `Image` or `VattsImage` from `vatts/react`) automatically optimizes images, reducing layout shift and improving performance. It is recommended for all images in your app.
 
 ### Basic Example
 ```tsx
-import Image from "vatts/image";
+import {Image} from "vatts/react";
 
 <Image src="/logo.png" width={200} height={100} alt="Logo" />
 ```
@@ -57,13 +57,3 @@ import Image from "vatts/image";
 - Use `VattsImage` for all images to benefit from automatic optimization and layout stability.
 - Provide explicit `width` and `height` to prevent layout shift.
 - Use `priority` for images that should load immediately (e.g., above the fold).
-
----
-
-## References
-- [Routing Documentation](./routing.md)
-- [Vatts.js API](https://github.com/itsmuzin/vatts)
-
----
-
-> For advanced usage, custom props, or troubleshooting, see `/src/web/components` or the official documentation. Contributions and suggestions are welcome!

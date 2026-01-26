@@ -223,7 +223,7 @@ export default function BuildingScreen() {
                     </div>
 
                     <h1>Vatts<span>.js</span></h1>
-                    <p>Building your masterpiece...</p>
+                    <p>Building your application...</p>
 
                     <div className="terminal-box">
                         <div className="term-line">

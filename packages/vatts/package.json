@@ -1,9 +1,9 @@
 {
   "name": "vatts",
-  "version": "1.1.4-alpha.9",
+  "version": "1.2.0",
   "description": "Vatts.js is a high-level framework for building web applications with ease and speed. It provides a robust set of tools and features to streamline development and enhance productivity.",
   "types": "dist/index.d.ts",
-  "author": "itsmuzin",
+  "author": "mfraz",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.28.1+sha512.7d7dbbca9e99447b7c3bf7a73286afaaf6be99251eb9498baefa7d406892f67b879adb3a1d7e687fc4ccc1a388c7175fbaae567a26ab44d1067b54fcb0d6a316",
   "keywords": [
@@ -23,7 +23,20 @@
     "vatts": "./dist/bin/vatts.js"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && copyfiles -u 1 \"src/**/*.{vue,d.ts}\" dist"
+  },
+  "typesVersions": {
+    "*": {
+      "global": [
+        "dist/global/global.d.ts"
+      ],
+      "console": [
+        "dist/api/console.d.ts"
+      ],
+      "rpc": [
+        "dist/rpc/annotations.d.ts"
+      ]
+    }
   },
   "exports": {
     ".": {
@@ -37,9 +50,14 @@
       "require": "./dist/api/console.js"
     },
     "./react": {
-      "types": "./dist/client/client.d.ts",
-      "import": "./dist/client/client.js",
-      "require": "./dist/client/client.js"
+      "types": "./dist/react/client.d.ts",
+      "import": "./dist/react/client.js",
+      "require": "./dist/react/client.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/client.d.ts",
+      "import": "./dist/vue/client.js",
+      "require": "./dist/vue/client.js"
     },
     "./helpers": {
       "types": "./dist/helpers.d.ts",
@@ -47,7 +65,8 @@
       "require": "./dist/helpers.js"
     },
     "./global": {
-      "types": "./dist/global/global.d.ts"
+      "types": "./dist/global/global.d.ts",
+      "import": "./dist/global/global.d.ts"
     },
     "./eslint": {
       "types": "./dist/eslint/index.d.ts",
@@ -60,19 +79,29 @@
       "require": "./dist/rpc/annotations.js"
     }
   },
-  "peerDependencies": {
-    "express": "^4.0.0",
-    "fastify": "^5.6.1",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
-  },
   "peerDependenciesMeta": {
     "express": {
       "optional": true
     },
     "fastify": {
       "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
     }
+  },
+  "peerDependencies": {
+    "express": "^4.0.0",
+    "fastify": "^5.6.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "vue": "^3.5.27"
   },
   "dependencies": {
     "@rollup/plugin-alias": "^6.0.0",
@@ -80,10 +109,13 @@
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-replace": "^6.0.3",
+    "@vue/server-renderer": "^3.5.27",
     "chokidar": "^3.6.0",
     "commander": "^14.0.2",
-    "rollup": "^4.55.2",
+    "esbuild": "^0.27.2",
+    "rollup": "^4.56.0",
     "rollup-plugin-esbuild": "^6.2.1",
+    "rollup-plugin-vue": "^6.0.0",
     "sharp": "^0.34.5",
     "ts-loader": "9.5.4",
     "ts-node": "^10.9.2",
@@ -100,6 +132,10 @@
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
-    "image-size": "^2.0.2"
+    "@vue/tsconfig": "^0.8.1",
+    "copyfiles": "^2.4.1",
+    "image-size": "^2.0.2",
+    "vue": "^3.5.27",
+    "vue-tsc": "^3.2.3"
   }
 }

@@ -1,4 +1,4 @@
-import Console from "vatts/console";
+import Console, {Colors} from "vatts/console";
 import type { CreateAppOptions } from "./types";
 
 function normalizeAliasPrefix(raw: string): string {
@@ -33,6 +33,11 @@ export function parseArgs(argv: string[]): CreateAppOptions {
   const noAliasFlag = args.includes("--no-alias");
   const aliasValue = readArgValue(args, "--alias");
 
+  const pathRouterFlag = args.includes("--path-router") || args.includes("-p")
+  const noPathRouterFlag = args.includes("--no-path-router")
+
+  const reactFlag = args.includes("--react")
+  const vueFlag = args.includes("--vue")
   return {
     appName,
     tailwind: tailwindFlag ? true : undefined,
@@ -42,6 +47,10 @@ export function parseArgs(argv: string[]): CreateAppOptions {
 
     moduleAlias: noAliasFlag ? false : aliasValue ? true : undefined,
     alias: aliasValue ? normalizeAliasPrefix(aliasValue) : undefined,
+    pathRouter: pathRouterFlag ? true : noPathRouterFlag ? false : undefined,
+    typeScript: args.includes("--typescript") || args.includes("-ts") ? true : undefined,
+
+    framework: reactFlag ? 'react' : vueFlag ? 'vue' : undefined
   };
 }
 
@@ -51,6 +60,55 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
     appName = await Console.ask("What is the name of your app?", "my-vatts-app");
     console.log("             ")
   }
+
+  let framework = opts.framework
+  async function askFramework(): Promise<string> {
+    const frame = await Console.ask("What framework do you want to use? (React/Vue)", 'react')
+    console.log('')
+    if(frame.toLowerCase() !== 'react' && frame.toLowerCase() !== 'vue') {
+      return await askFramework()
+    } else {
+      return frame
+    }
+  }
+  if(framework === undefined) {
+    // @ts-ignore
+    framework = await askFramework()
+  }
+
+  const recommendedOptions: CreateAppOptions = {
+    appName,
+    tailwind: true,
+    examples: true,
+    install: true,
+    moduleAlias: true,
+    alias: "@/",
+    typeScript: true,
+    framework
+  }
+
+  let name = framework === 'react' ? 'React' : 'Vue'
+  const recommended = await Console.selection(`Would you like to use the recommended options? (${name})`, {
+    "yes": `${Colors.Underscore}Yes, use recommended defaults - TypeScript, Tailwind CSS, Module Alias`,
+    "maybe": `Maybe, use Path Router defaults - TypeScript, Tailwind CSS`,
+    "no": "No, customize settings"
+  })
+  if(recommended !== 'no') {
+    recommendedOptions.pathRouter = recommended === 'maybe'
+    // Forçar todas as propriedades obrigatórias
+    return {
+      appName: recommendedOptions.appName!,
+      tailwind: recommendedOptions.tailwind!,
+      examples: recommendedOptions.examples!,
+      install: recommendedOptions.install!,
+      moduleAlias: recommendedOptions.moduleAlias!,
+      alias: recommendedOptions.alias!,
+      pathRouter: recommendedOptions.pathRouter!,
+      typeScript: recommendedOptions.typeScript!,
+      framework: recommendedOptions.framework!
+    }
+  }
+
 
   let typescript = opts.typeScript
   if(typescript === undefined) {
@@ -102,15 +160,15 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
     console.log("             ")
   }
 
-
   return {
-    appName,
-    tailwind,
-    examples,
-    install,
-    moduleAlias,
-    alias,
-    pathRouter,
-    typeScript: typescript
+    appName: appName!,
+    tailwind: tailwind!,
+    examples: examples!,
+    install: install!,
+    moduleAlias: moduleAlias!,
+    alias: alias!,
+    pathRouter: pathRouter!,
+    typeScript: typescript!,
+    framework: framework!
   };
 }

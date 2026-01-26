@@ -1,6 +1,6 @@
 {
   "name": "vatts-framework",
-  "version": "1.1.4-alpha.9",
+  "version": "1.2.0",
   "description": "Monorepo for the Vatts.js framework",
   "private": true,
   "author": "itsmuzin",
@@ -13,21 +13,24 @@
     "monorepo"
   ],
   "scripts": {
-    "build": "pnpm run clean && tsc --build",
+    "build": "pnpm run clean && pnpm -r run build",
     "clean": "pnpm -r exec rimraf dist",
 
-    "publish:sdk-alpha": "pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish publish --no-git-checks --access=public --tag=alpha ",
+    "publish:sdk-alpha": "pnpm run version:sync && pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish publish --no-git-checks --access=public --tag=test",
 
     "version:sync": "node -e \"const fs=require('fs'); const v=require('./package.json').version; ['packages/vatts','packages/auth','examples/basic-app'].forEach(p=>{const f=`${p}/package.json`; if(fs.existsSync(f)){const j=JSON.parse(fs.readFileSync(f)); j.version=v; fs.writeFileSync(f, JSON.stringify(j,null,2)+'\\n')}})\"",
+    "publish:sdk": "pnpm run version:sync && pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish --no-git-checks --access=public",
 
-    "publish:sdk": "pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish --no-git-checks --access=public",
-    "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"
+    "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public",
+    "publish:create-app-alpha": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
     "@types/node": "^20.19.30",
+    "@vue/tsconfig": "^0.8.1",
     "rimraf": "^5.0.10",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.2.3"
   },
   "workspaces": [
     "packages/*",

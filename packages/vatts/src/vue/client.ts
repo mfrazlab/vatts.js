@@ -16,11 +16,12 @@
  */
 
 // Este arquivo exporta apenas código seguro para o cliente (navegador)
-export { Link } from '../components/Link';
+import Link from "./Link.vue"
+export { Link }
 export { RouteConfig, Metadata } from "../types";
-export { router } from './clientRouter';
+export { router } from '../client/clientRouter';
 
 // RPC (client-side)
-export { importServer } from './rpc';
-export { default as Image} from "./image/Image"
-export { default as VattsImage } from "./image/Image"
+export { importServer } from '../client/rpc';
+export { default as Image} from "./image/Image.vue"
+export { default as VattsImage } from "./image/Image.vue"

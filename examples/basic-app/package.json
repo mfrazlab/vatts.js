@@ -1,6 +1,6 @@
 {
   "name": "basic-app",
-  "version": "1.1.4-alpha.9",
+  "version": "1.2.0",
   "description": "Basic example application for Vatts.js framework",
   "private": true,
   "author": "itsmuzin",

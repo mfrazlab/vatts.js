@@ -13,7 +13,8 @@ export async function createProject(ctx: CreateAppContext) {
     appName: ctx.appName,
     vattsVersion: ctx.vattsVersion,
     willTailwind: ctx.willTailwind,
-    typeScript: ctx.typeScript
+    typeScript: ctx.typeScript,
+    framework: ctx.framework
   });
 
   writeJson(path.join(ctx.rootDir, "package.json"), ctx.packageJson);

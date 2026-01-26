@@ -257,7 +257,7 @@ export interface Metadata {
 
 export interface RouteConfig {
     pattern: string;
-    component: ComponentType<any>;
+    component?: any;
     generateMetadata?: (params: any, req: GenericRequest) => Promise<Metadata> | Metadata;
 }
 export type RequestHandler = (req: any, res: any) => Promise<void>;

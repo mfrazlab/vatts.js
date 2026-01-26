@@ -23,7 +23,7 @@ import os from 'os';
 import {URLSearchParams} from 'url'; // API moderna, substitui 'querystring'
 import path from 'path';
 // Helpers para integração com diferentes frameworks
-import vatts, {FrameworkAdapterFactory} from './index'; // Importando o tipo
+import vatts, {FrameworkAdapterFactory} from './index.js'; // Importando o tipo
 import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
 import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https'; // <-- ADICIONAR
@@ -118,7 +118,7 @@ const sendBox = (options: VattsOptions) => {
  * @param phase Fase de execução ('development' ou 'production')
  * @returns Configuração mesclada com os valores padrão
  */
-async function loadVattsConfig(projectDir: string, phase: string): Promise<VattsConfig> {
+export async function loadVattsConfig(projectDir: string, phase: string): Promise<VattsConfig> {
     const defaultConfig: VattsConfig = {
         maxHeadersCount: 100,
         headersTimeout: 60000,
@@ -336,7 +336,9 @@ const parseBody = (req: IncomingMessage): Promise<object | string | null> => {
 };
 
 export let config: VattsConfig | undefined
-
+export function setConfig(newConfig: VattsConfig) {
+    config = newConfig
+}
 /**
  * Inicializa servidor nativo do Vatts.js usando HTTP ou HTTPS
  */

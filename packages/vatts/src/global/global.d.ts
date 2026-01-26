@@ -169,3 +169,9 @@ declare module "*.ogv" {
     export default src;
 }
 
+/* eslint-disable */
+declare module '*.vue' {
+    // Usamos import('vue') para não transformar o arquivo em um módulo
+    const component: import('vue').DefineComponent<{}, {}, any>
+    export default component
+}
