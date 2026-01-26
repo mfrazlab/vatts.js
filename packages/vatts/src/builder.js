@@ -32,26 +32,19 @@ const { loadTsConfigPaths, resolveTsConfigAlias } = require('./tsconfigPaths');
 
 // --- Helper de Detecção de Framework ---
 
-
-// Helper para determinar o framework principal do projeto
 function detectFramework(projectDir = process.cwd()) {
-    // 1. Tenta detectar pelo package.json (mais preciso e evita conflitos)
     try {
         const pkgPath = path.join(projectDir, 'package.json');
         if (fs.existsSync(pkgPath)) {
             const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
             const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
-            // Prioridade explicita para React se estiver listado
             if (deps.react || deps['react-dom']) return 'react';
-            // Se tiver Vue e não React, é Vue
             if (deps.vue || deps['nuxt']) return 'vue';
         }
-    } catch (e) {
-        // Ignora erro de leitura
-    }
+    } catch (e) {}
 
-    return 'react'; // Default fallback
+    return 'react';
 }
 
 const tsconfigPathsPlugin = (projectDir = process.cwd()) => {
@@ -70,7 +63,6 @@ const tsconfigPathsPlugin = (projectDir = process.cwd()) => {
     };
 };
 
-// Lista de módulos nativos do Node.js
 const nodeBuiltIns = [
     'assert', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns',
     'domain', 'events', 'fs', 'http', 'https', 'net', 'os', 'path', 'punycode',
@@ -88,9 +80,33 @@ const markdownPlugin = () => {
             if (id.endsWith('.md')) {
                 return {
                     code: `export default ${JSON.stringify(code)};`,
-                    map: null // Null map economiza memória se não precisa debugar markdown
+                    map: null
                 };
             }
+        }
+    };
+};
+
+/**
+ * [CORREÇÃO] Plugin que injeta 'export default {}' se estiver faltando.
+ * Resolve o problema de rotas que exportam apenas 'config' mas não o componente.
+ */
+const vueScriptFixPlugin = () => {
+    return {
+        name: 'vatts-vue-script-fix',
+        transform(code, id) {
+            // Intercepta arquivos virtuais de script TS do Vue
+            if (id.includes('?vue&type=script') && id.includes('lang.ts')) {
+                // Se o código NÃO tem export default, a gente cria um objeto vazio
+                // Isso satisfaz o Rollup/Vue Plugin que espera um componente
+                if (!code.includes('export default')) {
+                    return {
+                        code: code + '\nexport default {};',
+                        map: null // Sourcemap null pra simplificar
+                    };
+                }
+            }
+            return null;
         }
     };
 };
@@ -102,11 +118,9 @@ const customPostCssPlugin = (isProduction) => {
     let cachedProcessor = null;
     let configLoaded = false;
 
-    // Função auxiliar para inicializar o PostCSS apenas uma vez
     const initPostCss = async (projectDir) => {
         if (configLoaded) return cachedProcessor;
 
-        // CRÍTICO: Garante que o Tailwind saiba que é produção para purgar CSS não usado
         process.env.NODE_ENV = isProduction ? 'production' : 'development';
 
         const postcssConfigPath = path.join(projectDir, 'postcss.config.js');
@@ -165,7 +179,6 @@ const customPostCssPlugin = (isProduction) => {
         name: 'custom-postcss-plugin',
 
         async transform(code, id) {
-            // Intercepta arquivos CSS e requests virtuais de estilo do Vue (que terminam em .css)
             if (!id.endsWith('.css')) return null;
 
             const processor = await initPostCss(process.cwd());
@@ -176,7 +189,7 @@ const customPostCssPlugin = (isProduction) => {
                     const result = await processor.process(code, {
                         from: id,
                         to: id,
-                        map: false // Mapas inline ou não, melhor manter simples aqui
+                        map: false
                     });
                     processedCss = result.css;
                 } catch (e) {
@@ -184,8 +197,6 @@ const customPostCssPlugin = (isProduction) => {
                 }
             }
 
-            // Emite o arquivo CSS processado como asset
-            // Remove query params do Vue (ex: ?vue&type=style...) para gerar um nome de arquivo limpo
             const cleanName = path.basename(id).split('?')[0];
 
             const referenceId = this.emitFile({
@@ -194,8 +205,6 @@ const customPostCssPlugin = (isProduction) => {
                 source: processedCss
             });
 
-            // Retorna o módulo JS que injeta o CSS via <link>
-            // FIX: Retorna um objeto com 'code' e 'map' para evitar o aviso "Sourcemap is likely to be incorrect"
             return {
                 code: `
                 const cssUrl = String(import.meta.ROLLUP_FILE_URL_${referenceId});
@@ -292,21 +301,18 @@ const smartAssetPlugin = (isProduction) => {
 };
 
 /**
- * Gera a configuração base do Rollup (Agora Async e Estrita)
+ * Gera a configuração base do Rollup
  */
 async function createRollupConfig(entryPoint, outdir, isProduction) {
-    // Detecta Framework de forma exclusiva e robusta
     const framework = detectFramework();
     const hasVue = framework === 'vue';
     const hasReact = framework === 'react';
 
-    // Define variáveis de ambiente
     const replaceValues = {
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
         'process.env.PORT': JSON.stringify(process.vatts.port || 3000)
     };
 
-    // --- LÓGICA VUE ESTRITA ---
     let vuePlugin = null;
     if (hasVue) {
         replaceValues['__VUE_OPTIONS_API__'] = JSON.stringify(true);
@@ -337,37 +343,25 @@ async function createRollupConfig(entryPoint, outdir, isProduction) {
         }
     }
 
-    // --- CONFIGURAÇÃO DE EXTENSÕES ---
-    // Fix: Prioriza .vue se for um projeto Vue para evitar que o NodeResolve pegue artefatos gerados (como .vue.js do Volar)
-    // ao invés do arquivo fonte .vue.
     let extensions = ['.mjs', '.js', '.json', '.node', '.jsx', '.tsx', '.ts'];
     if (hasVue) {
-        // Coloca .vue no INÍCIO da lista
         extensions = ['.vue', ...extensions];
     }
 
-    // --- CONFIGURAÇÃO DO ESBUILD ---
-    // SEPARAÇÃO: Regex específico para cada framework.
-    // FIX ERRO VUE: O Regex do Vue inclui os arquivos virtuais `?vue`,
-    // mas o loader '.vue': 'ts' foi removido para evitar conflito com o plugin do Vue.
+    // REGEX ESSENCIAL: Permite que o ESBuild processe os arquivos virtuais do Vue
     let esbuildInclude;
     if (hasVue) {
-        esbuildInclude = /\.[jt]sx?$|\.vue\?vue/;
+        esbuildInclude = /\.[jt]sx?$|\.vue\?vue.*lang\.ts/;
     } else {
-        esbuildInclude = /\.[jt]sx?$/; // React/Vanilla: ignora arquivos virtuais do Vue
+        esbuildInclude = /\.[jt]sx?$/;
     }
 
     const esbuildLoaders = {
         '.js': 'jsx',
         '.ts': 'ts',
         '.tsx': 'tsx',
-        // RESTAURADO: .vue para ts. Isso é NECESSÁRIO para processar blocos <script lang="ts">
-        // Se houver erros do tipo __VLS_, o plugin 'block-volar-artifacts' abaixo deve resolver.
         '.vue': 'ts'
     };
-
-    // No Vue, partes do arquivo podem virar TS, mas isso é pego pela extensão do arquivo virtual,
-    // não precisamos forçar no loader geral.
 
     return {
         input: entryPoint,
@@ -389,13 +383,9 @@ async function createRollupConfig(entryPoint, outdir, isProduction) {
 
             tsconfigPathsPlugin(process.cwd()),
 
-            // NOVO: Blocker agressivo para artefatos gerados pelo Volar/TS (.vue.js, .vue.d.ts)
-            // Isso previne que o build tente empacotar arquivos temporários de tipagem como se fossem código fonte.
             {
                 name: 'block-volar-artifacts',
                 load(id) {
-                    // Ignora arquivos que terminam em .vue.js, .vue.ts, ou .vue.d.ts
-                    // Esses arquivos frequentemente contêm código "virtual" (__VLS_...) que causa erros em runtime.
                     if (/\.vue\.(js|ts|d\.ts|map)$/.test(id)) {
                         return 'export default {};';
                     }
@@ -403,14 +393,10 @@ async function createRollupConfig(entryPoint, outdir, isProduction) {
                 }
             },
 
-            // NOVO: Blocker para artefatos Vue (.vue e .vue.js) em projetos React
-            // Impede que arquivos compilados do Vue quebrem o build React
             {
                 name: 'block-vue-artifacts',
                 load(id) {
-                    // Verifica se não estamos no Vue e se o arquivo é um artefato Vue
                     if (!hasVue && (id.endsWith('.vue') || id.endsWith('.vue.js'))) {
-                        // Retorna módulo vazio para "matar" o arquivo e impedir erros de runtime
                         return 'export default {};';
                     }
                     return null;
@@ -418,14 +404,16 @@ async function createRollupConfig(entryPoint, outdir, isProduction) {
             },
 
             nodeResolve({
-                extensions, // Agora com .vue prioritário se hasVue for true
+                extensions,
                 preferBuiltins: true,
                 browser: true,
                 dedupe: hasReact ? ['react', 'react-dom'] : (hasVue ? ['vue'] : [])
             }),
 
-            // CRÍTICO: Injeta plugin do Vue APENAS se for Vue e ANTES de commonjs/esbuild.
             ...(hasVue && vuePlugin ? [vuePlugin] : []),
+
+            // AQUI ESTÁ A MÁGICA: Plugin que corrige a falta do export default
+            ...(hasVue ? [vueScriptFixPlugin()] : []),
 
             commonjs({
                 sourceMap: !isProduction,
@@ -441,7 +429,7 @@ async function createRollupConfig(entryPoint, outdir, isProduction) {
 
             esbuild({
                 include: esbuildInclude,
-                exclude: /node_modules/, // Se for React, arquivos .vue serão ignorados pelo regex do include
+                exclude: /node_modules/,
                 sourceMap: !isProduction,
                 minify: isProduction,
                 legalComments: 'none',

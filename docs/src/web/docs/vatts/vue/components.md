@@ -6,18 +6,22 @@ This page presents essential components for navigation and image optimization in
 
 ## Link (Navigation)
 
-The Link component enables fast client-side navigation between pages, using the Vatts.js router. It is imported from `vatts/react`.
+The Link component enables fast client-side navigation between pages, using the Vatts.js router. It is imported from `vatts/vue`.
 
 ### Basic Example
-```tsx
-import { Link } from "vatts/react";
+```vue
+<script setup>
+import { Link } from "vatts/vue";
+</script> 
 
-<Link href="/docs/vatts/components">Go to Components</Link>
+<template>
+  <Link href="/docs/vatts/components">Go to Components</Link>
+</template>
 ```
 
 #### Props
 - `href` (string): Destination URL.
-- `children` (ReactNode): Link content.
+- `children` (Slot): Link content.
 - Accepts all standard `<a>` props.
 
 #### How it works
@@ -27,13 +31,17 @@ When clicked, Link intercepts the event and uses the Vatts.js router for navigat
 
 ## VattsImage (Optimized Images)
 
-The VattsImage component (exported as `Image` or `VattsImage` from `vatts/react`) automatically optimizes images, reducing layout shift and improving performance. It is recommended for all images in your app.
+The VattsImage component (exported as `Image` or `VattsImage` from `vatts/vue`) automatically optimizes images, reducing layout shift and improving performance. It is recommended for all images in your app.
 
 ### Basic Example
-```tsx
-import {Image} from "vatts/react";
+```vue
+<script setup>
+  import {Image} from "vatts/vue";
+</script>
 
-<Image src="/logo.png" width={200} height={100} alt="Logo" />
+<template>
+  <Image src="/logo.png" width={200} height={100} alt="Logo" />
+</template>
 ```
 
 #### Props

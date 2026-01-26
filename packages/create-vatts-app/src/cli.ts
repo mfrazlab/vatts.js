@@ -1,4 +1,4 @@
-import Console from "vatts/console";
+import Console, {Colors} from "vatts/console";
 import type { CreateAppOptions } from "./types";
 
 function normalizeAliasPrefix(raw: string): string {
@@ -61,12 +61,6 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
     console.log("             ")
   }
 
-  let typescript = opts.typeScript
-  if(typescript === undefined) {
-    typescript = await Console.confirm("Do you want to use typescript?", true)
-    console.log("  ")
-  }
-
   let framework = opts.framework
   async function askFramework(): Promise<string> {
     const frame = await Console.ask("What framework do you want to use? (React/Vue)", 'react')
@@ -80,6 +74,46 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
   if(framework === undefined) {
     // @ts-ignore
     framework = await askFramework()
+  }
+
+  const recommendedOptions: CreateAppOptions = {
+    appName,
+    tailwind: true,
+    examples: true,
+    install: true,
+    moduleAlias: true,
+    alias: "@/",
+    typeScript: true,
+    framework
+  }
+
+  let name = framework === 'react' ? 'React' : 'Vue'
+  const recommended = await Console.selection(`Would you like to use the recommended options? (${name})`, {
+    "yes": `${Colors.Underscore}Yes, use recommended defaults - TypeScript, Tailwind CSS, Module Alias`,
+    "maybe": `Maybe, use Path Router defaults - TypeScript, Tailwind CSS`,
+    "no": "No, customize settings"
+  })
+  if(recommended !== 'no') {
+    recommendedOptions.pathRouter = recommended === 'maybe'
+    // Forçar todas as propriedades obrigatórias
+    return {
+      appName: recommendedOptions.appName!,
+      tailwind: recommendedOptions.tailwind!,
+      examples: recommendedOptions.examples!,
+      install: recommendedOptions.install!,
+      moduleAlias: recommendedOptions.moduleAlias!,
+      alias: recommendedOptions.alias!,
+      pathRouter: recommendedOptions.pathRouter!,
+      typeScript: recommendedOptions.typeScript!,
+      framework: recommendedOptions.framework!
+    }
+  }
+
+
+  let typescript = opts.typeScript
+  if(typescript === undefined) {
+    typescript = await Console.confirm("Do you want to use typescript?", true)
+    console.log("  ")
   }
 
 
@@ -126,17 +160,15 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
     console.log("             ")
   }
 
-
   return {
-    appName,
-    tailwind,
-    examples,
-    install,
-    moduleAlias,
-    alias,
-    pathRouter,
-    typeScript: typescript,
-    // @ts-ignore
-    framework
+    appName: appName!,
+    tailwind: tailwind!,
+    examples: examples!,
+    install: install!,
+    moduleAlias: moduleAlias!,
+    alias: alias!,
+    pathRouter: pathRouter!,
+    typeScript: typescript!,
+    framework: framework!
   };
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     FaBolt, FaShieldHalved, FaGlobe, FaBox, FaWrench, FaGithub,
     FaMagnifyingGlass, FaXmark, FaMicrochip, FaLayerGroup,
-    FaArrowRight, FaTerminal, FaPalette, FaWifi, FaShield, FaReact, FaCode
+    FaArrowRight, FaTerminal, FaPalette, FaWifi, FaShield, FaReact, FaCode, FaVuejs, FaNetworkWired
 } from 'react-icons/fa6';
 import {importServer, Link, VattsImage} from "vatts/react"
 
@@ -150,7 +150,7 @@ const VattsLanding = () => {
                         className="vatts-reveal vatts-reveal-up vatts-stagger max-w-2xl text-lg md:text-xl text-slate-400 leading-relaxed mb-12 font-medium"
                         style={{ ['--d' as any]: '160ms' }}
                     >
-                        Vatts.js is a high-performance full-stack primitive. No fluff, just raw speed, type-safety, and the best developer experience for building massive applications.
+                        Vatts.js is a high-performance full-stack primitive for building massive React and Vue applications. Zero fluff. Just raw speed, full type safety, and an exceptional developer experience.
                     </p>
 
                     <div
@@ -356,8 +356,52 @@ const VattsLanding = () => {
                             </div>
                         </div>
 
-                        {/* Card 3: Tailwind */}
-                        <div className="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-pink-500/20 transition-all duration-500 vatts-tilt vatts-sheen">
+                        {/* Card 3: Vue */}
+                        <div className="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-green-500/20 transition-all duration-500 vatts-tilt vatts-sheen">
+                            <div className="relative h-full bg-[#111111] rounded-[10px] p-8 overflow-hidden border border-white/5 flex flex-col">
+                                <div className="flex items-start gap-5 mb-8 relative z-10">
+                                    <div className="shrink-0 p-2.5 bg-green-500/10 rounded-lg border border-green-500/20">
+                                        <FaVuejs size="28" color="green"></FaVuejs>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <h3 className="text-xl font-bold text-white">Vue 3</h3>
+                                            <span className="text-[10px] font-mono text-slate-500">Stable</span>
+                                        </div>
+                                        <p className="text-sm text-slate-400">Instant interactions and seamless async rendering.</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
+                                    <div className="flex justify-between text-slate-500 mb-3 pb-2 border-b border-white/5">
+                                        <span>App.vue</span>
+                                        <span className="text-emerald-400 text-[10px]">Composition API</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex flex-wrap gap-1">
+                                            <span className="text-purple-400">const</span>
+                                            <span className="text-sky-400">count</span>
+                                            <span>=</span>
+                                            <span className="text-amber-400">ref</span>
+                                            <span className="text-slate-500">(</span>
+                                            <span className="text-pink-400">0</span>
+                                            <span className="text-slate-500">)</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            <span className="text-purple-400">const</span>
+                                            <span className="text-sky-400">inc</span>
+                                            <span>=</span>
+                                            <span className="text-slate-500">() {"=>"}</span>
+                                            <span className="text-sky-400">count</span>
+                                            <span className="text-slate-400">.value++</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Tailwind */}
+                        <div className="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-pink-500/20 transition-all duration-500 vatts-tilt vatts-sheen md:col-start-2">
                             <div className="relative h-full bg-[#111111] rounded-[10px] p-8 overflow-hidden border border-white/5 flex flex-col">
                                 <div className="flex items-start gap-5 mb-8 relative z-10">
                                     <div className="shrink-0 p-2.5 bg-pink-500/10 rounded-lg border border-pink-500/20">
@@ -562,9 +606,35 @@ const VattsLanding = () => {
                                 icon: FaWifi,
                                 title: "Native WebSockets",
                                 desc: "Real-time ready. Upgrade any route to a persistent connection.",
+                                color: "text-teal-400",
+                                bg: "bg-teal-500/10",
+                                border: "hover:border-teal-500/30"
+
+
+                            },
+                            {
+                                icon: FaReact,
+                                title: "Native React support",
+                                desc: "Build fast, scalable, and modern interfaces using the most popular ecosystem in the market.",
+                                color: "text-cyan-400",
+                                bg: "bg-cyan-500/10",
+                                border: "hover:border-cyan-500/30"
+                            },
+                            {
+                                icon: FaVuejs,
+                                title: "Native Vue.js support",
+                                desc: "Create elegant and highly productive applications with an insanely smooth learning curve.",
                                 color: "text-emerald-400",
                                 bg: "bg-emerald-500/10",
                                 border: "hover:border-emerald-500/30"
+                            },
+                            {
+                                icon: FaNetworkWired,
+                                title: "Choose your framework",
+                                desc: "Pick React or Vue and work your way — no lock-in, no headaches, just productivity.",
+                                color: "text-violet-400",
+                                bg: "bg-violet-500/10",
+                                border: "hover:border-violet-500/30"
                             }
                         ].map((item, idx) => (
                             <div key={idx} className={`group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-[${primaryColor}]/20 transition-all duration-500 vatts-tilt vatts-sheen ${item.border}`} style={{ transitionDelay: `${idx * 50}ms` }}>
@@ -584,9 +654,180 @@ const VattsLanding = () => {
                         ))}
                     </div>
                 </section>
+
+                {/* Section: Terminal / Real CLI Experience */}
+                <section className="relative z-10 max-w-6xl mx-auto px-6 py-24">
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-16 items-center">
+
+                        {/* Texto à esquerda (2 colunas no grid) */}
+                        <div className="lg:col-span-2 vatts-reveal vatts-reveal-left">
+                            <h2 className="text-4xl font-black text-white mb-6 leading-tight">
+                                Built for <br/>
+                                <span className="bold">Modern Devs.</span>
+                            </h2>
+                            <p className="text-lg text-slate-400 mb-8 leading-relaxed">
+                                Built for developers who value speed, control, and clarity, from the first command to production.
+                            </p>
+                            <div className="space-y-6">
+                                <div className="flex gap-4">
+                                    <div className="shrink-0 w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-emerald-400">
+                                        <FaTerminal size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-white font-bold">Interactive CLI</h4>
+                                        <p className="text-sm text-slate-500">A guided setup experience with intelligent defaults.</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="shrink-0 w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-cyan-400">
+                                        <FaMicrochip size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-white font-bold">Native Environment</h4>
+                                        <p className="text-sm text-slate-500">Cross-platform by default. Automatically detects your Node.js version.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Terminal (3 colunas no grid) - Baseado nos seus prints */}
+                        <div className="lg:col-span-3 vatts-reveal vatts-reveal-right relative p-1 rounded-2xl bg-gradient-to-br from-white/15 to-transparent shadow-3xl">
+                            <div className="bg-[#0c0c0e] rounded-[14px] overflow-hidden border border-white/10 font-mono text-[13px] leading-relaxed">
+
+                                {/* Header do Terminal */}
+                                <div className="bg-[#161618] px-4 py-3 flex items-center justify-between border-b border-white/5">
+                                    <div className="flex gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-white/10" />
+                                        <div className="w-3 h-3 rounded-full bg-white/10" />
+                                        <div className="w-3 h-3 rounded-full bg-white/10" />
+                                    </div>
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Vatts CLI Session</span>
+                                </div>
+
+                                {/* Corpo do Terminal */}
+                                <div className="p-6 overflow-x-auto custom-scrollbar max-h-[450px]">
+                                    {/* Comando Inicial */}
+                                    <div className="flex gap-3 mb-4">
+                                        <span className="text-slate-600">PS D:\Vatts&gt;</span>
+                                        <span className="text-white">npx create-vatts-app@latest my-app</span>
+                                    </div>
+
+                                    {/* Perguntas Interativas */}
+                                    <div className="space-y-1 mb-6">
+                                        <div className="flex gap-2">
+                                            <span className="text-cyan-400">?</span>
+                                            <span className="text-white">What framework do you want to use?</span>
+                                            <span className="text-slate-500">(React/Vue)</span>
+                                            <span className="text-slate-400">(react)</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <span className="text-cyan-400 font-bold">?</span>
+                                            <span className="text-white">Would you like to use recommended options?</span>
+                                            <span className="text-slate-500">(React)</span>
+                                        </div>
+                                        <div className="pl-4 text-cyan-400 underline underline-offset-4 decoration-2">
+                                            ❯ Yes, use recommended defaults - TypeScript, Tailwind CSS, Module Alias
+                                        </div>
+                                        <div className="pl-4 text-slate-600">Maybe, use Path Router defaults</div>
+                                    </div>
+
+                                    {/* Logs de Sucesso */}
+                                    <div className="space-y-0.5 mb-6">
+                                        {[
+                                            "Created project directory and package.json",
+                                            "Created project structure",
+                                            "TypeScript configuration initialized.",
+                                            "Tailwind CSS setup complete."
+                                        ].map((msg, i) => (
+                                            <div key={i} className="flex gap-3 items-center">
+                                                <span className="text-slate-600 text-[11px]">13:12:54</span>
+                                                <span className="text-emerald-400 font-bold">✔ SUCCESS</span>
+                                                <span className="text-slate-300">{msg}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex gap-3 items-center mt-2">
+                                            <span className="text-slate-600 text-[11px]">13:12:54</span>
+                                            <span className="text-cyan-400 animate-spin">○</span>
+                                            <span className="text-slate-300 font-bold">Installing dependencies...</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Tela Final (Igual ao seu print 3) */}
+                                    <div className="pt-4 border-t border-white/5 space-y-4">
+                                        <div className="flex gap-3 items-center">
+                                            <span className="text-slate-600 text-[11px]">13:12:59</span>
+                                            <span className="text-cyan-400 font-bold">Vatts.js</span>
+                                            <span className="text-slate-500">v{version}</span>
+                                        </div>
+
+                                        <div className="flex gap-3 items-center">
+                                            <span className="text-slate-600 text-[11px]">13:12:59</span>
+                                            <span className="text-emerald-400">✔</span>
+                                            <span className="text-white font-bold">Project my-app created successfully.</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-1 pl-10">
+                                            <div className="text-slate-500 font-bold mb-1">Environment:</div>
+                                            <div className="text-slate-400 flex gap-2">
+                                                <span className="text-slate-600">•</span> Runtime: <span className="text-emerald-400">Node.js v25.4.0</span>
+                                            </div>
+                                            <div className="text-slate-400 flex gap-2">
+                                                <span className="text-slate-600">•</span> Framework: <span className="text-cyan-400">Vatts.js v{version}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="pl-10">
+                                            <div className="text-slate-500 font-bold mb-1">Next steps:</div>
+                                            <div className="text-cyan-400">1. cd my-app</div>
+                                            <div className="text-cyan-400">2. npm run dev</div>
+                                        </div>
+
+                                        <div className="text-[11px] text-slate-600 pt-2 italic">
+                                            Website: <span className="underline">https://vatts.mfraz.ovh</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section: The Final CTA (Call to Action) */}
+                <section className="relative z-10 max-w-4xl mx-auto px-6 py-32 text-center">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,transparent_70%)] pointer-events-none" />
+
+                    <div className="vatts-reveal vatts-reveal-up relative">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-slate-300 mb-6">
+                            <FaGithub size={14} />
+                            <span>Open Source</span>
+                        </div>
+
+                        <div className="mb-8">
+                            <h2 className="text-5xl md:text-6xl font-black text-white mb-6 tracking-tight">
+                                Ready to build the future?
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">
+                                Join the ecosystem of developers building faster, lighter, and more scalable web applications.
+                            </p>
+
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                            <Link href="/docs" className="w-full sm:w-auto px-8 py-4 bg-white text-black font-bold rounded-xl shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(255,255,255,0.5)] transition-all flex items-center justify-center gap-2">
+                                <FaMagnifyingGlass />
+                                Read the Documentation
+                            </Link>
+
+                            <a href="https://github.com/mfrazlab/vatts.js" target="_blank" rel="noreferrer" className="w-full sm:w-auto px-8 py-4 bg-[#111111] border border-white/10 text-white font-bold rounded-xl hover:bg-white/5 transition-all flex items-center justify-center gap-2">
+                                <FaGithub size={18} />
+                                Star on GitHub
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
             </div>
 
-            <Footer version={version}></Footer>
+            <Footer></Footer>
 
         </div>
     );

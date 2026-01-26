@@ -6,7 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
-const {default: Console} = require("./api/console")
+const { default: Console } = require("./api/console");
+
 // Tenta carregar o compilador do Vue e o esbuild
 let sfcCompiler;
 let esbuild;
@@ -60,7 +61,7 @@ function registerLoaders(options = {}) {
     if (Object.keys(aliases).length > 0 || (tsconfigInfo.mappings && tsconfigInfo.mappings.length > 0)) {
         const originalResolveFilename = Module._resolveFilename;
 
-        Module._resolveFilename = function (request, parent, isMain, options) {
+        Module._resolveFilename = function(request, parent, isMain, options) {
             const aliasCandidate = resolveTsConfigAlias(request, tsconfigInfo);
             if (aliasCandidate) {
                 const resolved = resolveWithNodeStyleExtensions(aliasCandidate);
@@ -88,26 +89,26 @@ function registerLoaders(options = {}) {
 
     // --- File Handlers ---
 
-    require.extensions['.md'] = function (module, filename) {
+    require.extensions['.md'] = function(module, filename) {
         const content = fs.readFileSync(filename, 'utf8');
         module.exports = content;
     };
 
-    require.extensions['.txt'] = function (module, filename) {
+    require.extensions['.txt'] = function(module, filename) {
         const content = fs.readFileSync(filename, 'utf8');
         module.exports = content;
     };
 
     const styleExtensions = ['.css', '.scss', '.sass', '.less'];
     styleExtensions.forEach(ext => {
-        require.extensions[ext] = function (module, filename) {
+        require.extensions[ext] = function(module, filename) {
             module.exports = filename;
         };
     });
 
     const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.bmp', '.svg'];
     imageExtensions.forEach(ext => {
-        require.extensions[ext] = function (module, filename) {
+        require.extensions[ext] = function(module, filename) {
             module.exports = filename;
         };
     });
@@ -119,6 +120,8 @@ function registerLoaders(options = {}) {
         }
 
         const source = fs.readFileSync(filename, 'utf8');
+        // Variável para armazenar o código final para fins de debug
+        let finalEsm = '';
 
         try {
             // 1. Parse do SFC
@@ -132,6 +135,7 @@ function registerLoaders(options = {}) {
             }
 
             // 2. Compilação do Script (<script> ou <script setup>)
+            // Padrão: Se não houver script, definimos um objeto vazio
             let scriptContent = 'const _sfc_main = {};';
             let bindings = undefined;
 
@@ -143,10 +147,18 @@ function registerLoaders(options = {}) {
                         inlineTemplate: false
                     });
 
-                    // Truque: Substitui "export default" por uma variável local para podermos
-                    // anexar a função render antes de exportar tudo no final.
-                    // Isso é necessário pois estamos criando um arquivo único virtual.
-                    scriptContent = compiledScript.content.replace('export default', 'const _sfc_main =');
+                    // Lógica de substituição corrigida para evitar dupla declaração
+                    if (compiledScript.content.includes('const _sfc_main =')) {
+                        // O compilador do Vue já declarou o _sfc_main (comum no script setup)
+                        scriptContent = compiledScript.content;
+                    } else if (compiledScript.content.match(/export\s+default/)) {
+                        // Substitui export default tradicional
+                        scriptContent = compiledScript.content.replace(/export\s+default/, 'const _sfc_main =');
+                    } else {
+                        // Se não achou export default e o Vue não declarou o _sfc_main, nós criamos um vazio
+                        scriptContent = compiledScript.content + '\nconst _sfc_main = {};';
+                    }
+
                     bindings = compiledScript.bindings;
                 } catch (e) {
                     console.error(`Erro ao compilar script Vue em ${filename}:`, e.message);
@@ -155,7 +167,6 @@ function registerLoaders(options = {}) {
             }
 
             // 3. Compilação do Template para SSR
-            // Isso gera a função `ssrRender` necessária para o @vue/server-renderer
             let templateContent = '';
             if (descriptor.template) {
                 try {
@@ -163,11 +174,10 @@ function registerLoaders(options = {}) {
                         source: descriptor.template.content,
                         filename: filename,
                         id: filename,
-                        ssr: true, // IMPORTANTE: Gera código otimizado para servidor (string concatenation)
+                        ssr: true,
                         compilerOptions: {
-                            bindingMetadata: bindings // Otimiza bindings baseados no script setup
+                            bindingMetadata: bindings
                         },
-                        // CORREÇÃO: Passa as variáveis CSS detectadas no parse para o compilador de template
                         ssrCssVars: descriptor.cssVars || []
                     });
                     templateContent = templateResult.code;
@@ -177,8 +187,7 @@ function registerLoaders(options = {}) {
             }
 
             // 4. Montagem do Código Final (ESM Virtual)
-            // Combinamos o script compilado com o template compilado e unimos as partes.
-            const finalEsm = `
+            finalEsm = `
                 ${scriptContent}
                 ${templateContent}
                 
@@ -187,7 +196,6 @@ function registerLoaders(options = {}) {
                     if (typeof ssrRender !== 'undefined') {
                         _sfc_main.ssrRender = ssrRender;
                     }
-                    // Fallback para renderização cliente/hidratação se necessário (opcional no server)
                     if (typeof render !== 'undefined') {
                         _sfc_main.render = render;
                     }
@@ -198,7 +206,7 @@ function registerLoaders(options = {}) {
 
             // 5. Transformação final para CommonJS (Node.js) via Esbuild
             const result = esbuild.transformSync(finalEsm, {
-                loader: 'ts', // Suporta TS e JS
+                loader: 'ts',
                 format: 'cjs',
                 target: 'node16',
                 sourcefile: filename
@@ -208,7 +216,14 @@ function registerLoaders(options = {}) {
             module._compile(result.code, filename);
 
         } catch (err) {
-            console.error(`Falha fatal ao carregar .vue: ${filename}`);
+            console.error(`\n--- Vatts Loader Debug ---`);
+            console.error(`Falha fatal ao carregar: ${filename}`);
+            console.error(`Erro original: ${err.message}`);
+            if (finalEsm) {
+                console.error(`\n[DEBUG] Código gerado (Snippet):`);
+                console.error(finalEsm.split('\n').slice(0, 30).join('\n') + '\n...');
+            }
+            console.error(`--------------------------\n`);
             throw err;
         }
     };

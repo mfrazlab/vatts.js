@@ -1,8 +1,16 @@
-import {VattsImage} from "vatts/react";
+import {importServer, VattsImage} from "vatts/react";
 import {FaGithub} from "react-icons/fa6";
-import React from "react";
-
-export default function Footer({ version }: any) {
+import React, {useState} from "react";
+const api = importServer<typeof import("../../backend/helper")>("../../backend/helper");
+const { PackageVersion } = api;
+export default function Footer() {
+    const [version, setVersion] = React.useState("1.0.0")
+    useState(async () => {
+        const v = await PackageVersion()
+        if(v !== null) {
+            setVersion(v)
+        }
+    })
     return (
         <footer className="relative z-10 py-12 px-6 bg-[#0a0a0c]">
             <div className="max-w-7xl mx-auto">

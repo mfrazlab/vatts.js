@@ -26,7 +26,33 @@ export async function PackageVersion(): Promise<string | null> {
         // Usamos localeCompare com 'numeric: true' para que 1.10 seja > 1.2
         // E garantimos que 1.0.1-alpha.1 seja detectado corretamente.
         const highestVersion = allVersions.sort((a, b) => {
-            return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
+            const parse = (v: string) => {
+                const [main, pre] = v.split('-');
+                const parts = main.split('.').map(Number);
+                return { parts, pre };
+            };
+
+            const vA = parse(a);
+            const vB = parse(b);
+
+            // 1. Compara os números principais (1.2.0)
+            for (let i = 0; i < 3; i++) {
+                if (vA.parts[i] !== vB.parts[i]) {
+                    return vB.parts[i] - vA.parts[i]; // Ordem decrescente
+                }
+            }
+
+            // 2. Se os números são iguais, a versão SEM sufixo é a maior
+            // Ex: 1.2.0 deve vir antes de 1.2.0-alpha
+            if (!vA.pre && vB.pre) return -1; // a é maior
+            if (vA.pre && !vB.pre) return 1;  // b é maior
+
+            // 3. Se ambos têm sufixo, usa localeCompare neles
+            if (vA.pre && vB.pre) {
+                return vB.pre.localeCompare(vA.pre, undefined, { numeric: true });
+            }
+
+            return 0;
         })[0];
 
         // 3. Atualiza o cache

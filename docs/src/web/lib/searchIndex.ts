@@ -13,16 +13,15 @@ import sessionsAuthMd from "../docs/auth/session.md";
 import protectingRoutesAuthMd from "../docs/auth/protecting-routes.md";
 import customProvidersAuthMd from "../docs/auth/custom-providers.md";
 
+
 export type SearchDoc = {
     id: string;
     label: string;
-    /** Category or section title to show in UI */
     category?: string;
-    /** Target href */
     href: string;
-    /** Raw content used for full-text search */
     content?: string;
 };
+
 
 export type SearchHit = {
     id: string;
@@ -33,15 +32,7 @@ export type SearchHit = {
     snippet?: string;
 };
 
-function normalize(text: string) {
-    return text
-        .toLowerCase()
-        .normalize('NFD')
-        // strip accents
-        .replace(/\p{Diacritic}/gu, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
+
 
 function makeSnippet(content: string, queryNorm: string) {
     const normalized = content.replace(/\s+/g, ' ');
@@ -109,20 +100,72 @@ export function searchDocs(docs: SearchDoc[], query: string, limit = 12): Search
         .slice(0, limit);
 }
 
+function normalize(text: string) {
+    return text.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+}
+
+
+// vue imports
+import projectStructureVue from "../docs/vatts/vue/project-structure.md"
+import layoutVue from "../docs/vatts/vue/layout.md"
+import routingVue from "../docs/vatts/vue/routing.md"
+import rpcVue from "../docs/vatts/vue/rpc.md"
+import componentsVue from "../docs/vatts/vue/components.md"
 export const sidebarConfig = {
     sections: [
         {
             id: 'vatts',
             title: "Vatts.js",
             items: [
-                { id: "introduction", icon: "FaHome", label: "Introduction", file: introductionMd },
-                { id: "installation", icon: "FaDownload", label: "Installation", file: installationMd },
-                { id: "project-structure", icon: "FaBox", label: "Project Structure", file: projectStructureMd },
-                { id: "layout", icon: "FaDiagramProject", label: "Layout System", file: layoutMd },
-                { id: "routing", icon: "FaCodeCompare", label: "Routing", file: routingMd },
-                { id: "rpc", icon: "FaGlobe", label: "RPC System", file: rpcMd },
+                {
+                    id: "introduction",
+                    icon: "FaHome",
+                    label: "Introduction",
+                    file: introductionMd // Compartilhado (string direta)
+                },
+                {
+                    id: "installation",
+                    icon: "FaDownload",
+                    label: "Installation",
+                    file: installationMd
+                },
+                {
+                    id: "project-structure",
+                    icon: "FaBox",
+                    label: "Project Structure",
+                    file: {
+                        react: projectStructureMd,
+                        vue: projectStructureVue
+                    },
+                },
+
+                { id: "layout", icon: "FaDiagramProject", label: "Layout System", file: {
+                    react: layoutMd,
+                        vue: layoutVue
+                    } },
+                {
+                    id: "routing",
+                    icon: "FaCodeCompare",
+                    label: "Routing",
+                    file: {
+                        react: routingMd,
+                        vue: routingVue,
+                    }
+                },
+                { id: "rpc", icon: "FaGlobe", label: "RPC System", file: {
+                    react: rpcMd,
+                        vue: rpcVue
+                    } },
                 { id: "middlewares", icon: "FaWrench", label: "Middlewares", file: middlewaresMd },
-                { id: 'components', icon: 'FaCube', label: 'Components', file: componentsMd }
+                {
+                    id: 'components',
+                    icon: 'FaCube',
+                    label: 'Components',
+                    file: {
+                        react: componentsMd,
+                        vue: componentsVue
+                    }
+                }
             ]
         },
         {
