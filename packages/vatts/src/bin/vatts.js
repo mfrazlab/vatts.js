@@ -113,6 +113,7 @@ program
     .option('--ssl', 'Activates HTTPS/SSL mode')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
     .action((options) => {
+        process.env.NODE_ENV = 'production';
         initializeApp(options, false);
     });
 

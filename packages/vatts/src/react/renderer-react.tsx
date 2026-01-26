@@ -446,9 +446,3 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
         throw err;
     }
 }
-
-
-
-
-// --- Componente de Tela de Building (Substituto do getBuildingHTML) ---
-
