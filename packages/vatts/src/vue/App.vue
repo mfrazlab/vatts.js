@@ -24,32 +24,31 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, computed, onMounted, onUnmounted, shallowRef, watch, nextTick } from 'vue';
-import { router } from '../client/clientRouter'; // Assumindo que o router é framework-agnostic
-import DevIndicator from './DevIndicator.vue'; // .vue necessário
-import ErrorModal from './ErrorModal.vue'; // Se for .vue, ajustar import
-import type { VattsBuildError } from './ErrorModal.vue';
-import type { Metadata } from "../types";
+import { router } from '../client/clientRouter';
+import DevIndicator from './DevIndicator.vue';
+import ErrorModal from './ErrorModal.vue';
 
-// --- Props (Vêm do entry.client.ts) ---
-const props = defineProps<{
-  componentMap: Record<string, any>;
-  routes: { pattern: string; componentPath: string; metadata?: Metadata }[];
-  initialComponentPath: string;
-  initialParams: any;
-  layoutComponent?: any;
-}>();
+// --- Props ---
+const props = defineProps({
+  componentMap: Object,
+  routes: Array,
+  initialComponentPath: String,
+  initialParams: null, // Aceita qualquer tipo
+  layoutComponent: null // Aceita componente ou null
+});
 
 // --- Estado ---
 const hmrTimestamp = ref(Date.now());
-const buildError = ref<VattsBuildError | null>((window as any).__VATTS_BUILD_ERROR__ || null);
-const isErrorOpen = ref(!!(window as any).__VATTS_BUILD_ERROR__);
+// Removemos as tipagens e asserções "as any" diretas onde não são necessárias em JS
+const buildError = ref(window.__VATTS_BUILD_ERROR__ || null);
+const isErrorOpen = ref(!!window.__VATTS_BUILD_ERROR__);
 const isDev = process.env.NODE_ENV !== 'production';
 
 // --- HMR & Error Handling ---
-const handleBuildError = (ev: any) => {
-  const e = ev?.detail as VattsBuildError;
+const handleBuildError = (ev) => {
+  const e = ev?.detail;
   buildError.value = e || null;
   isErrorOpen.value = true;
 };
@@ -70,7 +69,7 @@ const copyBuildError = async () => {
 };
 
 // --- Roteamento ---
-const findRouteForPath = (path: string) => {
+const findRouteForPath = (path) => {
   for (const route of props.routes) {
     const regexPattern = route.pattern
         .replace(/\[\[\.\.\.(\w+)\]\]/g, '(?<$1>.+)?')
@@ -92,9 +91,8 @@ const findRouteForPath = (path: string) => {
 };
 
 // Estado da Rota
-// shallowRef é melhor para componentes para evitar reatividade profunda desnecessária no objeto do componente
-const CurrentPageComponent = shallowRef<any>(null);
-const params = ref<any>({});
+const CurrentPageComponent = shallowRef(null);
+const params = ref({});
 
 const updateRoute = () => {
   const currentPath = window.location.pathname.replace("index.html", '');
@@ -116,17 +114,16 @@ const updateRoute = () => {
 // --- Computed para resolver o conteúdo final (404 vs Página) ---
 const resolvedContent = computed(() => {
   if (!CurrentPageComponent.value || props.initialComponentPath === '__404__') {
-    const NotFoundComponent = (window as any).__VATTS_NOT_FOUND__;
+    const NotFoundComponent = window.__VATTS_NOT_FOUND__;
     if (NotFoundComponent) return NotFoundComponent;
 
-    const DefaultNotFound = (window as any).__VATTS_DEFAULT_NOT_FOUND__;
+    const DefaultNotFound = window.__VATTS_DEFAULT_NOT_FOUND__;
     return DefaultNotFound || 'div'; // Fallback seguro
   }
   return CurrentPageComponent.value;
 });
 
 const contentProps = computed(() => {
-  // Se for 404, talvez não queira passar params, mas mantendo a lógica original:
   if (!CurrentPageComponent.value) return {};
   return { params: params.value };
 });
@@ -141,42 +138,42 @@ onMounted(() => {
   updateRoute();
 
   // Listeners de Build
-  window.addEventListener('vatts:build-error' as any, handleBuildError);
-  window.addEventListener('vatts:build-ok' as any, handleBuildOk);
+  window.addEventListener('vatts:build-error', handleBuildError);
+  window.addEventListener('vatts:build-ok', handleBuildOk);
 
   // Listeners de Rota
   window.addEventListener('popstate', updateRoute);
   const unsubscribeRouter = router.subscribe(updateRoute);
 
   // HMR Listener
-  (window as any).__HWEB_HMR__ = true;
-  const handleHMRUpdate = (event: CustomEvent) => {
+  window.__HWEB_HMR__ = true;
+  const handleHMRUpdate = (event) => {
     const { file, timestamp } = event.detail;
     const fileName = file ? file.split('/').pop()?.split('\\').pop() : 'unknown';
     console.log('🔥 HMR: Component Update Triggered', fileName);
 
     try {
       hmrTimestamp.value = timestamp;
-      (window as any).__HMR_SUCCESS__ = true;
+      window.__HMR_SUCCESS__ = true;
       setTimeout(() => {
-        (window as any).__HMR_SUCCESS__ = false;
+        window.__HMR_SUCCESS__ = false;
       }, 3000);
 
       // Força update da rota caso o componente tenha mudado
       updateRoute();
     } catch (error) {
       console.error('❌ HMR Error:', error);
-      (window as any).__HMR_SUCCESS__ = false;
+      window.__HMR_SUCCESS__ = false;
     }
   };
-  window.addEventListener('hmr:component-update' as any, handleHMRUpdate);
+  window.addEventListener('hmr:component-update', handleHMRUpdate);
 
   // Cleanup
   onUnmounted(() => {
-    window.removeEventListener('vatts:build-error' as any, handleBuildError);
-    window.removeEventListener('vatts:build-ok' as any, handleBuildOk);
+    window.removeEventListener('vatts:build-error', handleBuildError);
+    window.removeEventListener('vatts:build-ok', handleBuildOk);
     window.removeEventListener('popstate', updateRoute);
-    window.removeEventListener('hmr:component-update' as any, handleHMRUpdate);
+    window.removeEventListener('hmr:component-update', handleHMRUpdate);
     unsubscribeRouter();
   });
 });

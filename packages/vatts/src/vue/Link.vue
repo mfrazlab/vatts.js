@@ -1,13 +1,14 @@
-<script setup lang="ts">
+<script setup>
 import { router } from '../client/clientRouter';
 
-interface LinkProps {
-  href: string;
-}
+const props = defineProps({
+  href: {
+    type: String,
+    required: true
+  }
+});
 
-const props = defineProps<LinkProps>();
-
-const handleClick = async (e: MouseEvent) => {
+const handleClick = async (e) => {
   e.preventDefault();
 
   // Usa o novo sistema de router

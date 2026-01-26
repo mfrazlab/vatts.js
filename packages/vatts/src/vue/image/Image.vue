@@ -15,25 +15,31 @@
  * limitations under the License.
  -->
 
-<script setup lang="ts">
-import { computed, type StyleValue } from 'vue';
+<script setup>
+import { computed } from 'vue';
 
-interface VattsImageProps {
-  src: string;
-  width?: number | string;
-  height?: number | string;
-  quality?: number;
-  priority?: boolean;
-  alt?: string;
-}
-
-const props = withDefaults(defineProps<VattsImageProps>(), {
-  quality: 75,
-  priority: false,
-  alt: ""
+const props = defineProps({
+  src: {
+    type: String,
+    required: true
+  },
+  width: [Number, String],
+  height: [Number, String],
+  quality: {
+    type: Number,
+    default: 75
+  },
+  priority: {
+    type: Boolean,
+    default: false
+  },
+  alt: {
+    type: String,
+    default: ""
+  }
 });
 
-const getBaseUrl = (): string | null => {
+const getBaseUrl = () => {
   if (typeof window === "undefined") return null;
   return window.location.origin;
 };
@@ -72,7 +78,7 @@ const optimizedSrc = computed(() => {
   return `/_vatts/image?${params.toString()}`;
 });
 
-const baseStyle = computed<StyleValue>(() => {
+const baseStyle = computed(() => {
   return {
     width: props.width ? (typeof props.width === 'number' ? `${props.width}px` : props.width) : 'auto',
     height: props.height ? (typeof props.height === 'number' ? `${props.height}px` : props.height) : 'auto',
@@ -80,7 +86,7 @@ const baseStyle = computed<StyleValue>(() => {
 });
 
 // Remove "px" para os atributos nativos width/height da tag img
-const cleanDimension = (val?: string | number) => {
+const cleanDimension = (val) => {
   if (typeof val === 'string') return val.replace('px', '');
   return val;
 };

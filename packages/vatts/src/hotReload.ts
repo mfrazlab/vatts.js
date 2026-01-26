@@ -17,6 +17,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import * as chokidar from 'chokidar';
 import * as path from 'path';
+import * as fs from 'fs';
 import ts from 'typescript';
 import { IncomingMessage } from 'http';
 import { clearFileCache } from './router';
@@ -286,7 +287,9 @@ export class HotReloadManager {
             filePath.includes(path.join('src', 'web', 'components')) ||
             filePath.includes('layout.tsx') ||
             filePath.includes('not-found.tsx') ||
-            filePath.endsWith('.tsx');
+            filePath.endsWith('.tsx') ||
+            filePath.endsWith(".ts") ||
+            filePath.endsWith(".vue")
 
         const isBackendFile = filePath.includes(path.join('src', 'backend')) && !isFrontendFile;
 
@@ -661,7 +664,7 @@ export class HotReloadManager {
         const buildId = typeof (error as any)?.buildId === 'number' ? (error as any).buildId : undefined;
 
         if (success) {
-            // Não confia no bundler. Antes de ficar "verde", roda typecheck real.
+            // Não confia no bundler. Antes de ficar "verde", roda typecheck real (React + Vue).
             const tc = this.typecheckFrontend();
             if (!tc.ok) {
                 // Se já existe um erro de bundler (esbuild/rollup) mais específico, preserva ele.
@@ -721,11 +724,109 @@ export class HotReloadManager {
     private lastTypecheckAt = 0;
     private lastTypecheckResult: { ok: boolean; error?: any } | null = null;
 
+    /**
+     * Verifica erros específicos de arquivos Vue usando @vue/compiler-sfc.
+     * Isso permite capturar erros de sintaxe (como falta de ponto e vírgula, tags mal fechadas)
+     * que o compilador padrão pode emitir mas que precisam ser formatados para o cliente.
+     */
+    private checkVueFiles(): { ok: boolean; error?: any } | null {
+        try {
+            // 1. Tenta carregar o compilador do Vue dinamicamente
+            let compiler: any;
+            try {
+                compiler = require('vue/compiler-sfc');
+            } catch {
+                try {
+                    compiler = require('@vue/compiler-sfc');
+                } catch {
+                    // Não é um projeto Vue ou dependência faltando, apenas ignora
+                    return null;
+                }
+            }
+
+            // 2. Scan síncrono para encontrar arquivos .vue em src/web
+            // Em projetos gigantes isso deve ser otimizado, mas para dev server é ok.
+            const findVueFiles = (dir: string): string[] => {
+                let results: string[] = [];
+                if (!fs.existsSync(dir)) return results;
+                const list = fs.readdirSync(dir);
+                list.forEach(file => {
+                    const filePath = path.join(dir, file);
+                    const stat = fs.statSync(filePath);
+                    if (stat && stat.isDirectory()) {
+                        if (file !== 'node_modules' && file !== '.git' && file !== 'dist') {
+                            results = results.concat(findVueFiles(filePath));
+                        }
+                    } else if (file.endsWith('.vue')) {
+                        results.push(filePath);
+                    }
+                });
+                return results;
+            };
+
+            const webSrc = path.join(this.projectDir, 'src');
+            const vueFiles = findVueFiles(webSrc);
+
+            if (vueFiles.length === 0) return { ok: true };
+
+            // 3. Analisa cada arquivo Vue
+            for (const file of vueFiles) {
+                try {
+                    const content = fs.readFileSync(file, 'utf-8');
+                    const parsed = compiler.parse(content, {
+                        filename: file,
+                        sourceMap: false
+                    });
+
+                    // Verifica erros de compilação do template/script
+                    if (parsed.errors && parsed.errors.length > 0) {
+                        const firstError = parsed.errors[0];
+                        const loc = firstError.loc ? {
+                            file: file,
+                            line: firstError.loc.start.line,
+                            column: firstError.loc.start.column
+                        } : undefined;
+
+                        // Stack simulada para o overlay exibir bonito
+                        const syntheticStack = `SyntaxError: ${firstError.message}\n    at ${file}:${loc?.line}:${loc?.column}`;
+
+                        return {
+                            ok: false,
+                            error: {
+                                message: `Vue Error: ${firstError.message}`,
+                                type: 'VueCompilerError',
+                                loc,
+                                stack: syntheticStack,
+                                ts: Date.now()
+                            }
+                        };
+                    }
+                } catch (readError) {
+                    // Ignora erro de leitura de arquivo individual
+                }
+            }
+        } catch (e) {
+            // Ignora falha geral no checker do Vue
+        }
+        return { ok: true };
+    }
+
     private typecheckFrontend(): { ok: boolean; error?: any } {
         try {
             const now = Date.now();
             if (this.lastTypecheckResult && now - this.lastTypecheckAt < 750) return this.lastTypecheckResult;
 
+            // --- 1. Vue Check (New) ---
+            // Verifica arquivos Vue primeiro, pois o TS compiler padrão pode ignorá-los
+            // ou dar erros confusos se não estiver configurado com plugins.
+            const vueResult = this.checkVueFiles();
+            if (vueResult && !vueResult.ok) {
+                this.lastTypecheckAt = now;
+                this.lastTypecheckResult = vueResult;
+                return vueResult;
+            }
+
+            // --- 2. TypeScript Check (Existing) ---
             const projectDir = this.projectDir;
             const configPath = ts.findConfigFile(projectDir, ts.sys.fileExists, 'tsconfig.json');
             if (!configPath) {
@@ -748,9 +849,20 @@ export class HotReloadManager {
 
             const rootNames = parsed.fileNames;
             const webRoot = path.resolve(projectDir, 'src', 'web') + path.sep;
+            // Filtra apenas arquivos dentro de src/web para não checar backend aqui
             const filteredRoots = rootNames.filter(f => f.startsWith(webRoot));
 
-            const program = ts.createProgram(filteredRoots.length ? filteredRoots : rootNames, options);
+            // Se for um projeto Vue puro sem .ts/.tsx explícito na config, o createProgram pode ficar vazio,
+            // então usamos os rootNames originais se o filtro zerar tudo.
+            const filesToCheck = filteredRoots.length ? filteredRoots : rootNames;
+
+            if (filesToCheck.length === 0) {
+                this.lastTypecheckAt = now;
+                this.lastTypecheckResult = { ok: true };
+                return this.lastTypecheckResult;
+            }
+
+            const program = ts.createProgram(filesToCheck, options);
             const diagnostics = ts.getPreEmitDiagnostics(program);
 
             if (!diagnostics.length) {

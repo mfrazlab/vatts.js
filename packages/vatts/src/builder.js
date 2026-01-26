@@ -358,11 +358,12 @@ async function createRollupConfig(entryPoint, outdir, isProduction) {
     }
 
     const esbuildLoaders = {
-        '.js': 'jsx'
-        // FIX ERRO "__VLS_asFunctionalElement1":
-        // REMOVIDO: '.vue': 'ts'.
-        // O rollup-plugin-vue já processa o .vue e emite JS/TS.
-        // Forçar 'ts' no arquivo .vue bruto quebra o processamento do template.
+        '.js': 'jsx',
+        '.ts': 'ts',
+        '.tsx': 'tsx',
+        // RESTAURADO: .vue para ts. Isso é NECESSÁRIO para processar blocos <script lang="ts">
+        // Se houver erros do tipo __VLS_, o plugin 'block-volar-artifacts' abaixo deve resolver.
+        '.vue': 'ts'
     };
 
     // No Vue, partes do arquivo podem virar TS, mas isso é pego pela extensão do arquivo virtual,

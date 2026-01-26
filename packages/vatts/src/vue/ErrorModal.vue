@@ -58,34 +58,16 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, computed, watch, onMounted, onUnmounted, useAttrs } from 'vue';
 
-// --- Interface Exportada para uso no App.vue ---
-export interface VattsBuildError {
-  message?: string;
-  name?: string;
-  stack?: string;
-  frame?: string;
-  id?: string;
-  plugin?: string;
-  pluginCode?: string;
-  loc?: any;
-  watchFiles?: any;
-  cause?: any;
-  ts?: number;
-}
-
 // --- Props e Emits ---
-const props = defineProps<{
-  error: VattsBuildError | null;
-  isOpen: boolean;
-}>();
+const props = defineProps({
+  error: Object,
+  isOpen: Boolean
+});
 
-const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'copy'): void;
-}>();
+const emit = defineEmits(['close', 'copy']);
 
 // Verifica se o pai (App.vue) passou um listener para @copy
 const attrs = useAttrs();
@@ -98,7 +80,7 @@ const isHoveringClose = ref(false);
 const isHoveringCopy = ref(false);
 
 // --- Lógica de Parser ANSI ---
-const ANSI_COLORS: Record<string, string> = {
+const ANSI_COLORS = {
   '30': '#475569',
   '31': '#ef4444',
   '32': '#ffffff',
@@ -110,13 +92,13 @@ const ANSI_COLORS: Record<string, string> = {
   '90': '#64748b',
 };
 
-function parseAnsi(text: string) {
+function parseAnsi(text) {
   if (!text) return [];
   const regex = /\u001b\[(\d+)(?:;\d+)*m/g;
   const result = [];
   let lastIndex = 0;
   let match;
-  let currentColor: string | null = null;
+  let currentColor = null;
 
   while ((match = regex.exec(text)) !== null) {
     const rawText = text.slice(lastIndex, match.index);
@@ -164,7 +146,7 @@ watch(() => props.isOpen, (newVal) => {
 }, { immediate: true });
 
 // Listener para tecla ESC
-const onKey = (e: KeyboardEvent) => {
+const onKey = (e) => {
   if (e.key === 'Escape' && props.isOpen) emit('close');
 };
 
@@ -182,9 +164,9 @@ onUnmounted(() => {
 const close = () => emit('close');
 const copy = () => emit('copy');
 
-// --- Estilos (Convertidos para objetos JS para Vue bind) ---
+// --- Estilos ---
 const overlayStyle = computed(() => ({
-  position: 'fixed' as const,
+  position: 'fixed',
   top: 0,
   left: 0,
   width: '100vw',
@@ -199,7 +181,7 @@ const overlayStyle = computed(() => ({
   padding: '24px',
   transition: 'all 0.3s ease',
   opacity: visible.value ? 1 : 0,
-  boxSizing: 'border-box' as const,
+  boxSizing: 'border-box',
 }));
 
 const cardStyle = computed(() => ({
@@ -207,14 +189,14 @@ const cardStyle = computed(() => ({
   maxWidth: '1080px',
   maxHeight: '90vh',
   display: 'flex',
-  flexDirection: 'column' as const,
+  flexDirection: 'column',
   background: '#0a0a0a',
   boxShadow: `0 0 0 1px rgba(255, 255, 255, 0.1), 0 50px 100px -20px rgba(0, 0, 0, 1)`,
   borderRadius: '16px',
   overflow: 'hidden',
   transform: visible.value ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(10px)',
   transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-  position: 'relative' as const,
+  position: 'relative',
 }));
 
 const neonLineStyle = {
@@ -261,8 +243,8 @@ const terminalContentStyle = {
   fontSize: '13px',
   lineHeight: 1.6,
   color: '#e2e8f0',
-  whiteSpace: 'pre-wrap' as const,
-  wordBreak: 'break-word' as const,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
 };
 
 const stackContainerStyle = {
@@ -283,7 +265,7 @@ const footerStyle = {
   fontFamily: 'Inter, sans-serif'
 };
 
-const getBtnStyle = (kind: 'primary' | 'secondary', hovering: boolean) => {
+const getBtnStyle = (kind, hovering) => {
   const base = {
     padding: '8px 16px',
     borderRadius: '8px',
@@ -291,7 +273,7 @@ const getBtnStyle = (kind: 'primary' | 'secondary', hovering: boolean) => {
     fontWeight: 700,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    textTransform: 'uppercase' as const,
+    textTransform: 'uppercase',
     letterSpacing: '0.05em',
     border: 'none',
     outline: 'none',
