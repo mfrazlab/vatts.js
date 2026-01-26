@@ -171,8 +171,7 @@ declare module "*.ogv" {
 
 /* eslint-disable */
 declare module '*.vue' {
-    import type { DefineComponent } from 'vue'
-    // Define o tipo básico de um componente Vue para que o TS entenda o import
-    const component: DefineComponent<{}, {}, any>
+    // Usamos import('vue') para não transformar o arquivo em um módulo
+    const component: import('vue').DefineComponent<{}, {}, any>
     export default component
 }

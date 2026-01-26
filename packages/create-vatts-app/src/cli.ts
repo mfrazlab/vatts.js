@@ -33,6 +33,11 @@ export function parseArgs(argv: string[]): CreateAppOptions {
   const noAliasFlag = args.includes("--no-alias");
   const aliasValue = readArgValue(args, "--alias");
 
+  const pathRouterFlag = args.includes("--path-router") || args.includes("-p")
+  const noPathRouterFlag = args.includes("--no-path-router")
+
+  const reactFlag = args.includes("--react")
+  const vueFlag = args.includes("--vue")
   return {
     appName,
     tailwind: tailwindFlag ? true : undefined,
@@ -42,6 +47,10 @@ export function parseArgs(argv: string[]): CreateAppOptions {
 
     moduleAlias: noAliasFlag ? false : aliasValue ? true : undefined,
     alias: aliasValue ? normalizeAliasPrefix(aliasValue) : undefined,
+    pathRouter: pathRouterFlag ? true : noPathRouterFlag ? false : undefined,
+    typeScript: args.includes("--typescript") || args.includes("-ts") ? true : undefined,
+
+    framework: reactFlag ? 'react' : vueFlag ? 'vue' : undefined
   };
 }
 
@@ -56,6 +65,21 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
   if(typescript === undefined) {
     typescript = await Console.confirm("Do you want to use typescript?", true)
     console.log("  ")
+  }
+
+  let framework = opts.framework
+  async function askFramework(): Promise<string> {
+    const frame = await Console.ask("What framework do you want to use? (React/Vue)", 'react')
+    console.log('')
+    if(frame.toLowerCase() !== 'react' && frame.toLowerCase() !== 'vue') {
+      return await askFramework()
+    } else {
+      return frame
+    }
+  }
+  if(framework === undefined) {
+    // @ts-ignore
+    framework = await askFramework()
   }
 
 
@@ -111,6 +135,8 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
     moduleAlias,
     alias,
     pathRouter,
-    typeScript: typescript
+    typeScript: typescript,
+    // @ts-ignore
+    framework
   };
 }

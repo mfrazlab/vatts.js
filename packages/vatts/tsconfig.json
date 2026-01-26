@@ -1,15 +1,16 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "module": "ESNext",
+    "module": "NodeNext",
     "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "jsx": "react-jsx",
-    "moduleResolution": "node",
+    "jsx": "react",
+    "moduleResolution": "nodenext",
+    "rewriteRelativeImportExtensions": true,
     "allowJs": true
   },
   "include": ["src", "src/**/*.vue"],

@@ -1,10 +1,4 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "node"
-    // ou "node" dependendo da sua versão do TS
-  },
   "files": [],
   "references": [
     { "path": "packages/vatts"},

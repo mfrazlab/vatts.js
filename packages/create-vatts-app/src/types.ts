@@ -14,6 +14,8 @@ export type CreateAppOptions = {
   pathRouter?: boolean
 
   typeScript?: boolean
+
+  framework?: 'react' | 'vue'
 };
 
 export type CreateAppContext = {
@@ -34,4 +36,6 @@ export type CreateAppContext = {
 
   packageJson: Record<string, any>;
   typeScript: boolean
+
+  framework: 'react' | 'vue'
 };

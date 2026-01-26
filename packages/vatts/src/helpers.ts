@@ -23,7 +23,7 @@ import os from 'os';
 import {URLSearchParams} from 'url'; // API moderna, substitui 'querystring'
 import path from 'path';
 // Helpers para integração com diferentes frameworks
-import vatts, {FrameworkAdapterFactory} from './index'; // Importando o tipo
+import vatts, {FrameworkAdapterFactory} from './index.js'; // Importando o tipo
 import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
 import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https'; // <-- ADICIONAR

@@ -14,29 +14,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { RouteConfig, Metadata } from './types';
-import type { GenericRequest, GenericResponse } from './types/framework';
-import {cachedFramework} from "./api/framework";
-import {render} from "./react/renderer-react";
-import {renderVue} from "./vue/renderer.vue";
+import { RouteConfig } from './types';
+import type { GenericRequest } from './types/framework';
+import { cachedFramework } from "./api/framework";
 
-
-// --- Renderização Principal ---
+// Importamos apenas os tipos para evitar side-effects de runtime
+// As implementações reais são carregadas sob demanda.
 
 interface RenderOptions {
     req: GenericRequest;
-    res: any; // Raw response object (ServerResponse)
+    res: any;
     route: RouteConfig & { componentPath: string };
     params: Record<string, string>;
     allRoutes: (RouteConfig & { componentPath: string })[];
 }
 
+/**
+ * Renderiza a requisição como stream, carregando o driver apropriado dinamicamente.
+ * Isso evita erros de "Module Not Found" quando um dos frameworks não está instalado.
+ */
 export async function renderAsStream(params: RenderOptions): Promise<void> {
-    if(cachedFramework === 'react') {
-        return await render(params)
+    if (cachedFramework === 'react') {
+        // Import dinâmico garante que o código do React só seja avaliado se necessário
+        const { render } = await import("./react/renderer-react.js");
+        return await render(params);
     } else {
-        return await renderVue(params)
+        const { renderVue } = await import("./vue/renderer.vue.js");
+        return await renderVue(params);
     }
 }
-
-

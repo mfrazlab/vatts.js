@@ -12,11 +12,8 @@ export const metadata: Metadata = {
 
 <script setup lang="ts">
 import './globals.css';
-import {SessionProvider} from "@vatts/auth/vue";
 </script>
 
 <template>
-  <SessionProvider>
     <slot />
-  </SessionProvider>
 </template>

@@ -1,6 +1,6 @@
 {
   "name": "vatts",
-  "version": "1.1.4-alpha.9",
+  "version": "1.2.0-alpha.31",
   "description": "Vatts.js is a high-level framework for building web applications with ease and speed. It provides a robust set of tools and features to streamline development and enhance productivity.",
   "types": "dist/index.d.ts",
   "author": "itsmuzin",
@@ -23,7 +23,20 @@
     "vatts": "./dist/bin/vatts.js"
   },
   "scripts": {
-    "build": "tsc && copyfiles -u 1 \"src/**/*.vue\" dist"
+    "build": "tsc && copyfiles -u 1 \"src/**/*.{vue,d.ts}\" dist"
+  },
+  "typesVersions": {
+    "*": {
+      "global": [
+        "dist/global/global.d.ts"
+      ],
+      "console": [
+        "dist/api/console.d.ts"
+      ],
+      "rpc": [
+        "dist/rpc/annotations.d.ts"
+      ]
+    }
   },
   "exports": {
     ".": {
@@ -52,7 +65,8 @@
       "require": "./dist/helpers.js"
     },
     "./global": {
-      "types": "./dist/global/global.d.ts"
+      "types": "./dist/global/global.d.ts",
+      "import": "./dist/global/global.d.ts"
     },
     "./eslint": {
       "types": "./dist/eslint/index.d.ts",
@@ -64,13 +78,6 @@
       "import": "./dist/rpc/annotations.js",
       "require": "./dist/rpc/annotations.js"
     }
-  },
-  "peerDependencies": {
-    "express": "^4.0.0",
-    "fastify": "^5.6.1",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "vue": "^3.5.27"
   },
   "peerDependenciesMeta": {
     "express": {
@@ -89,6 +96,13 @@
       "optional": true
     }
   },
+  "peerDependencies": {
+    "express": "^4.0.0",
+    "fastify": "^5.6.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "vue": "^3.5.27"
+  },
   "dependencies": {
     "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-commonjs": "^29.0.0",
@@ -99,7 +113,7 @@
     "chokidar": "^3.6.0",
     "commander": "^14.0.2",
     "esbuild": "^0.27.2",
-    "rollup": "^4.55.2",
+    "rollup": "^4.56.0",
     "rollup-plugin-esbuild": "^6.2.1",
     "rollup-plugin-vue": "^6.0.0",
     "sharp": "^0.34.5",
@@ -118,7 +132,6 @@
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
-    "@vue/server-renderer": "^3.5.27",
     "@vue/tsconfig": "^0.8.1",
     "copyfiles": "^2.4.1",
     "image-size": "^2.0.2",

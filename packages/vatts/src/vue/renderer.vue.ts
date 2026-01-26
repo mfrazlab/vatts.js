@@ -2,17 +2,16 @@
  * This file is part of the Vatts.js Project.
  * Vue Renderer
  */
-import { RouteConfig, Metadata } from '../types';
-import { getLayout } from '../router';
-import type { GenericRequest } from '../types/framework';
+import {Metadata, RouteConfig} from '../types';
+import {getLayout} from '../router';
+import type {GenericRequest} from '../types/framework';
 import fs from 'fs';
 import path from 'path';
-import { Transform } from 'stream';
 
 import * as vue from "vue"
 
 import * as vueServerRenderer from "@vue/server-renderer"
-import Console from "../api/console";
+import BuildingPage from "./BuildingPage.vue";
 
 // --- Helpers de Servidor (Duplicados para manter isolamento) ---
 
@@ -361,8 +360,26 @@ export async function renderVue({ req, res, route, params, allRoutes }: RenderOp
         const assets = getBuildAssets(req);
 
         if (!assets || assets.scripts.length === 0) {
+
+            const RootComponent = {
+                setup() {
+                    return () => {
+                        return BuildingPage ? h(BuildingPage as any, {params}) : h('div', 'Page not found/loaded');
+                    };
+                }
+            };
+
+            const app = createSSRApp(RootComponent);
+
+            // 5. Stream
+            const stream = renderToNodeStream(app);
+
             res.setHeader('Content-Type', 'text/html');
-            res.end('<!DOCTYPE html><html><body><div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;">Building...</div><script>setTimeout(()=>window.location.reload(), 1000)</script></body></html>');
+            // enviar stream direto
+            stream.pipe(res, { end: false });
+            stream.on('end', () => {
+                res.end()
+            })
             return;
         }
 
