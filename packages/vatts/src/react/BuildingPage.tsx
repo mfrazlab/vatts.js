@@ -26,11 +26,13 @@ export default function BuildingScreen() {
         :root {
             --bg-solid: #000000;
             --card-bg: #0a0a0a;
-            /* PALETA: Monocromática estilo Next.js */
+            /* PALETA: React Theme */
+            --react-cyan: #61DAFB;      /* O azul/ciano clássico do React */
+            --react-dark: #20232a;      /* Fundo escuro azulado */
             --primary: #ffffff;
-            --primary-glow: rgba(255, 255, 255, 0.1);
+            --primary-glow: rgba(97, 218, 251, 0.1);
             --text-main: #ffffff;
-            --text-muted: #64748b;
+            --text-muted: #8ea9c7;      /* Cinza azulado para combinar */
         }
 
         body {
@@ -63,8 +65,8 @@ export default function BuildingScreen() {
             width: 100%;
             max-width: 420px;
             background: var(--card-bg);
-            /* Borda sutil em cinza escuro */
-            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9);
+            /* Borda sutil com brilho React Cyan */
+            box-shadow: 0 0 0 1px rgba(97, 218, 251, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9);
             border-radius: 20px;
             overflow: hidden;
             display: flex;
@@ -76,9 +78,9 @@ export default function BuildingScreen() {
         .neon-line {
             height: 1px;
             width: 100%;
-            /* Linha de luz branca/cinza */
-            background: linear-gradient(90deg, transparent, #334155, #ffffff, #334155, transparent);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+            /* Linha de luz: Gradiente usando o Cyan */
+            background: linear-gradient(90deg, transparent, var(--react-dark), var(--react-cyan), var(--react-dark), transparent);
+            box-shadow: 0 0 15px rgba(97, 218, 251, 0.2);
         }
 
         .content {
@@ -101,8 +103,8 @@ export default function BuildingScreen() {
             object-fit: contain;
             position: relative;
             z-index: 2;
-            /* Deixa a logo levemente dessaturada para combinar */
-            filter: grayscale(0.5);
+            /* Removi o grayscale para a logo brilhar na cor natural se tiver cor, ou ficar nítida */
+            filter: none;
         }
 
         .logo-glow {
@@ -112,9 +114,10 @@ export default function BuildingScreen() {
             transform: translate(-50%, -50%);
             width: 100%;
             height: 100%;
-            background: #ffffff;
+            /* Glow Cyan do React */
+            background: var(--react-cyan);
             filter: blur(25px);
-            opacity: 0.1;
+            opacity: 0.2;
             border-radius: 50%;
             animation: pulse 2s ease-in-out infinite;
         }
@@ -124,14 +127,16 @@ export default function BuildingScreen() {
             font-size: 2rem;
             font-weight: 800;
             letter-spacing: -0.03em;
-            background: linear-gradient(180deg, #ffffff 0%, #475569 100%);
+            /* Gradiente do texto: Branco para Cyan */
+            background: linear-gradient(180deg, #ffffff 0%, var(--react-cyan) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         h1 span {
-            color: #475569;
-            -webkit-text-fill-color: #475569;
+            /* Span .js em Cyan Sólido */
+            color: var(--react-cyan);
+            -webkit-text-fill-color: var(--react-cyan);
         }
 
         p {
@@ -143,14 +148,14 @@ export default function BuildingScreen() {
 
         .terminal-box {
             width: 100%;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(97, 218, 251, 0.03); /* Fundo azulado bem sutil */
+            border: 1px solid rgba(97, 218, 251, 0.1); /* Borda ciano sutil */
             border-radius: 12px;
             padding: 16px;
             text-align: left;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.75rem;
-            color: #475569;
+            color: var(--text-muted);
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
@@ -166,25 +171,25 @@ export default function BuildingScreen() {
         .term-spinner {
             width: 10px;
             height: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #ffffff;
+            border: 2px solid rgba(97, 218, 251, 0.1);
+            border-top-color: var(--react-cyan); /* Spinner Cyan */
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
         }
 
-        .file-name { color: #94a3b8; }
-        .accent { color: #ffffff; }
+        .file-name { color: #8ea9c7; }
+        .accent { color: var(--react-cyan); }
 
         .card-footer {
             width: 100%;
             padding: 12px 32px;
-            background: rgba(255,255,255,0.02);
-            border-top: 1px solid rgba(255,255,255,0.05);
+            background: rgba(97, 218, 251, 0.02);
+            border-top: 1px solid rgba(97, 218, 251, 0.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-size: 11px;
-            color: rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.3);
             box-sizing: border-box;
         }
 
@@ -192,7 +197,7 @@ export default function BuildingScreen() {
             display: flex;
             align-items: center;
             gap: 6px;
-            color: #ffffff;
+            color: var(--react-cyan);
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -201,14 +206,14 @@ export default function BuildingScreen() {
         .dot {
             width: 6px;
             height: 6px;
-            background-color: #ffffff;
+            background-color: var(--react-cyan);
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 8px var(--react-cyan);
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 0.1; transform: translate(-50%, -50%) scale(1); }
-            50% { opacity: 0.15; transform: translate(-50%, -50%) scale(1.1); }
+            0%, 100% { opacity: 0.15; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.25; transform: translate(-50%, -50%) scale(1.1); }
         }
 
         @keyframes spin {
@@ -247,7 +252,7 @@ export default function BuildingScreen() {
                             <span className="file-name">Compiling <span className="accent">src/vatts.ts</span>...</span>
                         </div>
                         <div className="term-line" style={{ opacity: 0.5 }}>
-                            <span>✓</span>
+                            <span style={{ color: "var(--react-cyan)" }}>✓</span>
                             <span className="file-name">Optimizing assets</span>
                         </div>
                     </div>

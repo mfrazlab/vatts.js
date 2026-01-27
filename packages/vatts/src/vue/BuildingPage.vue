@@ -1,19 +1,3 @@
-<!--
-  This file is part of the Vatts.js Project.
-  Copyright (c) 2026 mfraz
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
--->
 <script setup>
 import { onMounted, ref } from 'vue';
 
@@ -24,15 +8,18 @@ try {
 } catch (e) {}
 
 // CSS extraído para evitar que o Vue escape caracteres como '>' ou aspas
+// ATUALIZADO: Paleta de cores alterada para Vue.js Green
 const cssStyles = `
   :root {
     --bg-solid: #000000;
     --card-bg: #0a0a0a;
-    /* PALETA: Monocromática estilo Next.js */
+    /* PALETA: Vue.js Theme */
+    --vue-green: #42b883;       /* O verde principal do Vue */
+    --vue-dark: #35495e;        /* O azul escuro secundário do Vue (para substituir cinzas escuros) */
     --primary: #ffffff;
-    --primary-glow: rgba(255, 255, 255, 0.1);
     --text-main: #ffffff;
-    --text-muted: #64748b;
+    /* Mudei o texto mudo de cinza para um tom mais claro do verde */
+    --text-muted: #a7c4bc;
   }
 
   body {
@@ -65,8 +52,8 @@ const cssStyles = `
     width: 100%;
     max-width: 420px;
     background: var(--card-bg);
-    /* Borda sutil em cinza escuro */
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9);
+    /* Borda sutil, mudei o brilho para verde */
+    box-shadow: 0 0 0 1px rgba(66, 184, 131, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9);
     border-radius: 20px;
     overflow: hidden;
     display: flex;
@@ -78,9 +65,9 @@ const cssStyles = `
   .neon-line {
     height: 1px;
     width: 100%;
-    /* Linha de luz branca/cinza */
-    background: linear-gradient(90deg, transparent, #334155, #ffffff, #334155, transparent);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+    /* Linha de luz: Mudei do gradiente cinza/branco para o verde Vue */
+    background: linear-gradient(90deg, transparent, var(--vue-dark), var(--vue-green), var(--vue-dark), transparent);
+    box-shadow: 0 0 15px rgba(66, 184, 131, 0.2);
   }
 
   .content {
@@ -103,8 +90,8 @@ const cssStyles = `
     object-fit: contain;
     position: relative;
     z-index: 2;
-    /* Deixa a logo levemente dessaturada para combinar */
-    filter: grayscale(0.5);
+    /* Removi o filtro grayscale para a logo do Vue brilhar na cor original */
+    filter: none;
   }
 
   .logo-glow {
@@ -114,9 +101,10 @@ const cssStyles = `
     transform: translate(-50%, -50%);
     width: 100%;
     height: 100%;
-    background: #ffffff;
+    /* Mudei o brilho de fundo de branco para Verde Vue */
+    background: var(--vue-green);
     filter: blur(25px);
-    opacity: 0.1;
+    opacity: 0.2; /* Aumentei um pouco a opacidade para destacar o verde */
     border-radius: 50%;
     animation: pulse 2s ease-in-out infinite;
   }
@@ -126,14 +114,16 @@ const cssStyles = `
     font-size: 2rem;
     font-weight: 800;
     letter-spacing: -0.03em;
-    background: linear-gradient(180deg, #ffffff 0%, #475569 100%);
+    /* Gradiente do texto: De branco para Verde Vue */
+    background: linear-gradient(180deg, #ffffff 0%, var(--vue-green) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   h1 span {
-    color: #475569;
-    -webkit-text-fill-color: #475569;
+    /* O ".js" agora é verde sólido */
+    color: var(--vue-green);
+    -webkit-text-fill-color: var(--vue-green);
   }
 
   p {
@@ -145,14 +135,15 @@ const cssStyles = `
 
   .terminal-box {
     width: 100%;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(66, 184, 131, 0.03); /* Fundo sutilmente verde */
+    border: 1px solid rgba(66, 184, 131, 0.1); /* Borda verde sutil */
     border-radius: 12px;
     padding: 16px;
     text-align: left;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: #475569;
+    /* Cor do texto base do terminal alterada de cinza para um tom claro */
+    color: var(--text-muted);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -168,25 +159,31 @@ const cssStyles = `
   .term-spinner {
     width: 10px;
     height: 10px;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-top-color: #ffffff;
+    border: 2px solid rgba(66, 184, 131, 0.1); /* Borda inativa verde clara */
+    border-top-color: var(--vue-green); /* Spinner ativo verde vibrante */
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
 
-  .file-name { color: #94a3b8; }
-  .accent { color: #ffffff; }
+  .file-name {
+    /* Nomes de arquivo agora num tom azulado/esverdeado claro */
+    color: #8fa3b3;
+  }
+  .accent {
+    /* O destaque "src/vatts.ts" agora é Verde Vue */
+    color: var(--vue-green);
+  }
 
   .card-footer {
     width: 100%;
     padding: 12px 32px;
-    background: rgba(255,255,255,0.02);
-    border-top: 1px solid rgba(255,255,255,0.05);
+    background: rgba(66, 184, 131, 0.03); /* Fundo sutil verde */
+    border-top: 1px solid rgba(66, 184, 131, 0.05); /* Borda sutil verde */
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 11px;
-    color: rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.4);
     box-sizing: border-box;
   }
 
@@ -194,7 +191,8 @@ const cssStyles = `
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #ffffff;
+    /* Texto de status e versão agora em Verde Vue */
+    color: var(--vue-green);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -203,14 +201,15 @@ const cssStyles = `
   .dot {
     width: 6px;
     height: 6px;
-    background-color: #ffffff;
+    /* O ponto de status agora é Verde Vue com brilho verde */
+    background-color: var(--vue-green);
     border-radius: 50%;
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 8px var(--vue-green);
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 0.1; transform: translate(-50%, -50%) scale(1); }
-    50% { opacity: 0.15; transform: translate(-50%, -50%) scale(1.1); }
+    0%, 100% { opacity: 0.15; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.25; transform: translate(-50%, -50%) scale(1.1); }
   }
 
   @keyframes spin {
@@ -236,15 +235,10 @@ const clientReloadScript = `
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
-    <!-- v-html garante que o CSS seja renderizado sem escape (ex: '>' permanece '>') -->
     <style v-html="cssStyles"></style>
   </head>
   <body>
   <div class="building-screen-body">
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
     <div class="container">
       <div class="build-card">
         <div class="neon-line"></div>
@@ -264,7 +258,7 @@ const clientReloadScript = `
               <span class="file-name">Compiling <span class="accent">src/vatts.ts</span>...</span>
             </div>
             <div class="term-line" style="opacity: 0.5">
-              <span>✓</span>
+              <span style="color: var(--vue-green)">✓</span>
               <span class="file-name">Optimizing assets</span>
             </div>
           </div>
@@ -281,7 +275,6 @@ const clientReloadScript = `
     </div>
   </div>
 
-  <!-- v-html para o script garante que a arrow function não quebre com '&gt;' -->
   <script v-html="clientReloadScript"></script>
   </body>
   </html>

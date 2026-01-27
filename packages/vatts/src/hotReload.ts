@@ -289,7 +289,8 @@ export class HotReloadManager {
             filePath.includes('not-found.tsx') ||
             filePath.endsWith('.tsx') ||
             filePath.endsWith(".ts") ||
-            filePath.endsWith(".vue")
+            filePath.endsWith(".vue") ||
+            filePath.endsWith(".css")
 
         const isBackendFile = filePath.includes(path.join('src', 'backend')) && !isFrontendFile;
 

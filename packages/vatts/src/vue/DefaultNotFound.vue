@@ -32,7 +32,6 @@ const reload = () => {
 
 <template>
   <div class="error-page-wrapper">
-    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
     <div class="container">
@@ -103,11 +102,13 @@ const reload = () => {
   box-sizing: border-box;
 }
 
-/* REMOVIDO :global(body).
-  Os estilos globais foram movidos para .container para não afetar o resto do site.
-*/
-
+/* Variáveis CSS locais para facilitar manutenção das cores Vue */
 .container {
+  --vue-green: #42b883;
+  --vue-dark: #35495e;
+  --bg-color: #000000;
+  --card-bg: #0a0a0a;
+
   position: fixed;
   top: 0;
   left: 0;
@@ -120,8 +121,7 @@ const reload = () => {
   justify-content: center;
   width: 100vw;
   height: 100vh;
-  /* Estilos que antes estavam no body: */
-  background: #000000;
+  background: var(--bg-color);
   color: #ffffff;
   overflow: hidden;
   margin: 0;
@@ -132,8 +132,9 @@ const reload = () => {
   width: min(90%, 500px);
   display: flex;
   flex-direction: column;
-  background: #0a0a0a;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9);
+  background: var(--card-bg);
+  /* Sombra com leve toque de verde */
+  box-shadow: 0 0 0 1px rgba(66, 184, 131, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9);
   border-radius: 20px;
   overflow: hidden;
   position: relative;
@@ -142,8 +143,9 @@ const reload = () => {
 .neon-line {
   height: 1px;
   width: 100%;
-  background: linear-gradient(90deg, transparent, #334155, #ffffff, #334155, transparent);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+  /* Gradiente Verde Vue */
+  background: linear-gradient(90deg, transparent, var(--vue-dark), var(--vue-green), var(--vue-dark), transparent);
+  box-shadow: 0 0 15px rgba(66, 184, 131, 0.2);
 }
 
 .content {
@@ -160,26 +162,29 @@ const reload = () => {
   line-height: 1;
   letter-spacing: -0.04em;
   color: #fff;
-  background: linear-gradient(180deg, #ffffff 0%, #475569 100%);
+  /* Gradiente Texto: Branco para Verde */
+  background: linear-gradient(180deg, #ffffff 0%, var(--vue-green) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   /* Fallback */
-  color: #ffffff;
+  color: var(--vue-green);
   margin-bottom: 16px;
-  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.05));
+  filter: drop-shadow(0 0 20px rgba(66, 184, 131, 0.1));
 }
 
 .terminal-box {
   width: 100%;
-  background: rgba(255, 255, 255, 0.02);
+  /* Fundo esverdeado muito sutil */
+  background: rgba(66, 184, 131, 0.03);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Borda verde sutil */
+  border: 1px solid rgba(66, 184, 131, 0.1);
   font-family: "JetBrains Mono", monospace;
   font-size: 12px;
   text-align: left;
-  color: #94a3b8;
+  color: #a7c4bc; /* Texto terminal mais claro */
   box-sizing: border-box;
 }
 
@@ -198,7 +203,7 @@ const reload = () => {
 }
 
 .method {
-  color: #64748b;
+  color: var(--vue-green); /* GET em verde */
   margin-right: 4px;
 }
 
@@ -208,7 +213,7 @@ const reload = () => {
 
 .error-msg {
   margin-top: 4px;
-  color: #475569;
+  color: #5f7e76; /* Verde acinzentado escuro */
 }
 
 .actions {
@@ -236,31 +241,32 @@ const reload = () => {
 }
 
 .btn-primary {
-  background: #f8fafc;
+  /* Botão principal Verde Vue */
+  background: var(--vue-green);
   color: #000000;
 }
 
 .btn-primary:hover {
   background: #ffffff;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 20px rgba(66, 184, 131, 0.4);
 }
 
 .btn-secondary {
   background: transparent;
   color: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(66, 184, 131, 0.2);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(66, 184, 131, 0.1);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--vue-green);
 }
 
 .footer {
   padding: 12px 32px;
-  background: rgba(255, 255, 255, 0.02);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(66, 184, 131, 0.02);
+  border-top: 1px solid rgba(66, 184, 131, 0.05);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -279,11 +285,13 @@ const reload = () => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #475569;
+  /* Ponto de status Verde */
+  background: var(--vue-green);
+  box-shadow: 0 0 6px var(--vue-green);
 }
 
 .status-text {
-  color: #94a3b8;
+  color: var(--vue-green);
 }
 
 .brand-link {
@@ -304,7 +312,8 @@ const reload = () => {
 .brand-logo {
   width: 20px;
   height: 20px;
-  filter: grayscale(1) brightness(2);
+  /* Removi o grayscale para a logo brilhar normal, se preferir monocromático com verde, pode ajustar */
+  filter: none;
 }
 
 .brand-text {
@@ -314,6 +323,7 @@ const reload = () => {
 }
 
 .brand-highlight {
-  color: #64748b;
+  /* .js em verde */
+  color: var(--vue-green);
 }
 </style>

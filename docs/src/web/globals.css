@@ -58,23 +58,23 @@ body {
     @apply select-none;
 }
 
-/* Prism Theme Overrides - COR ALTERADA para tons de Cinza/Branco */
-.token.comment { color: #52525b; }
-.token.string { color: #a1a1aa; } /* Cinza claro */
-.token.keyword { color: #e4e4e7; font-style: italic; } /* Quase branco */
-.token.function { color: #d4d4d8; font-weight: 500; } /* Cinza prata */
-.token.operator { color: #71717a; }
-.token.number { color: #f4f4f5; }
-.token.punctuation { color: #3f3f46; }
+/* Prism Theme Overrides - COR ALTERADA para tons de Laranja/Vermelho/Rosa */
+.token.comment { color: #4b5563; }
+.token.string { color: #ff6b35; } /* Laranja */
+.token.keyword { color: #ff8559; font-style: italic; } /* Laranja claro */
+.token.function { color: #e85d04; font-weight: 500; } /* Vermelho alaranjado */
+.token.operator { color: #94a3b8; }
+.token.number { color: #f472b6; }
+.token.punctuation { color: #475569; }
 
-/* Inline Code - COR ALTERADA para Cinza */
+/* Inline Code - COR ALTERADA */
 .markdown-content code:not([class*="language-"]) {
-    @apply bg-white/5 text-zinc-300 px-1.5 py-0.5 rounded-md text-[0.9em] font-mono ring-1 ring-white/10;
+    @apply bg-[#ff6b35]/10 text-[#ff6b35] px-1.5 py-0.5 rounded-md text-[0.9em] font-mono ring-1 ring-[#ff6b35]/20;
 }
 
-/* Blockquotes - COR ALTERADA para Neutro */
+/* Blockquotes - COR ALTERADA */
 .markdown-content blockquote {
-    @apply border-l-4 border-zinc-700 bg-white/[0.03] px-8 py-4 rounded-r-2xl italic text-slate-400 my-10;
+    @apply border-l-4 border-[#ff6b35] bg-[#ff6b35]/5 px-8 py-4 rounded-r-2xl italic text-slate-300 my-10;
 }
 
 /* Table Glass Design */
@@ -87,16 +87,16 @@ body {
 }
 
 .markdown-content td {
-    @apply p-4 text-sm border-b border-white/[0.02] text-slate-500;
+    @apply p-4 text-sm border-b border-white/[0.02] text-slate-400;
 }
 
 .markdown-content tr:last-child td {
     @apply border-none;
 }
 
-/* Link Glow - COR ALTERADA para Branco/Cinza */
+/* Link Glow - COR ALTERADA */
 .markdown-content a:not(.heading-anchor) {
-    @apply text-zinc-300 no-underline border-b border-white/20 transition-all hover:border-white hover:text-white;
+    @apply text-[#ff6b35] no-underline border-b border-[#ff6b35]/30 transition-all hover:border-[#ff6b35] hover:text-[#ff8559];
 }
 
 /* Lists Style */
@@ -116,7 +116,7 @@ body {
 
 /* Customização da cor das bolinhas e números - COR ALTERADA */
 .markdown-content li::marker {
-    @apply text-zinc-500 font-bold;
+    @apply text-[#ff6b35] font-bold;
 }
 
 /* Ajuste para listas aninhadas */
@@ -140,17 +140,17 @@ body {
 .step {
     display: block;
     padding: 24px;
-    background-color: #0d0d0d;
-    border: 1px solid rgba(255, 255, 255, 0.05); /* Borda cinza sutil */
+    background-color: #0a0a0c; /* Fundo mais escuro seguindo os cards anteriores */
+    border: 1px solid rgba(255, 107, 53, 0.1); /* Borda laranja sutil */
     border-radius: 8px;
     text-decoration: none !important;
     transition: all 0.2s ease;
 }
 
-/* Efeito ao passar o mouse - COR ALTERADA para Cinza */
+/* Efeito ao passar o mouse - COR ALTERADA */
 .step:hover {
-    border-color: rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 107, 53, 0.4);
+    background-color: rgba(255, 107, 53, 0.02);
     transform: translateY(-2px);
 }
 
@@ -164,7 +164,7 @@ body {
 
 /* Estilo do parágrafo dentro do card */
 .step p {
-    color: #71717a;
+    color: #a0a0a0;
     font-size: 0.9rem;
     margin: 0;
     line-height: 1.5;

@@ -18,7 +18,6 @@ import React, { useState, useEffect } from 'react';
 
 export default function ErrorPage() {
     const [path, setPath] = useState('/');
-
     const [hoverHome, setHoverHome] = useState(false);
     const [hoverRetry, setHoverRetry] = useState(false);
 
@@ -28,6 +27,15 @@ export default function ErrorPage() {
         }
     }, []);
 
+    // --- CORES DO TEMA REACT ---
+    const theme = {
+        cyan: '#61DAFB',       // React Blue/Cyan
+        dark: '#20232a',       // React Dark BG Accent
+        textMuted: '#8ea9c7',  // Azul acinzentado
+        bg: '#000000',
+        cardBg: '#0a0a0a'
+    };
+
     // --- GLOBAL STYLES ---
     const globalStyles = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -35,7 +43,7 @@ export default function ErrorPage() {
         body {
             margin: 0;
             padding: 0;
-            background-color: #000000; 
+            background-color: ${theme.bg}; 
             color: #ffffff;
             font-family: 'Inter', system-ui, sans-serif;
             overflow: hidden;
@@ -47,11 +55,6 @@ export default function ErrorPage() {
     `;
 
     // --- INLINE STYLES ---
-
-    // Paleta Estilo Next.js (Preto, Branco, Cinza)
-    const primaryColor = '#ffffff';
-    const primaryColorDark = '#64748b';
-    const primaryRgb = '255, 255, 255';
 
     const containerStyle: React.CSSProperties = {
         position: 'fixed',
@@ -66,16 +69,16 @@ export default function ErrorPage() {
         justifyContent: 'center',
         width: '100vw',
         height: '100vh',
-        background: '#000000',
+        background: theme.bg,
     };
 
     const cardStyle: React.CSSProperties = {
         width: 'min(90%, 500px)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#0a0a0a',
-        // Borda sutil branca/cinza
-        boxShadow: `0 0 0 1px rgba(255, 255, 255, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9)`,
+        background: theme.cardBg,
+        // Borda sutil com brilho Cyan
+        boxShadow: `0 0 0 1px rgba(97, 218, 251, 0.1), 0 40px 80px -20px rgba(0, 0, 0, 0.9)`,
         borderRadius: 20,
         overflow: 'hidden',
         position: 'relative',
@@ -84,10 +87,10 @@ export default function ErrorPage() {
     const neonLine: React.CSSProperties = {
         height: '1px',
         width: '100%',
-        // Gradiente monocromático
-        background: `linear-gradient(90deg, transparent, #334155, #ffffff, #334155, transparent)`,
-        // Brilho branco suave
-        boxShadow: `0 0 15px rgba(255, 255, 255, 0.1)`,
+        // Gradiente usando o Cyan do React
+        background: `linear-gradient(90deg, transparent, ${theme.dark}, ${theme.cyan}, ${theme.dark}, transparent)`,
+        // Brilho Cyan suave
+        boxShadow: `0 0 15px rgba(97, 218, 251, 0.2)`,
     };
 
     const contentStyle: React.CSSProperties = {
@@ -104,24 +107,25 @@ export default function ErrorPage() {
         lineHeight: 1,
         letterSpacing: '-0.04em',
         color: '#fff',
-        background: 'linear-gradient(180deg, #ffffff 0%, #475569 100%)',
+        // Gradiente Branco -> Cyan
+        background: `linear-gradient(180deg, #ffffff 0%, ${theme.cyan} 100%)`,
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         marginBottom: 16,
-        filter: `drop-shadow(0 0 20px rgba(255, 255, 255, 0.05))`,
+        filter: `drop-shadow(0 0 20px rgba(97, 218, 251, 0.1))`,
     };
 
     const terminalBoxStyle: React.CSSProperties = {
         width: '100%',
-        background: 'rgba(255, 255, 255, 0.02)',
+        background: 'rgba(97, 218, 251, 0.03)', // Fundo azulado sutil
         borderRadius: 12,
         padding: '16px',
         marginBottom: 24,
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        border: '1px solid rgba(97, 218, 251, 0.1)', // Borda cyan sutil
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: 12,
         textAlign: 'left',
-        color: '#94a3b8',
+        color: theme.textMuted,
     };
 
     const getBtnStyle = (kind: 'primary' | 'secondary', hovering: boolean): React.CSSProperties => {
@@ -144,17 +148,18 @@ export default function ErrorPage() {
         if (kind === 'primary') {
             return {
                 ...base,
-                background: hovering ? '#ffffff' : '#f8fafc',
+                // Botão Primário agora é o Cyan do React com texto escuro (contraste alto)
+                background: hovering ? '#ffffff' : theme.cyan,
                 color: '#000000',
-                boxShadow: hovering ? `0 0 20px rgba(255, 255, 255, 0.2)` : 'none',
+                boxShadow: hovering ? `0 0 20px rgba(97, 218, 251, 0.4)` : 'none',
             };
         }
         return {
             ...base,
-            background: hovering ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            color: hovering ? '#fff' : 'rgba(255, 255, 255, 0.6)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderColor: hovering ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.1)',
+            background: hovering ? 'rgba(97, 218, 251, 0.1)' : 'transparent',
+            color: hovering ? '#fff' : theme.textMuted,
+            border: '1px solid',
+            borderColor: hovering ? theme.cyan : 'rgba(255, 255, 255, 0.1)',
         };
     };
 
@@ -187,10 +192,11 @@ export default function ErrorPage() {
                                 <div style={{width: 8, height: 8, borderRadius: '50%', background: '#fff'}}/>
                             </div>
                             <div>
-                                <span style={{ color: '#64748b' }}>GET</span>{' '}
+                                {/* Método GET em Cyan */}
+                                <span style={{ color: theme.cyan }}>GET</span>{' '}
                                 <span style={{ color: '#fff' }}>{path}</span>
                             </div>
-                            <div style={{ marginTop: 4, color: '#475569' }}>
+                            <div style={{ marginTop: 4, color: theme.textMuted }}>
                                 <span>Error: Route not found</span>
                             </div>
                         </div>
@@ -227,8 +233,8 @@ export default function ErrorPage() {
 
                     <div style={{
                         padding: '12px 32px',
-                        background: 'rgba(255,255,255,0.02)',
-                        borderTop: '1px solid rgba(255,255,255,0.05)',
+                        background: 'rgba(97, 218, 251, 0.02)',
+                        borderTop: '1px solid rgba(97, 218, 251, 0.05)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -237,8 +243,9 @@ export default function ErrorPage() {
                     }}>
                         <span>Vatts Server</span>
                         <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                            <div style={{width: 6, height: 6, borderRadius: '50%', background: '#475569'}} />
-                            <span style={{ color: '#94a3b8' }}>Not Found</span>
+                            {/* Ponto de status Cyan */}
+                            <div style={{width: 6, height: 6, borderRadius: '50%', background: theme.cyan, boxShadow: `0 0 6px ${theme.cyan}`}} />
+                            <span style={{ color: theme.cyan }}>Not Found</span>
                         </div>
                     </div>
                 </div>
@@ -251,10 +258,11 @@ export default function ErrorPage() {
                     onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                     onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
                 >
-                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" alt="Vatts Logo" style={{ width: 20, height: 20, filter: 'grayscale(1) brightness(2)' }} />
+                    {/* Logo mantida, removido o filtro cinza para ficar natural */}
+                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" alt="Vatts Logo" style={{ width: 20, height: 20 }} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
                         Vatts
-                        <span style={{ color: "#64748b" }}>.js</span>
+                        <span style={{ color: theme.cyan }}>.js</span>
                     </span>
                 </a>
             </div>
