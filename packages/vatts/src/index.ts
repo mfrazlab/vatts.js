@@ -489,7 +489,7 @@ export default function vatts(options: VattsOptions) {
                 let frameIndex = 0;
 
                 const spinner = setInterval(() => {
-                    time.update(`    ${Colors.FgYellow}${spinnerFrames[frameIndex]}${Colors.Reset}  Building...`);
+                    time.update(`    ${Colors.FgGreen}${spinnerFrames[frameIndex]}${Colors.Reset}  Building...`);
                     frameIndex = (frameIndex + 1) % spinnerFrames.length;
                 }, 100);
 

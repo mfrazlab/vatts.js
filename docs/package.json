@@ -1,39 +1,26 @@
 {
-  "name": "vatts-docs",
-  "version": "1.1.0",
-  "description": "Basic example application for Vatts.js framework",
-  "private": true,
-  "author": "itsmuzin",
-  "license": "Apache-2.0",
-  "packageManager": "pnpm@10.20.0",
-  "keywords": [
-    "hightjs",
-    "example",
-    "react"
-  ],
+  "name": "docs",
+  "version": "0.1.0",
+  "description": "Basic application for Vatts.js framework",
   "scripts": {
-    "start": "vatts start -p 3001",
-    "dev": "vatts dev",
-    "export": "vatts export"
+    "start": "vatts start",
+    "dev": "vatts dev"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
-    "@types/prismjs": "^1.26.5",
     "autoprefixer": "^10.4.23",
-    "framer-motion": "^12.29.2",
-    "lucide-react": "^0.562.0",
+    "lucide-vue-next": "^0.563.0",
     "marked": "^17.0.1",
     "postcss": "^8.5.6",
     "prismjs": "^1.30.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-icons": "^5.5.0",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
-    "vatts": "file:D:/Projetos/Vatts/packages/vatts/vatts-1.2.2.tgz"
+    "vatts": "file:D:/Projetos/Vatts/packages/vatts/vatts-1.2.3.tgz",
+    "vue": "^3.5.27"
   },
   "devDependencies": {
-    "@types/react": "^19.2.9",
+    "@types/node": "^25.0.10",
+    "@types/prismjs": "^1.26.5",
     "typescript": "^5.9.3"
   }
 }

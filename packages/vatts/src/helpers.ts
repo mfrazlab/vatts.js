@@ -81,7 +81,7 @@ const sendBox = (options: VattsOptions) => {
 
     // Estilos Clean
     const labelStyle = Colors.FgGray;
-    const urlStyle = Colors.Bright + Colors.FgRed; // Ciano para links é o padrão mais legível
+    const urlStyle = Colors.Bright + Colors.FgCyan; // Ciano para links é o padrão mais legível
     const now = new Date();
     const time = now.toLocaleTimeString('pt-BR', { hour12: false });
     const timer = ` ${Colors.FgGray}${time}${Colors.Reset}  `
@@ -170,8 +170,6 @@ export async function loadVattsConfig(projectDir: string, phase: string): Promis
         // Mescla a configuração do usuário com a padrão
         const mergedConfig = { ...defaultConfig, ...userConfig };
 
-        const configFileName = path.basename(configPath);
-        Console.info(`Loaded ${configFileName}`);
 
         return mergedConfig;
     } catch (error) {
@@ -430,7 +428,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port:
                 else if (statusCode >= 300) statusColor = Colors.FgCyan; // 3xx
 
                 // Formata o método com cor
-                let methodColor = Colors.FgRed;
+                let methodColor = Colors.FgCyan;
                 if (method === 'POST') methodColor = Colors.FgGreen;
                 else if (method === 'PUT') methodColor = Colors.FgYellow;
                 else if (method === 'DELETE') methodColor = Colors.FgRed;
@@ -649,10 +647,10 @@ export function app(options: VattsOptions = {}) {
             }
             // JS STICK LETTERS
 
-            console.log(`${Colors.Bright + Colors.FgRed}
-${Colors.Bright + Colors.FgRed}              ___ ___  __    ${Colors.FgWhite}        __  
-${Colors.Bright + Colors.FgRed}    \\  /  /\\   |   |  /__\`${Colors.FgWhite}        | /__\`    ${Colors.Bright + Colors.FgRed}Vatts${Colors.FgWhite}.js ${Colors.FgGray}(v${require('../package.json').version}) - itsmuzin${Colors.FgMagenta}
-${Colors.Bright + Colors.FgRed}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite}   \\__/ .__/ ${message}
+            console.log(`${Colors.Bright + Colors.FgCyan}
+${Colors.Bright + Colors.FgCyan}              ___ ___  __    ${Colors.FgWhite}        __  
+${Colors.Bright + Colors.FgCyan}    \\  /  /\\   |   |  /__\`${Colors.FgWhite}        | /__\`    ${Colors.Bright + Colors.FgCyan}Vatts${Colors.FgWhite}.js ${Colors.FgGray}(v${require('../package.json').version}) - mfraz
+${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite}   \\__/ .__/ ${message}
                                      
                                      `)
 

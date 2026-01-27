@@ -58,23 +58,23 @@ body {
     @apply select-none;
 }
 
-/* Prism Theme Overrides - COR ALTERADA para tons de Laranja/Vermelho/Rosa */
-.token.comment { color: #4b5563; }
-.token.string { color: #ff6b35; } /* Laranja */
-.token.keyword { color: #ff8559; font-style: italic; } /* Laranja claro */
-.token.function { color: #e85d04; font-weight: 500; } /* Vermelho alaranjado */
+/* Prism Theme Overrides - CORES VIVAS (Tech Stack) */
+.token.comment { color: #64748b; } /* Slate mais suave */
+.token.string { color: #42b883; } /* Vue Green */
+.token.keyword { color: #61dafb; font-style: italic; } /* React Cyan */
+.token.function { color: #fbbf24; font-weight: 500; } /* JS Yellow/Amber */
 .token.operator { color: #94a3b8; }
-.token.number { color: #f472b6; }
-.token.punctuation { color: #475569; }
+.token.number { color: #a78bfa; } /* Soft Purple (comum em temas dark) */
+.token.punctuation { color: #94a3b8; }
 
-/* Inline Code - COR ALTERADA */
+/* Inline Code - Estilo TypeScript Blue/React Cyan */
 .markdown-content code:not([class*="language-"]) {
-    @apply bg-[#ff6b35]/10 text-[#ff6b35] px-1.5 py-0.5 rounded-md text-[0.9em] font-mono ring-1 ring-[#ff6b35]/20;
+    @apply bg-[#0ea5e9]/10 text-[#0ea5e9] px-1.5 py-0.5 rounded-md text-[0.9em] font-mono ring-1 ring-[#0ea5e9]/20;
 }
 
-/* Blockquotes - COR ALTERADA */
+/* Blockquotes - Estilo React (Cyan/Blue) */
 .markdown-content blockquote {
-    @apply border-l-4 border-[#ff6b35] bg-[#ff6b35]/5 px-8 py-4 rounded-r-2xl italic text-slate-300 my-10;
+    @apply border-l-4 border-[#61dafb] bg-[#61dafb]/5 px-8 py-4 rounded-r-2xl italic text-slate-300 my-10;
 }
 
 /* Table Glass Design */
@@ -94,9 +94,9 @@ body {
     @apply border-none;
 }
 
-/* Link Glow - COR ALTERADA */
+/* Link Glow - Estilo React Cyan */
 .markdown-content a:not(.heading-anchor) {
-    @apply text-[#ff6b35] no-underline border-b border-[#ff6b35]/30 transition-all hover:border-[#ff6b35] hover:text-[#ff8559];
+    @apply text-[#61dafb] no-underline border-b border-[#61dafb]/30 transition-all hover:border-[#61dafb] hover:text-[#38bdf8];
 }
 
 /* Lists Style */
@@ -114,9 +114,9 @@ body {
     @apply text-lg text-slate-400 pl-2;
 }
 
-/* Customização da cor das bolinhas e números - COR ALTERADA */
+/* Customização da cor das bolinhas e números - Estilo Vue Green */
 .markdown-content li::marker {
-    @apply text-[#ff6b35] font-bold;
+    @apply text-[#42b883] font-bold;
 }
 
 /* Ajuste para listas aninhadas */
@@ -140,17 +140,17 @@ body {
 .step {
     display: block;
     padding: 24px;
-    background-color: #0a0a0c; /* Fundo mais escuro seguindo os cards anteriores */
-    border: 1px solid rgba(255, 107, 53, 0.1); /* Borda laranja sutil */
+    background-color: #0a0a0c;
+    border: 1px solid rgba(49, 120, 198, 0.1); /* Borda Azul TypeScript sutil */
     border-radius: 8px;
     text-decoration: none !important;
     transition: all 0.2s ease;
 }
 
-/* Efeito ao passar o mouse - COR ALTERADA */
+/* Efeito ao passar o mouse - TypeScript Blue Glow */
 .step:hover {
-    border-color: rgba(255, 107, 53, 0.4);
-    background-color: rgba(255, 107, 53, 0.02);
+    border-color: rgba(49, 120, 198, 0.5); /* TS Blue */
+    background-color: rgba(49, 120, 198, 0.05);
     transform: translateY(-2px);
 }
 

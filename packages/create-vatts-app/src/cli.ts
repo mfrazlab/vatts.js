@@ -79,7 +79,10 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
 
   let framework = opts.framework
   async function askFramework(): Promise<string> {
-    const frame = await Console.ask("What framework do you want to use? (React/Vue)", 'react')
+    const frame = await Console.selection("What framework do you want to use?", {
+      "react": "React",
+      "vue": "Vue"
+    })
     console.log('')
     if(frame.toLowerCase() !== 'react' && frame.toLowerCase() !== 'vue') {
       return await askFramework()

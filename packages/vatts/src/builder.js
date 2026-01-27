@@ -244,10 +244,8 @@ async function getFrameworkConfig(entryPoint, outdir, isProduction) {
     const pluginConfig = { prePlugins, postPlugins };
 
     if (framework === 'vue') {
-        Console.info("Framework detected: Vue.js");
         return await createVueConfig(entryPoint, outdir, isProduction, pluginConfig);
     } else {
-        Console.info("Framework detected: React/Standard");
         return await createReactConfig(entryPoint, outdir, isProduction, pluginConfig);
     }
 }
