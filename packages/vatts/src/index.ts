@@ -627,33 +627,80 @@ export default function vatts(options: VattsOptions) {
                 }
 
 
+
+
                 if (pathname.startsWith('/_vatts/')) {
                     const staticPath = path.join(dir, '.vatts');
                     const requestPath = pathname.replace('/_vatts/', '');
 
                     if (!isSuspiciousPathname(requestPath)) {
                         const filePath = resolveWithin(staticPath, requestPath);
+
+                        // Verifica se existe E se é arquivo
                         if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+                            const stats = fs.statSync(filePath);
                             const ext = path.extname(filePath).toLowerCase();
                             const contentTypes: Record<string, string> = {
                                 '.js': 'application/javascript',
                                 '.css': 'text/css',
                                 '.map': 'application/json',
-                                '.vue': 'text/css'
+                                '.vue': 'text/css',
+                                '.png': 'image/png',
+                                '.jpg': 'image/jpeg',
+                                '.svg': 'image/svg+xml'
                             };
 
+                            // CORREÇÃO 1: Cache diferenciado para Dev vs Produção
+                            if (options.dev) {
+                                // Em dev, proibimos o cache para garantir que main.js atualize sempre
+                                genericRes.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+                                genericRes.header('Pragma', 'no-cache');
+                                genericRes.header('Expires', '0');
+                            } else {
+                                // Em produção, mantemos o cache agressivo (assumindo hash nos arquivos exceto entry points)
+                                // Dica: Se o main.js de prod também não tiver hash, use 'no-cache' nele também
+                                genericRes.header('Cache-Control', 'public, max-age=31536000, immutable');
+                            }
+
+                            const lastModified = stats.mtime.toUTCString();
+                            genericRes.header('Last-Modified', lastModified);
                             genericRes.header('Content-Type', contentTypes[ext] || 'text/plain');
 
+                            // Lógica 304 (Mantida igual, pois ajuda na performance mesmo em dev se o arquivo n mudou nada)
+                            const ifModifiedSince = req.headers['if-modified-since'];
+                            if (ifModifiedSince) {
+                                const requestDate = new Date(ifModifiedSince).getTime();
+                                const fileDate = new Date(lastModified).getTime();
+                                if (requestDate >= fileDate) {
+                                    if (adapter.type === 'express') {
+                                        (res as any).status(304).end();
+                                    } else {
+                                        genericRes.status(304);
+                                        genericRes.send(null);
+                                    }
+                                    return;
+                                }
+                            }
+
+                            // Envia o arquivo
                             if (adapter.type === 'express') {
                                 (res as any).sendFile(filePath);
-                            } else if (adapter.type === 'fastify') {
-                                const fileContent = fs.readFileSync(filePath);
-                                genericRes.send(fileContent);
-                            } else if (adapter.type === 'native') {
+                            } else {
                                 const fileContent = fs.readFileSync(filePath);
                                 genericRes.send(fileContent);
                             }
-                            return;
+                            return; // Encerra aqui com sucesso
+
+                        } else {
+                            // CORREÇÃO 2: Se o arquivo não existe, retornamos 404 AQUI.
+                            // Isso impede que o código continue e caia na rota de renderização do HTML (SPA Fallback)
+                            if (adapter.type === 'express') {
+                                (res as any).status(404).send('Vatts Asset Not Found');
+                            } else {
+                                genericRes.status(404);
+                                genericRes.send('Vatts Asset Not Found');
+                            }
+                            return; // Mata a requisição
                         }
                     }
                 }

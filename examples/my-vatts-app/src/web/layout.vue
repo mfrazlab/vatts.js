@@ -1,5 +1,4 @@
 <script lang="ts">
-// Importamos o tipo Metadata de vatts/vue (assumindo a paridade com a versão React)
 import type { Metadata } from "vatts/vue";
 
 export const metadata: Metadata = {
@@ -12,11 +11,8 @@ export const metadata: Metadata = {
 
 <script setup lang="ts">
 import './globals.css';
-import {SessionProvider} from "@vatts/auth/vue";
 </script>
 
 <template>
-  <SessionProvider>
-    <slot />
-  </SessionProvider>
+  <slot />
 </template>

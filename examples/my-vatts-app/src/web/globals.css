@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+@font-face {
+    font-family: "Geist";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("/font.woff2") format("woff2");
+}
+
+
+* {
+    font-family: "Geist", system-ui, sans-serif;
+}
+body {
+    background-color: #0d0d0d;
+}

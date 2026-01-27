@@ -57,6 +57,8 @@ export class Router {
         }
     }
 
+
+
     replace(path: string) {
         if (typeof window !== 'undefined') {
             window.history.replaceState({}, '', path);

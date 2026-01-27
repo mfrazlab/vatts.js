@@ -33,7 +33,8 @@ const jsonPlugin = require("@rollup/plugin-json").default;
 async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins = [], postPlugins = [] } = {}) {
     const replaceValues = {
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
-        'process.env.PORT': JSON.stringify(process.vatts?.port || 3000)
+        'process.env.PORT': JSON.stringify(process.vatts?.port || 3000),
+        preventAssignment: true
     };
 
     const extensions = ['.mjs', '.js', '.json', '.node', '.jsx', '.tsx', '.ts'];
@@ -46,19 +47,19 @@ async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins 
 
     return {
         input: entryPoint,
+        // [OPTIMIZATION] Preset 'smallest' é o mais agressivo do Rollup
         treeshake: {
             moduleSideEffects: 'no-external',
-            preset: isProduction ? 'recommended' : 'smallest'
+            preset: isProduction ? 'smallest' : 'recommended',
+            propertyReadSideEffects: false,
+            tryCatchDeoptimization: false
         },
         cache: isProduction ? true : false,
         perf: false,
         maxParallelFileOps: 20,
 
         plugins: [
-            replace({
-                preventAssignment: true,
-                values: replaceValues
-            }),
+            replace(replaceValues),
 
             ...prePlugins,
 
@@ -66,26 +67,34 @@ async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins 
                 extensions,
                 preferBuiltins: true,
                 browser: true,
+                // [FIX] Apenas dedupe React principal para evitar conflitos, mas deixe libs internas resolverem
                 dedupe: ['react', 'react-dom']
             }),
 
             commonjs({
                 sourceMap: !isProduction,
-                requireReturnsDefault: 'auto',
-                ignoreTryCatch: true
+                // [FIX] 'preferred' ajuda o Rollup a escolher o export default correto para React
+                // Isso muitas vezes resolve o erro de "undefined reading createElement"
+                requireReturnsDefault: 'preferred',
+                ignoreTryCatch: true,
+                transformMixedEsModules: true,
+                esmExternals: false
             }),
 
             ...postPlugins,
 
-            jsonPlugin(),
+            jsonPlugin({
+                compact: true
+            }),
 
             esbuild({
                 include: /\.[jt]sx?$/,
                 exclude: /node_modules/,
                 sourceMap: !isProduction,
-                minify: isProduction,
+                // [OPTIMIZATION] Mantemos false aqui pois o Terser (no bundler principal) fará o trabalho pesado
+                minify: false,
                 legalComments: 'none',
-                treeShaking: isProduction,
+                treeShaking: true,
                 target: 'esnext',
                 jsx: 'automatic',
                 define: { __VERSION__: '"1.0.0"' },

@@ -17,29 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: LayoutProps) {
-    const variants = {
-        hidden: { opacity: 0, y: 15 },
-        enter: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -15 },
-    };
-
     return (
-        <SessionProvider>
-            <AnimatePresence
-                mode="wait"
-                onExitComplete={() => window.scrollTo(0, 0)}
-            >
-                <motion.div
-                    key={router.pathname}
-                    variants={variants}
-                    initial="hidden"
-                    animate="enter"
-                    exit="exit"
-                    transition={{ type: 'tween', ease: 'easeInOut', duration: 0.4 }}
-                >
-                    {children}
-                </motion.div>
-            </AnimatePresence>
-        </SessionProvider>
+        <>{children}</>
     );
 }

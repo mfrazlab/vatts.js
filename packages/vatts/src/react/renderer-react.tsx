@@ -55,25 +55,7 @@ function requireWithoutStyles<T>(modulePath: string): T {
     }
 }
 
-// --- Gerenciamento de Console (Silenciador) ---
 
-const originalConsole = {
-    log: console.log,
-    info: console.info,
-    debug: console.debug
-};
-
-function silenceConsole() {
-    console.log = () => {};
-    console.info = () => {};
-    console.debug = () => {};
-}
-
-function restoreConsole() {
-    console.log = originalConsole.log;
-    console.info = originalConsole.info;
-    console.debug = originalConsole.debug;
-}
 
 // --- Funções de Metadata e Scripts ---
 
@@ -170,7 +152,7 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
     const projectDir = process.cwd();
     const distDir = path.join(projectDir, '.vatts');
     const assetsDir = path.join(distDir, 'assets');
-
+    const chunksDir = path.join(distDir, 'chunks');
     if (!fs.existsSync(distDir)) return null;
 
     let scripts: string[] = [];
@@ -220,7 +202,7 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
 
             // Scan em .vatts/assets/ (Assets estáticos, chunks, CSS extraído)
             processDirectory(assetsDir, '/_vatts/assets');
-
+            processDirectory(chunksDir, '/_vatts/chunks');
             // Ordenação básica para garantir que o main carregue
             scripts.sort((a, b) => {
                 if (a.includes('main')) return -1;
@@ -300,7 +282,7 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
     const hotReloadManager = (req as any).hotReloadManager;
 
     // SILENCIAR CONSOLE: Inicia o silêncio para evitar logs de renderização
-    silenceConsole();
+
 
     try {
         // 1. Verificar Build - Se não tiver scripts, retorna tela de Loading
@@ -308,7 +290,7 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
 
         if (!assets || assets.scripts.length === 0) {
             // Se falhar o build, restauramos o console para o erro aparecer se necessário
-            restoreConsole();
+
 
             // Usando stream para a tela de loading também, agora via React Component
             const { pipe } = renderToPipeableStream(<BuildingScreen />, {
@@ -330,10 +312,9 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
                 const layoutModule = requireWithoutStyles<any>(path.resolve(process.cwd(), layoutInfo.componentPath));
                 LayoutComponent = layoutModule.default;
             } catch (e) {
-                // Usamos console.error original aqui, pois erro de layout é crítico
-                restoreConsole();
+
                 console.error("Error loading layout component for SSR:", e);
-                silenceConsole(); // Volta a silenciar
+
             }
         }
 
@@ -417,14 +398,13 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
                     // Usar bootstrapModules para scripts tipo módulo (ESM)
                     bootstrapModules: assets.scripts,
                     onShellReady() {
-                        // Restaurar console assim que o shell estiver pronto (cabeçalho enviado)
-                        restoreConsole();
+
                         res.setHeader('Content-Type', 'text/html');
                         pipe(res);
                         resolve();
                     },
                     onShellError(error: any) {
-                        restoreConsole(); // Restaura para mostrar o erro real
+
                         console.error('Streaming Shell Error:', error);
                         res.statusCode = 500;
                         res.setHeader('Content-Type', 'text/html');
@@ -441,7 +421,7 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
             );
         });
     } catch (err) {
-        restoreConsole();
+
         console.error("Critical Render Error:", err);
         throw err;
     }

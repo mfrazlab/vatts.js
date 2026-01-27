@@ -1,6 +1,6 @@
 {
   "name": "vatts",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "description": "Vatts.js is a high-level framework for building web applications with ease and speed. It provides a robust set of tools and features to streamline development and enhance productivity.",
   "types": "dist/index.d.ts",
   "author": "mfraz",
@@ -109,6 +109,7 @@
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-replace": "^6.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
     "@vue/server-renderer": "^3.5.27",
     "chokidar": "^3.6.0",
     "commander": "^14.0.2",

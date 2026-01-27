@@ -84,6 +84,9 @@ function extractComponentPreloads(componentPath: string): string[] {
             } else if (['.css'].includes(ext)) {
                 tags.add(`<link rel="preload" as="style" href="${publicUrl}">`);
                 tags.add(`<link rel="stylesheet" href="${publicUrl}">`);
+            } else if (['.js'].includes(ext)) {
+                // Adicionado suporte para JS
+                tags.add(`<link rel="preload" as="script" href="${publicUrl}">`);
             } else if (['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.avif'].includes(ext)) {
                 tags.add(`<link rel="preload" as="image" href="${publicUrl}">`);
             }
@@ -94,7 +97,8 @@ function extractComponentPreloads(componentPath: string): string[] {
         // - import foo from './foo.png' (Named import)
         // - import './style.css' (Side-effect import)
         // - require('./image.jpg') (CommonJS)
-        const importRegex = /(?:import(?:\s+[^;'"]+\s+from)?\s+|require\(\s*)['"]([^'"]+\.(png|jpg|jpeg|gif|svg|webp|avif|mp4|webm|css))['"]/g;
+        // Adicionado |js na lista de extensões
+        const importRegex = /(?:import(?:\s+[^;'"]+\s+from)?\s+|require\(\s*)['"]([^'"]+\.(png|jpg|jpeg|gif|svg|webp|avif|mp4|webm|css|js))['"]/g;
 
         let match;
         while ((match = importRegex.exec(content)) !== null) {

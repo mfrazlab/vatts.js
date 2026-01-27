@@ -8,7 +8,7 @@ import type { VattsConfig, VattsConfigFunction } from 'vatts';
  */
 const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
     const config: VattsConfig = {
-        pathRouter: false,
+        pathRouter: true,
         /**
          * Maximum number of HTTP headers allowed per request
          * Default: 100

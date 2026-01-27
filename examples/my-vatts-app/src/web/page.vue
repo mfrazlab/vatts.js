@@ -1,271 +1,349 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useSession } from '@vatts/auth/vue';
-import {importServer, Link, router} from 'vatts/vue';
-import { Terminal, Cpu, Wifi, Activity, User, LogOut, ShieldCheck } from 'lucide-vue-next';
-import {Image} from "vatts/vue";
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import {router} from "vatts/vue";
 
-// Importação do servidor adaptada para Vue
-const api = importServer<typeof import("../backend/helper")>("../../backend/helper");
-const { getServerDiagnostics, getPackageVersion } = api;
+// Definição de Tipos
+interface Asset {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  duration: string;
+  category: string;
+  protocol: string;
+  initiator: string;
+  startTime: string;
+  isHeavy: boolean;
+}
 
-// Hooks e Estado
-const { data: session, status, signOut } = useSession();
-const serverData = ref<any>(null);
-const isLoadingServer = ref(false);
-const terminalLines = ref<string[]>([]);
-const version = ref<string>();
+// Constantes
+const HEAVY_THRESHOLD = 500;
 
-// Variáveis de estilo (constantes)
-const primaryColor = "#ff6b35";
+// Estado Reativo
+const assets = ref<Asset[]>([]);
+const searchTerm = ref('');
+const activeFilter = ref('all');
 
-// Ciclo de vida (substituindo o useState async do React)
-onMounted(async () => {
-  version.value = await getPackageVersion();
+// Configuração das Tabs
+const tabs = [
+  { id: 'all', label: 'All Resources' },
+  { id: 'script', label: 'JS/Modules' },
+  { id: 'style', label: 'CSS/Styles' },
+  { id: 'image', label: 'Images' },
+  { id: 'api', label: 'API/Fetch' },
+  { id: 'heavy', label: '⚠️ Heavy Only', special: true }
+];
+
+// Lógica de Negócio
+const getCategory = (res: PerformanceResourceTiming) => {
+  const name = res.name.toLowerCase();
+  const type = res.initiatorType;
+
+  if (type === 'script' || name.endsWith('.js') || name.endsWith('.mjs')) return 'script';
+  if (type === 'img' || type === 'image' || /\.(png|jpe?g|gif|svg|webp|avif|ico)$/.test(name)) return 'image';
+  if (type === 'css' || type === 'link' || name.endsWith('.css')) return 'style';
+  if (type === 'font' || /\.(woff2?|ttf|otf|eot)$/.test(name)) return 'font';
+  if (type === 'fetch' || type === 'xmlhttprequest') return 'api';
+  return 'other';
+};
+
+const scanAssets = () => {
+  // Verificação de segurança para ambiente SSR ou sem window
+  if (typeof performance === 'undefined') return;
+
+  const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+
+  const mappedAssets = resources.map(res => {
+    const name = res.name.split('/').pop() || res.name;
+    const sizeKB = res.encodedBodySize / 1024;
+    const category = getCategory(res);
+    // Fallback para transferSize se encodedBodySize for 0 (comum em cross-origin ou cache)
+    const size = sizeKB > 0 ? sizeKB : (res.transferSize / 1024);
+
+    return {
+      id: `${res.name}-${res.startTime}`,
+      name: name || 'Resource',
+      path: res.name,
+      size: size,
+      duration: res.duration.toFixed(0),
+      category,
+      protocol: res.nextHopProtocol || 'h2',
+      initiator: res.initiatorType,
+      startTime: res.startTime.toFixed(0),
+      isHeavy: size > HEAVY_THRESHOLD
+    };
+  }).sort((a, b) => b.size - a.size);
+
+  assets.value = mappedAssets;
+};
+
+// Computed Properties (Substituindo useMemo)
+const stats = computed(() => {
+  const totalSize = assets.value.reduce((acc, curr) => acc + curr.size, 0);
+  const avgLoadTime = assets.value.length
+      ? assets.value.reduce((acc, curr) => acc + parseFloat(curr.duration), 0) / assets.value.length
+      : 0;
+  const heavyFiles = assets.value.filter(a => a.isHeavy).length;
+
+  return {
+    totalSize,
+    avgLoadTime,
+    totalRequests: assets.value.length,
+    images: assets.value.filter(a => a.category === 'image').length,
+    scripts: assets.value.filter(a => a.category === 'script').length,
+    heavyFiles
+  };
 });
 
-const handleTestConnection = async () => {
-  isLoadingServer.value = true;
-  terminalLines.value = ["> Initializing handshake...", "> Fetching diagnostics..."];
+const filteredAssets = computed(() => {
+  return assets.value.filter(asset => {
+    const matchesSearch = asset.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+        asset.path.toLowerCase().includes(searchTerm.value.toLowerCase());
 
-  try {
-    await new Promise(r => setTimeout(r, 800));
-    const data = await getServerDiagnostics("Test");
-    serverData.value = data;
-    terminalLines.value.push("> System online. Data synced.");
-  } catch (error) {
-    terminalLines.value.push("> Connection failed.");
-  } finally {
-    isLoadingServer.value = false;
+    if (activeFilter.value === 'heavy') return matchesSearch && asset.isHeavy;
+    const matchesFilter = activeFilter.value === 'all' || asset.category === activeFilter.value;
+
+    return matchesSearch && matchesFilter;
+  });
+});
+
+// Lifecycle Hooks (Substituindo useEffect)
+let observer: PerformanceObserver | null = null;
+
+onMounted(() => {
+  scanAssets();
+
+  if (typeof PerformanceObserver !== 'undefined') {
+    observer = new PerformanceObserver(() => scanAssets());
+    observer.observe({ entryTypes: ['resource'] });
   }
-};
-</script>
-<script lang="ts">
-import type { RouteConfig } from "vatts/vue";
+});
 
-export const config: RouteConfig = {
-  pattern: '/',
-  component: undefined,
-  generateMetadata: () => ({
-    title: 'Vatts.js | Home'
-  })
-};
+onUnmounted(() => {
+  if (observer) observer.disconnect();
+});
+function refresh() {
+  console.log('tentando')
+  window.location.reload()
+}
+
 </script>
+
 <template>
-  <div class="min-h-screen bg-[#0d0d0d] text-slate-200 selection:bg-[#ff6b35]/30 font-sans antialiased overflow-x-hidden">
+  <div class="min-h-screen bg-black text-[#ededed] font-sans selection:bg-white/20">
 
-    <!-- Background Glows -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none">
-      <div class="absolute -top-[10%] -left-[5%] w-[50%] h-[50%] bg-[#ff6b35]/5 blur-[120px] rounded-full" />
-      <div class="absolute top-[20%] -right-[10%] w-[40%] h-[60%] bg-[#e85d04]/5 blur-[150px] rounded-full" />
+    <nav class="border-b border-white/10 px-6 py-3 flex items-center justify-between bg-black/50 backdrop-blur-md sticky top-0 z-50">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[8px] border-b-black mb-0.5"></div>
+          </div>
+          <span class="text-white font-medium text-sm">User's analyzer</span>
+          <span class="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-gray-400 font-bold uppercase tracking-wider">PRO</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div v-if="stats.heavyFiles > 0" class="flex items-center bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5 gap-2 animate-pulse">
+          <span class="text-[10px] text-red-500 font-bold uppercase">{{ stats.heavyFiles }} Heavy Assets!</span>
+        </div>
+        <div class="w-8 h-8 rounded-full border border-white/20 overflow-hidden">
+        </div>
+      </div>
+    </nav>
+
+    <div class="border-b border-white/10 px-6 overflow-x-auto bg-black/30 custom-scrollbar-hide">
+      <div class="flex gap-6 text-sm text-gray-400 pt-3">
+        <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            @click="activeFilter = tab.id"
+            class="pb-3 border-b transition-all whitespace-nowrap"
+            :class="[
+            activeFilter === tab.id
+              ? (tab.special ? 'text-red-500 border-red-500' : 'text-white border-white')
+              : `border-transparent hover:text-${tab.special ? 'red-400' : 'white'}`,
+            tab.special ? 'font-bold' : ''
+          ]"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
     </div>
 
-    <div class="relative z-10 max-w-[1400px] mx-auto px-6 py-12 lg:py-20">
-
-      <!-- Header -->
-      <header class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-8">
-        <div class="space-y-4">
-          <div class="flex items-center gap-5">
-            <Image
-                src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png"
-                alt="Vatts Logo"
-                width="64"
-                height="64"
-                class="w-16 h-16 object-contain"
-            />
-            <h1 class="text-5xl font-extrabold tracking-tight text-white">
-              Vatts<span :style="{ color: primaryColor }">.js</span>
-            </h1>
-          </div>
-          <p class="text-slate-400 max-w-lg text-lg leading-relaxed font-medium">
-            The future of fullstack development. High-performance diagnostics and
-            secure authentication built directly into the core.
-          </p>
+    <main class="p-6 max-w-7xl mx-auto space-y-8 relative z-10">
+      <div class="flex justify-between items-center gap-4">
+        <div class="relative w-full max-w-xl">
+          <input
+              v-model="searchTerm"
+              type="text"
+              placeholder="Search resources (name, path, initiator...)"
+              class="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-white/30 transition-all"
+          />
+          <svg class="absolute left-3 top-2.5 text-gray-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
         </div>
-
-        <div class="flex gap-6 items-center border-l border-slate-800 pl-8">
-          <div class="text-center">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">Status</p>
-            <div class="flex items-center gap-2 font-mono text-sm" :style="{ color: primaryColor }">
-              <div
-                  class="w-2 h-2 rounded-full animate-pulse"
-                  :style="{ backgroundColor: primaryColor, boxShadow: `0 0 8px ${primaryColor}` }"
-              />
-              OPERATIONAL
-            </div>
-          </div>
-          <div class="text-center">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">Engine</p>
-            <p class="text-slate-200 font-mono text-sm">v{{ version }}</p>
-          </div>
-        </div>
-      </header>
-
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
-        <!-- Identity Section -->
-        <section class="lg:col-span-4">
-          <div class="vatts-card rounded-[2rem] overflow-hidden">
-            <div class="neon-line-header" />
-            <div class="p-8">
-              <div class="flex items-center gap-4 mb-8">
-                <div class="w-8 h-1 rounded-full" :style="{ backgroundColor: primaryColor }" />
-                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Identity</h3>
-              </div>
-
-              <div v-if="status === 'authenticated'" class="space-y-6">
-                <div class="flex items-center gap-5">
-                  <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 flex items-center justify-center border border-white/5 shadow-inner">
-                    <User :style="{ color: primaryColor }" :size="32" />
-                  </div>
-                  <div>
-                    <h4 class="text-xl font-bold text-white">{{ session?.user?.name }}</h4>
-                    <p class="text-slate-500 text-sm font-mono">{{ session?.user?.email }}</p>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3 pt-4">
-                  <div class="p-4 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
-                    <div>
-                      <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Access Level</p>
-                      <p class="text-sm text-slate-200 flex items-center gap-2">
-                        <ShieldCheck :size="14" :style="{ color: primaryColor }"/> Developer
-                      </p>
-                    </div>
-                    <button
-                        @click="signOut()"
-                        class="p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors border border-red-500/10"
-                        title="Exit"
-                    >
-                      <LogOut :size="18" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else class="text-center py-6">
-                <p class="text-slate-400 mb-6 italic">Secure session not detected.</p>
-                <button
-                    @click="router.push('/login')"
-                    href="/login"
-                    class="block w-full py-4 rounded-2xl font-black transition-all active:scale-[0.98] text-center"
-                    :style="{ backgroundColor: primaryColor, color: '#0d0d0d' }"
-                >
-                  Authenticate Now
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Diagnostics Section -->
-        <section class="lg:col-span-8">
-          <div class="vatts-card rounded-[2rem] overflow-hidden relative">
-            <div class="neon-line-header" />
-            <div class="p-8">
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
-                <div class="flex items-center gap-4">
-                  <div class="w-8 h-1 rounded-full" :style="{ backgroundColor: primaryColor }" />
-                  <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Live Diagnostics</h3>
-                </div>
-
-                <button
-                    @click="handleTestConnection"
-                    :disabled="isLoadingServer"
-                    class="btn-primary px-8 py-3 rounded-xl font-bold disabled:opacity-50"
-                >
-                  <div class="flex items-center gap-3">
-                    <Activity :size="18" :class="{ 'animate-spin': isLoadingServer }" />
-                    <span>{{ isLoadingServer ? "Pinging Server..." : "Run System Test" }}</span>
-                  </div>
-                </button>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Terminal Style Box -->
-                <div class="font-mono text-sm text-slate-500 bg-black/40 p-6 rounded-2xl min-h-[220px] border border-white/5">
-                  <p v-if="terminalLines.length === 0" class="opacity-30 italic">// Awaiting execution pulse...</p>
-                  <div v-else>
-                    <p
-                        v-for="(line, i) in terminalLines"
-                        :key="i"
-                        class="mb-2 last:text-white"
-                        :style="{ color: i === terminalLines.length - 1 ? primaryColor : '' }"
-                    >
-                      {{ line }}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Data Display -->
-                <div class="flex flex-col justify-center">
-                  <div v-if="serverData" class="space-y-4 animate-in fade-in zoom-in-95 duration-500">
-                    <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                      <span class="text-slate-500 text-xs flex items-center gap-2"><Cpu :size="14"/> Node Host</span>
-                      <span class="text-white font-bold">{{ serverData.hostname }}</span>
-                    </div>
-                    <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                      <span class="text-slate-500 text-xs flex items-center gap-2"><Activity :size="14"/> Memory</span>
-                      <span class="text-white font-bold">{{ serverData.memoryUsage }}</span>
-                    </div>
-                    <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                      <span class="text-slate-500 text-xs flex items-center gap-2"><Wifi :size="14"/> OS</span>
-                      <span class="text-white font-bold">{{ serverData.platform }}</span>
-                    </div>
-                    <p class="text-[10px] mt-4 truncate font-mono" :style="{ color: `${primaryColor}80` }">
-                      TOKEN: {{ serverData.secretHash }}
-                    </p>
-                  </div>
-                  <div v-else class="text-center p-8 border-2 border-dashed border-white/5 rounded-2xl">
-                    <p class="text-slate-600 text-sm">No data fetched yet.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <button @click="refresh" class="bg-white text-black cursor-pointer px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors shrink-0">
+          Refresh Scan
+        </button>
       </div>
 
-    </div>
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div class="lg:col-span-3 space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-widest">Live Assets ({{ filteredAssets.length }})</h2>
+            <span v-if="activeFilter === 'heavy'" class="text-[10px] text-red-500 font-bold uppercase tracking-widest">
+              Filtering by critical weight
+            </span>
+          </div>
+
+          <div
+              v-for="asset in filteredAssets"
+              :key="asset.id"
+              class="group bg-white/[0.02] border rounded-xl p-5 hover:border-white/20 transition-all cursor-pointer relative overflow-hidden"
+              :class="asset.isHeavy ? 'border-red-500/40 bg-red-500/[0.02]' : 'border-white/10'"
+          >
+            <div v-if="asset.isHeavy" class="absolute top-0 right-0 px-3 py-1 bg-red-500 text-white text-[9px] font-black uppercase tracking-tighter">
+              Heavy Resource
+            </div>
+
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-4 min-w-0">
+                <div class="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center border border-white/5 shrink-0">
+                  <svg v-if="asset.category === 'script'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" class="text-yellow-500">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                    <polyline points="13 2 13 9 20 9"></polyline>
+                  </svg>
+
+                  <svg v-else-if="asset.category === 'image'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" class="text-pink-500">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+
+                  <svg v-else-if="asset.category === 'style'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" class="text-blue-500">
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+
+                  <svg v-else-if="asset.category === 'api'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" class="text-green-500">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                  </svg>
+
+                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" class="text-gray-400">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-medium text-[15px] group-hover:underline truncate">{{ asset.name }}</h3>
+                  <p class="text-xs text-gray-500 font-mono truncate max-w-lg">{{ asset.path }}</p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2 shrink-0">
+                <span class="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 font-bold uppercase text-gray-400">
+                  {{ asset.initiator }}
+                </span>
+                <span class="text-[11px] text-gray-500 font-mono">{{ asset.protocol }}</span>
+              </div>
+            </div>
+
+            <div class="mt-6 flex items-center gap-6 text-xs text-gray-400">
+              <div class="flex items-center gap-1.5" :class="{ 'text-red-400 font-bold': asset.isHeavy }">
+                <div class="w-2 h-2 rounded-full" :class="asset.isHeavy ? 'bg-red-500 animate-pulse' : 'bg-blue-500'"></div>
+                {{ asset.size.toFixed(2) }} KB
+              </div>
+              <div class="flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                {{ asset.duration }}ms
+              </div>
+              <div class="text-[10px] text-gray-600 uppercase font-bold tracking-tighter">
+                Start: {{ asset.startTime }}ms
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-widest">Performance Insights</h2>
+          <div class="bg-white/[0.02] border border-white/10 rounded-xl p-5 space-y-6">
+            <div class="space-y-2">
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Total Page Weight</span>
+                <span class="text-white font-mono">{{ (stats.totalSize / 1024).toFixed(2) }} MB</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div class="h-full bg-white transition-all duration-500" :style="{ width: `${Math.min((stats.totalSize / 5000 * 100), 100)}%` }"></div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Avg. Response Time</span>
+                <span class="text-white font-mono">{{ stats.avgLoadTime.toFixed(0) }}ms</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 transition-all duration-500" style="width: 45%"></div>
+              </div>
+            </div>
+
+            <div class="pt-4 border-t border-white/5 flex flex-col gap-3">
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Total Requests</span>
+                <span class="text-white">{{ stats.totalRequests }}</span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Critical Weight (&gt;500KB)</span>
+                <span :class="[stats.heavyFiles > 0 ? 'text-red-500 font-black' : 'text-green-500', 'font-bold']">
+                  {{ stats.heavyFiles }}
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          <div v-if="stats.heavyFiles > 0" class="bg-red-500/10 border border-red-500/20 rounded-xl p-5 border-l-4 border-l-red-500">
+            <h4 class="text-sm font-bold text-red-500 mb-1 flex items-center gap-2">
+              ⚠️ Performance Alert
+            </h4>
+            <p class="text-xs text-gray-400 mb-4">You have {{ stats.heavyFiles }} files slowing down the page. This might increase bounce rate on mobile devices.</p>
+            <button @click="activeFilter = 'heavy'" class="text-xs text-white underline decoration-white/30 hover:decoration-white transition-all">
+              Inspect heavy files
+            </button>
+          </div>
+
+          <div v-else class="bg-green-500/10 border border-green-500/20 rounded-xl p-5 border-l-4 border-l-green-500">
+            <h4 class="text-sm font-bold text-green-500 mb-1 flex items-center gap-2">
+              ✅ System Optimized
+            </h4>
+            <p class="text-xs text-gray-400">No critical assets detected. Everything is within the safe weight limits.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div class="fixed inset-0 pointer-events-none grid-bg z-0"></div>
   </div>
 </template>
 
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
-
-body {
-  overflow-x: hidden;
-  background-color: #0d0d0d;
-  font-family: 'Inter', sans-serif;
+<style scoped>
+.grid-bg {
+  background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(circle at center, black, transparent 90%);
 }
 
-.neon-line-header {
-  height: 1px;
-  width: 100%;
-  background: linear-gradient(90deg, transparent, #e85d04, #ff6b35, transparent);
-  box-shadow: 0 0 15px rgba(255, 107, 53, 0.4);
+.custom-scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.vatts-card {
-  background: rgba(10, 10, 12, 0.95);
-  border: 1px solid rgba(255, 107, 53, 0.1);
-  box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.8);
-  transition: all 0.3s ease;
-}
-
-.vatts-card:hover {
-  border-color: rgba(255, 107, 53, 0.25);
-}
-
-.btn-primary {
-  background: rgba(255, 107, 53, 0.1);
-  color: #ff6b35;
-  border: 1px solid rgba(255, 107, 53, 0.2);
-  transition: all 0.2s ease;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: rgba(255, 107, 53, 0.15);
-  box-shadow: 0 0 20px rgba(255, 107, 53, 0.25);
+.custom-scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 </style>

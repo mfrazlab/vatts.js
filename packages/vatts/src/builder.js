@@ -22,6 +22,15 @@ const fs = require('fs');
 const { readdir, stat, rm } = require("node:fs/promises");
 const { loadTsConfigPaths, resolveTsConfigAlias } = require('./tsconfigPaths');
 
+// --- Optimization Plugins ---
+let terser, replace;
+try {
+    terser = require('@rollup/plugin-terser');
+    replace = require('@rollup/plugin-replace');
+} catch (e) {
+    Console.warn("Optimization plugins (@rollup/plugin-terser, @rollup/plugin-replace) not found. Build will be larger.");
+}
+
 // Import Framework specific builders
 const { createReactConfig } = require('./react/react.build');
 const { createVueConfig } = require('./vue/vue.build');
@@ -56,7 +65,7 @@ const markdownPlugin = () => {
     };
 };
 
-const customPostCssPlugin = (isProduction) => {
+const customPostCssPlugin = (isProduction, isWatch = false) => {
     let cachedProcessor = null;
     let configLoaded = false;
 
@@ -106,26 +115,51 @@ const customPostCssPlugin = (isProduction) => {
 
     return {
         name: 'custom-postcss-plugin',
+        // O load hook anterior estava causando conflitos com o watch interno do Rollup.
+        // Removemos ele e usamos addWatchFile no transform.
         async transform(code, id) {
             if (!id.endsWith('.css')) return null;
+
+            // Garante que o Rollup vigie este arquivo explicitamente
+            if (isWatch) {
+                this.addWatchFile(id);
+            }
+
             const processor = await initPostCss(process.cwd());
             let processedCss = code;
+
             if (processor) {
                 try {
                     const result = await processor.process(code, { from: id, to: id, map: false });
                     processedCss = result.css;
                 } catch (e) { Console.warn(`PostCSS process error:`, e.message); }
             }
+
             const cleanName = path.basename(id).split('?')[0];
+            // Sanitiza o nome para usar como ID no DOM
+            const safeId = cleanName.replace(/[^a-zA-Z0-9-_]/g, '_');
             const referenceId = this.emitFile({ type: 'asset', name: cleanName, source: processedCss });
+
+            // Lógica melhorada para injetar o CSS:
+            // 1. Usa um ID único para evitar tags <link> duplicadas.
+            // 2. Adiciona um timestamp (?t=...) no href se estiver em dev para quebrar o cache do navegador.
             return {
                 code: `
                 const cssUrl = String(import.meta.ROLLUP_FILE_URL_${referenceId});
                 if (typeof document !== 'undefined') {
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.href = cssUrl;
-                    document.head.appendChild(link);
+                    const linkId = 'vatts-css-' + "${safeId}";
+                    let link = document.getElementById(linkId);
+                    
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.id = linkId;
+                        link.rel = 'stylesheet';
+                        document.head.appendChild(link);
+                    }
+                    
+                    // Em dev, força o reload do CSS adicionando timestamp
+                    const timestamp = ${isWatch ? 'Date.now()' : 'null'};
+                    link.href = timestamp ? (cssUrl + '?t=' + timestamp) : cssUrl;
                 }
                 export default cssUrl;
             `,
@@ -200,6 +234,59 @@ const nodeBuiltIns = [
     'util', 'v8', 'vm', 'zlib', 'module', 'worker_threads', 'perf_hooks'
 ];
 
+// --- Optimization Logic ---
+
+function getOptimizationPlugins(isProduction) {
+    const plugins = [];
+    const env = isProduction ? 'production' : 'development';
+
+    if (replace) {
+        plugins.push(replace({
+            'process.env.NODE_ENV': JSON.stringify(env),
+            'process.env': JSON.stringify({ NODE_ENV: env }),
+            'process.browser': 'true',
+            '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })',
+            preventAssignment: true,
+            objectGuards: true
+        }));
+    }
+
+    if (isProduction && terser) {
+        plugins.push(terser({
+            ecma: 2020,
+            module: true,
+            toplevel: true,
+            compress: {
+                passes: 3,
+                pure_getters: true,
+                unsafe: true,
+                unsafe_arrows: true,
+                unsafe_methods: true,
+                unsafe_proto: true,
+                booleans_as_integers: true,
+                drop_console: true,
+                drop_debugger: true,
+                keep_fargs: false,
+                hoist_funs: true,
+                hoist_vars: true,
+                reduce_funcs: true,
+                reduce_vars: true,
+                pure_funcs: ['console.info', 'console.debug', 'console.warn', 'console.log', 'Object.freeze']
+            },
+            mangle: {
+                properties: false,
+                toplevel: true,
+            },
+            format: {
+                comments: false,
+                wrap_func_args: false,
+            }
+        }));
+    }
+
+    return plugins;
+}
+
 // --- Core Logic ---
 
 function detectFramework(projectDir = process.cwd()) {
@@ -215,16 +302,14 @@ function detectFramework(projectDir = process.cwd()) {
     return 'react';
 }
 
-async function getFrameworkConfig(entryPoint, outdir, isProduction) {
+async function getFrameworkConfig(entryPoint, outdir, isProduction, isWatch = false) {
     const framework = detectFramework();
 
-    // Plugins que rodam ANTES da resolução de módulos (Configuração, Bloqueios de Framework incorreto)
     const prePlugins = [
         tsconfigPathsPlugin(process.cwd()),
         {
             name: 'block-vue-artifacts-generic',
             load(id) {
-                // Se não for vue, bloqueia artifacts. O build.vue lida com o inverso.
                 if (framework !== 'vue' && (id.endsWith('.vue') || id.endsWith('.vue.js'))) {
                     return 'export default {};';
                 }
@@ -233,21 +318,22 @@ async function getFrameworkConfig(entryPoint, outdir, isProduction) {
         }
     ];
 
-    // Plugins que rodam DEPOIS da transformação do Framework (Markdown, CSS, Assets)
-    // Isso é crucial para o Vue, pois o CSS é gerado dinamicamente e precisa ser pego aqui.
     const postPlugins = [
         markdownPlugin(),
-        customPostCssPlugin(isProduction),
+        customPostCssPlugin(isProduction, isWatch),
         smartAssetPlugin(isProduction)
     ];
 
     const pluginConfig = { prePlugins, postPlugins };
+    let config;
 
     if (framework === 'vue') {
-        return await createVueConfig(entryPoint, outdir, isProduction, pluginConfig);
+        config = await createVueConfig(entryPoint, outdir, isProduction, pluginConfig);
     } else {
-        return await createReactConfig(entryPoint, outdir, isProduction, pluginConfig);
+        config = await createReactConfig(entryPoint, outdir, isProduction, pluginConfig);
     }
+
+    return config;
 }
 
 // --- Build Functions ---
@@ -256,25 +342,75 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
     await cleanDirectoryExcept(outdir, 'temp');
 
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, isProduction);
+        const inputOptions = await getFrameworkConfig(entryPoint, outdir, isProduction, false);
         inputOptions.external = nodeBuiltIns;
+
+        if (isProduction) {
+            inputOptions.treeshake = {
+                preset: 'smallest',
+                moduleSideEffects: (id) => !id.includes('node_modules') || id.endsWith('.css') || id.includes('entry.client'),
+                propertyReadSideEffects: false,
+                tryCatchDeoptimization: false
+            };
+        }
+
+        const optimizationPlugins = getOptimizationPlugins(isProduction);
+        const replacePlugin = optimizationPlugins.find(p => p.name === 'replace');
+        const otherPlugins = optimizationPlugins.filter(p => p.name !== 'replace');
+
+        if (replacePlugin) inputOptions.plugins.unshift(replacePlugin);
+        inputOptions.plugins.push(...otherPlugins);
+
+        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } };`;
 
         const outputOptions = {
             dir: outdir,
             format: 'es',
-            entryFileNames: isProduction ? 'main-[hash].js' : 'main.js',
-            chunkFileNames: 'chunks/[name]-[hash].js',
-            assetFileNames: 'assets/[name]-[hash][extname]',
+            entryFileNames: isProduction ? 'main.[hash].js' : 'main.js',
+            chunkFileNames: 'chunks/[name].[hash].js',
+            assetFileNames: 'assets/[name].[hash][extname]',
             sourcemap: !isProduction,
             compact: isProduction,
+            intro: processPolyfill,
             manualChunks(id) {
                 if (id.includes('node_modules')) {
                     const normalizedId = id.replace(/\\/g, '/');
-                    if (/\/node_modules\/(react|react-dom|scheduler|prop-types|loose-envify|object-assign)\//.test(normalizedId)) return 'vendor-react';
-                    if (/\/node_modules\/(vue|@vue)\//.test(normalizedId)) return 'vendor-vue';
-                    if (id.includes('framer-motion') || id.includes('@radix-ui') || id.includes('@headlessui')) return 'vendor-ui';
-                    if (id.includes('lodash') || id.includes('date-fns') || id.includes('axios')) return 'vendor-utils';
-                    return 'vendor';
+
+                    // --- VUE SPLITTING AVANÇADO ---
+                    if (/\/node_modules\/vue-router\//.test(normalizedId)) return 'vendor-vue-router';
+                    if (/\/node_modules\/(pinia|vuex)\//.test(normalizedId)) return 'vendor-vue-store';
+
+                    // Separa os modulos internos do Vue para evitar um chunk gigante
+                    if (/\/node_modules\/(vue|@vue)\//.test(normalizedId)) {
+                        if (normalizedId.includes('/runtime-core')) return 'vendor-vue-runtime-core';
+                        if (normalizedId.includes('/runtime-dom')) return 'vendor-vue-runtime-dom';
+                        if (normalizedId.includes('/reactivity')) return 'vendor-vue-reactivity';
+                        if (normalizedId.includes('/shared')) return 'vendor-vue-shared';
+                        if (normalizedId.includes('/compiler-')) return 'vendor-vue-compiler';
+                        return 'vendor-vue-core';
+                    }
+
+                    // --- REACT SPLITTING AVANÇADO ---
+                    // Separa DOM de Core e Scheduler
+                    if (/\/node_modules\/react-dom\//.test(normalizedId)) return 'vendor-react-dom';
+                    if (/\/node_modules\/scheduler\//.test(normalizedId)) return 'vendor-react-scheduler';
+                    if (/\/node_modules\/react-router/.test(normalizedId)) return 'vendor-react-router';
+                    if (/\/node_modules\/react\//.test(normalizedId)) return 'vendor-react-core';
+
+                    // --- UI LIBS (Granular) ---
+                    if (id.includes('framer-motion')) return 'vendor-framer';
+                    if (id.includes('@radix-ui')) return 'vendor-radix';
+                    if (id.includes('@headlessui')) return 'vendor-headless';
+                    if (id.includes('@heroicons')) return 'vendor-icons';
+
+                    // --- UTILS ---
+                    if (id.includes('lodash')) return 'vendor-lodash';
+                    if (id.includes('date-fns') || id.includes('moment')) return 'vendor-date';
+                    if (id.includes('axios')) return 'vendor-axios';
+
+                    // Resto cai em vendor-libs genérico para não criar 1 arquivo por pacote,
+                    // mas já tiramos o peso pesado acima.
+                    return 'vendor-libs';
                 }
             }
         };
@@ -294,8 +430,25 @@ async function build(entryPoint, outfile, isProduction = false) {
     await cleanDirectoryExcept(outdir, 'temp');
 
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, isProduction);
+        const inputOptions = await getFrameworkConfig(entryPoint, outdir, isProduction, false);
         inputOptions.external = nodeBuiltIns;
+
+        if (isProduction) {
+            inputOptions.treeshake = {
+                preset: 'smallest',
+                moduleSideEffects: (id) => !id.includes('node_modules') || id.endsWith('.css') || id.includes('entry.client'),
+                propertyReadSideEffects: false
+            };
+        }
+
+        const optimizationPlugins = getOptimizationPlugins(isProduction);
+        const replacePlugin = optimizationPlugins.find(p => p.name === 'replace');
+        const otherPlugins = optimizationPlugins.filter(p => p.name !== 'replace');
+
+        if (replacePlugin) inputOptions.plugins.unshift(replacePlugin);
+        inputOptions.plugins.push(...otherPlugins);
+
+        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } };`;
 
         const outputOptions = {
             file: outfile,
@@ -303,7 +456,9 @@ async function build(entryPoint, outfile, isProduction = false) {
             name: 'Vattsjs',
             sourcemap: !isProduction,
             inlineDynamicImports: true,
-            compact: true
+            compact: true,
+            annotations: true,
+            intro: processPolyfill
         };
 
         const bundle = await rollup(inputOptions);
@@ -315,8 +470,6 @@ async function build(entryPoint, outfile, isProduction = false) {
         process.exit(1);
     }
 }
-
-// --- Watch Functions ---
 
 function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
     let currentBuildId = 0;
@@ -359,14 +512,22 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
 async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
     await cleanDirectoryExcept(outdir, 'temp');
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, false);
+        const inputOptions = await getFrameworkConfig(entryPoint, outdir, false, true);
         inputOptions.external = nodeBuiltIns;
+
+        const optimizationPlugins = getOptimizationPlugins(false);
+        inputOptions.plugins = [...inputOptions.plugins, ...optimizationPlugins];
+
+        const processPolyfill = `var process = { env: { NODE_ENV: "development" } };`;
 
         const outputOptions = {
             dir: outdir,
             format: 'es',
             entryFileNames: 'main.js',
-            sourcemap: true
+            // CHANGE: Remove hash in watch mode to prevent file accumulation in assets folder
+            assetFileNames: 'assets/[name][extname]',
+            sourcemap: true,
+            intro: processPolyfill
         };
         const watchOptions = {
             ...inputOptions,
@@ -386,13 +547,21 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
 async function watch(entryPoint, outfile, hotReloadManager = null) {
     const outdir = path.dirname(outfile);
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, false);
+        const inputOptions = await getFrameworkConfig(entryPoint, outdir, false, true);
         inputOptions.external = nodeBuiltIns;
+
+        const optimizationPlugins = getOptimizationPlugins(false);
+        inputOptions.plugins = [...inputOptions.plugins, ...optimizationPlugins];
+
+        const processPolyfill = `var process = { env: { NODE_ENV: "development" } };`;
 
         const outputOptions = {
             file: outfile,
             format: 'es',
-            sourcemap: true
+            // CHANGE: Remove hash in watch mode to prevent file accumulation
+            assetFileNames: 'assets/[name][extname]',
+            sourcemap: true,
+            intro: processPolyfill
         };
         const watchOptions = {
             ...inputOptions,

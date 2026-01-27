@@ -54,11 +54,13 @@ const vueScriptFixPlugin = () => {
  * @param {Array} plugins.postPlugins - Plugins para rodar DEPOIS do framework (CSS, Assets, Markdown)
  */
 async function createVueConfig(entryPoint, outdir, isProduction, { prePlugins = [], postPlugins = [] } = {}) {
+
     const replaceValues = {
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
         'process.env.PORT': JSON.stringify(process.vatts?.port || 3000),
         '__VUE_OPTIONS_API__': JSON.stringify(true),
-        '__VUE_PROD_DEVTOOLS__': JSON.stringify(!isProduction)
+        '__VUE_PROD_DEVTOOLS__': JSON.stringify(!isProduction),
+        preventAssignment: true
     };
 
     let vuePlugin = null;
@@ -77,8 +79,12 @@ async function createVueConfig(entryPoint, outdir, isProduction, { prePlugins = 
         const vueFactory = vuePkg.default || vuePkg;
         if (typeof vueFactory === 'function') {
             vuePlugin = vueFactory({
+                // [OPTIMIZATION] Informa explicitamente que é produção para otimizações internas do Vue
+                isProduction: isProduction,
                 compilerOptions: {
-                    isCustomElement: (tag) => tag.includes('-')
+                    isCustomElement: (tag) => tag.includes('-'),
+                    // [FIX] Remove comentários HTML (<!-- ... -->) do template compilado
+                    comments: false
                 }
             });
         }
@@ -97,19 +103,19 @@ async function createVueConfig(entryPoint, outdir, isProduction, { prePlugins = 
 
     return {
         input: entryPoint,
+        // [OPTIMIZATION] Preset 'smallest' é o mais agressivo do Rollup
         treeshake: {
             moduleSideEffects: 'no-external',
-            preset: isProduction ? 'recommended' : 'smallest'
+            preset: isProduction ? 'smallest' : 'recommended',
+            propertyReadSideEffects: false,
+            tryCatchDeoptimization: false
         },
         cache: isProduction ? true : false,
         perf: false,
         maxParallelFileOps: 20,
 
         plugins: [
-            replace({
-                preventAssignment: true,
-                values: replaceValues
-            }),
+            replace(replaceValues),
 
             // Plugins de Infra (TSConfig, etc)
             ...prePlugins,
@@ -137,22 +143,28 @@ async function createVueConfig(entryPoint, outdir, isProduction, { prePlugins = 
 
             commonjs({
                 sourceMap: !isProduction,
-                requireReturnsDefault: 'auto',
-                ignoreTryCatch: true
+                // [FIX] 'preferred' ajuda o Rollup a escolher o export default correto para Vue/Libs
+                requireReturnsDefault: 'preferred',
+                ignoreTryCatch: true,
+                transformMixedEsModules: true,
+                esmExternals: false // Garante que deps CommonJS sejam empacotadas
             }),
 
             // Plugins de Assets/CSS rodam DEPOIS do Vue ter gerado os arquivos virtuais de estilo
             ...postPlugins,
 
-            jsonPlugin(),
+            jsonPlugin({
+                compact: true
+            }),
 
             esbuild({
                 include: /\.[jt]sx?$|\.vue\?vue.*lang\.ts/,
                 exclude: /node_modules/,
                 sourceMap: !isProduction,
-                minify: isProduction,
+                // [OPTIMIZATION] Mantemos false aqui pois o Terser (no bundler principal) fará o trabalho pesado
+                minify: false,
                 legalComments: 'none',
-                treeShaking: isProduction,
+                treeShaking: true,
                 target: 'esnext',
                 jsx: 'automatic',
                 define: { __VERSION__: '"1.0.0"' },
