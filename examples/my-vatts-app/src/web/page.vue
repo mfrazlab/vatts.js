@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useSession } from '@vatts/auth/vue';
-import { importServer, Link } from 'vatts/vue';
+import {importServer, Link, router} from 'vatts/vue';
 import { Terminal, Cpu, Wifi, Activity, User, LogOut, ShieldCheck } from 'lucide-vue-next';
 import {Image} from "vatts/vue";
 
@@ -145,13 +145,14 @@ export const config: RouteConfig = {
 
               <div v-else class="text-center py-6">
                 <p class="text-slate-400 mb-6 italic">Secure session not detected.</p>
-                <Link
+                <button
+                    @click="router.push('/login')"
                     href="/login"
                     class="block w-full py-4 rounded-2xl font-black transition-all active:scale-[0.98] text-center"
                     :style="{ backgroundColor: primaryColor, color: '#0d0d0d' }"
                 >
                   Authenticate Now
-                </Link>
+                </button>
               </div>
             </div>
           </div>

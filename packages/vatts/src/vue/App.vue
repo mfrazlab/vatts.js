@@ -1,27 +1,47 @@
+<!--
+  This file is part of the Vatts.js Project.
+  Copyright (c) 2026 mfraz
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 <template>
-  <div>
-    <!-- Renderiza o Layout se existir, envolvendo o conteúdo -->
-    <component :is="resolvedLayout" v-if="resolvedLayout">
-      <component :is="resolvedContent" v-bind="contentProps" :key="`page-${hmrTimestamp}`" />
-    </component>
-
-    <!-- Se não tiver layout, renderiza o conteúdo direto -->
-    <component v-else :is="resolvedContent" v-bind="contentProps" :key="`page-${hmrTimestamp}`" />
-
-    <!-- Dev Tools / Indicadores -->
-    <DevIndicator
-        v-if="isDev"
-        :has-build-error="!!buildError"
-        @click-build-error="isErrorOpen = true"
+  <component :is="resolvedLayout" v-if="resolvedLayout">
+    <component
+        :is="resolvedContent"
+        v-bind="contentProps"
+        :key="`page-${hmrTimestamp}-${currentPathKey}`"
     />
+  </component>
 
-    <ErrorModal
-        :error="buildError"
-        :is-open="isErrorOpen"
-        @close="isErrorOpen = false"
-        @copy="copyBuildError"
-    />
-  </div>
+  <component
+      v-else
+      :is="resolvedContent"
+      v-bind="contentProps"
+      :key="`page-${hmrTimestamp}-${currentPathKey}`"
+  />
+
+  <DevIndicator
+      v-if="isDev"
+      :has-build-error="!!buildError"
+      @click-build-error="isErrorOpen = true"
+  />
+
+  <ErrorModal
+      :error="buildError"
+      :is-open="isErrorOpen"
+      @close="isErrorOpen = false"
+      @copy="copyBuildError"
+  />
 </template>
 
 <script setup>
@@ -35,13 +55,14 @@ const props = defineProps({
   componentMap: Object,
   routes: Array,
   initialComponentPath: String,
-  initialParams: null, // Aceita qualquer tipo
-  layoutComponent: null // Aceita componente ou null
+  initialParams: null,
+  layoutComponent: null
 });
 
 // --- Estado ---
 const hmrTimestamp = ref(Date.now());
-// Removemos as tipagens e asserções "as any" diretas onde não são necessárias em JS
+const currentPathKey = ref(window.location.pathname); // Mantendo a correção da rota anterior
+
 const buildError = ref(window.__VATTS_BUILD_ERROR__ || null);
 const isErrorOpen = ref(!!window.__VATTS_BUILD_ERROR__);
 const isDev = process.env.NODE_ENV !== 'production';
@@ -96,10 +117,14 @@ const params = ref({});
 
 const updateRoute = () => {
   const currentPath = window.location.pathname.replace("index.html", '');
-  const match = findRouteForPath(currentPath);
 
+  // Atualiza a chave para garantir re-render na mesma rota com params diferentes
+  currentPathKey.value = currentPath;
+
+  const match = findRouteForPath(currentPath);
   if (match) {
     CurrentPageComponent.value = props.componentMap[match.componentPath];
+    console.log(props.componentMap[match.componentPath] || 'null')
     params.value = match.params;
 
     if (match.metadata?.title != null) {
@@ -111,14 +136,14 @@ const updateRoute = () => {
   }
 };
 
-// --- Computed para resolver o conteúdo final (404 vs Página) ---
+// --- Computed ---
 const resolvedContent = computed(() => {
   if (!CurrentPageComponent.value || props.initialComponentPath === '__404__') {
     const NotFoundComponent = window.__VATTS_NOT_FOUND__;
     if (NotFoundComponent) return NotFoundComponent;
 
     const DefaultNotFound = window.__VATTS_DEFAULT_NOT_FOUND__;
-    return DefaultNotFound || 'div'; // Fallback seguro
+    return DefaultNotFound || 'div';
   }
   return CurrentPageComponent.value;
 });
@@ -132,43 +157,30 @@ const resolvedLayout = computed(() => {
   return props.layoutComponent || null;
 });
 
-// --- Lifecycle & Listeners ---
+// --- Lifecycle ---
 onMounted(() => {
-  // Inicializa rota
   updateRoute();
 
-  // Listeners de Build
   window.addEventListener('vatts:build-error', handleBuildError);
   window.addEventListener('vatts:build-ok', handleBuildOk);
-
-  // Listeners de Rota
   window.addEventListener('popstate', updateRoute);
+
   const unsubscribeRouter = router.subscribe(updateRoute);
 
-  // HMR Listener
   window.__HWEB_HMR__ = true;
   const handleHMRUpdate = (event) => {
     const { file, timestamp } = event.detail;
-    const fileName = file ? file.split('/').pop()?.split('\\').pop() : 'unknown';
-    console.log('🔥 HMR: Component Update Triggered', fileName);
-
     try {
       hmrTimestamp.value = timestamp;
       window.__HMR_SUCCESS__ = true;
-      setTimeout(() => {
-        window.__HMR_SUCCESS__ = false;
-      }, 3000);
-
-      // Força update da rota caso o componente tenha mudado
+      setTimeout(() => { window.__HMR_SUCCESS__ = false; }, 3000);
       updateRoute();
     } catch (error) {
       console.error('❌ HMR Error:', error);
-      window.__HMR_SUCCESS__ = false;
     }
   };
   window.addEventListener('hmr:component-update', handleHMRUpdate);
 
-  // Cleanup
   onUnmounted(() => {
     window.removeEventListener('vatts:build-error', handleBuildError);
     window.removeEventListener('vatts:build-ok', handleBuildOk);

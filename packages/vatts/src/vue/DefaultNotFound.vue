@@ -1,3 +1,19 @@
+<!--
+  This file is part of the Vatts.js Project.
+  Copyright (c) 2026 mfraz
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 <script setup>
 import { ref, onMounted } from 'vue';
 
@@ -87,18 +103,9 @@ const reload = () => {
   box-sizing: border-box;
 }
 
-/* Em componentes Vue, estilos 'scoped' aplicam-se apenas a este componente.
-  Para garantir o fundo preto total, usamos :global(body) ou aplicamos ao container fixo.
+/* REMOVIDO :global(body).
+  Os estilos globais foram movidos para .container para não afetar o resto do site.
 */
-:global(body) {
-  margin: 0;
-  padding: 0;
-  background-color: #000000;
-  color: #ffffff;
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
-}
 
 .container {
   position: fixed;
@@ -113,7 +120,12 @@ const reload = () => {
   justify-content: center;
   width: 100vw;
   height: 100vh;
+  /* Estilos que antes estavam no body: */
   background: #000000;
+  color: #ffffff;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 .card {

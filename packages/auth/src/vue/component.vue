@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * This file is part of the Vatts.js Project.
- * Copyright (c) 2026 itsmuzin
+ * Copyright (c) 2026 mfraz
  */
 import { useSessionProviderLogic } from './session';
 

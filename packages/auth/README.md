@@ -45,7 +45,7 @@ ___
 
 ## License
 
-Copyright 2026 itsmuzin
+Copyright 2026 mfraz
 
 This project is licensed under the [Apache License 2.0](../../LICENSE).
 

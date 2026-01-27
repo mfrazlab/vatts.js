@@ -14,16 +14,20 @@ ___
 
 ## Getting Started
 
-**Vatts.js** is a modern, full-featured web framework for **Node.js**, designed to deliver **high performance**, **true simplicity**, and a **smooth developer experience** from the very first command.
+**Vatts.js** is a modern, full-featured web framework for **Node.js** with first-class support for **React and Vue**.
 
-It removes unnecessary configuration and complex abstractions, allowing you to focus on what truly matters: **building fast, secure, and scalable applications**.
+It is a **multi-framework platform**, allowing you to build applications using **either React or Vue per project** — not both at the same time.  
+This keeps the ecosystem clean, predictable, and optimized for performance and tooling.
+
+Vatts removes unnecessary configuration and complex abstractions, allowing you to focus on what truly matters: **building fast, secure, and scalable applications**.
 
 ### Why choose Vatts.js?
-- Extremely fast — architecture optimized for low overhead
-- Intuitive API — easy to learn and pleasant to use
-- Productivity from the first minute — zero unnecessary boilerplate
-- Full integration between backend and frontend
-- Built for modern projects — TypeScript-friendly, modular, and extensible
+-  Extremely fast — architecture optimized for low overhead
+-  Intuitive API — easy to learn and pleasant to use
+-  Productivity from the first minute — zero unnecessary boilerplate
+-  Multi-framework — choose **React or Vue per project**
+-  Full integration between backend and frontend
+-  Built for modern projects — TypeScript-friendly, modular, and extensible
 
 ___
 
