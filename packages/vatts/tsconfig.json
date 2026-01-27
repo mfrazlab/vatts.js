@@ -11,7 +11,8 @@
     "jsx": "react",
     "moduleResolution": "nodenext",
     "rewriteRelativeImportExtensions": true,
-    "allowJs": true
+    "allowJs": true,
+    "types": ["node"]
   },
   "include": ["src", "src/**/*.vue"],
   "exclude": ["node_modules", "dist"]

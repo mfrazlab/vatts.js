@@ -15,7 +15,7 @@
     "prismjs": "^1.30.0",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
-    "vatts": "file:D:/Projetos/Vatts/packages/vatts/vatts-1.2.3.tgz",
+    "vatts": "^1.2.4",
     "vue": "^3.5.27"
   },
   "devDependencies": {
