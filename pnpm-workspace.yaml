@@ -2,8 +2,10 @@ packages:
   - packages/*
   - examples/*
   - docs/
+  - services/*
 
 ignoredBuiltDependencies:
   - esbuild
+  - koffi
   - sharp
   - unrs-resolver

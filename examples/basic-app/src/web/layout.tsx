@@ -1,8 +1,6 @@
 import React from 'react';
 import {Metadata, router} from "vatts/react"
 import './globals.css';
-import {AnimatePresence, motion} from "framer-motion";
-import {SessionProvider} from "@vatts/auth/react";
 
 interface LayoutProps {
     children: React.ReactNode;

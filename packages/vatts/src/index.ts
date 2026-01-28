@@ -40,7 +40,7 @@ import {
     processWebSocketRoutes,
     setupWebSocketUpgrade
 } from './router';
-// import { renderAsStream } from './renderer'; // REMOVIDO: Carregamento dinâmico agora
+
 import {VattsRequest, VattsResponse} from './api/http';
 import {HotReloadManager} from './hotReload';
 import {FrameworkAdapterFactory} from './adapters/factory';
@@ -251,37 +251,6 @@ export type { WebSocketContext, WebSocketHandler } from './types';
 export type { VattsConfig, VattsConfigFunction } from './types';
 
 // Função para verificar se o projeto é grande o suficiente para se beneficiar de chunks
-function isLargeProject(projectDir: string): boolean {
-    try {
-        const srcDir = path.join(projectDir, 'src');
-        if (!fs.existsSync(srcDir)) return false;
-
-        let totalFiles = 0;
-        let totalSize = 0;
-
-        function scanDirectory(dir: string) {
-            const items = fs.readdirSync(dir, { withFileTypes: true });
-
-            for (const item of items) {
-                const fullPath = path.join(dir, item.name);
-
-                if (item.isDirectory() && item.name !== 'node_modules' && item.name !== '.git') {
-                    scanDirectory(fullPath);
-                } else if (item.isFile() && /\.(tsx?|jsx?|css|scss|less)$/i.test(item.name)) {
-                    totalFiles++;
-                    totalSize += fs.statSync(fullPath).size;
-                }
-            }
-        }
-
-        scanDirectory(srcDir);
-
-        return totalFiles > 20 || totalSize > 500 * 1024;
-    } catch (error) {
-        return false;
-    }
-}
-
 // Função para gerar o arquivo de entrada para o esbuild
 function createEntryFile(projectDir: string, routes: (RouteConfig & { componentPath: string })[], framework: 'react' | 'vue'): string {
 
@@ -378,8 +347,9 @@ import '${relativeEntryPath}';
 }
 
 export default function vatts(options: VattsOptions) {
-    const { dev = true, dir = process.cwd(), port = 3000, envFiles } = options;
+    const { dev = true, dir = process.cwd(), envFiles } = options;
     loadEnv({ dir, dev, envFiles });
+
     // @ts-ignore
     process.vatts = options;
     // @ts-ignore
@@ -548,7 +518,7 @@ export default function vatts(options: VattsOptions) {
 
                 const {hostname} = req.headers;
                 const method = (genericReq.method || 'GET').toUpperCase();
-                const urlObj = new URL(genericReq.url, `http://${hostname}:${port}`);
+                const urlObj = new URL(genericReq.url, `http://${hostname}:${config?.port}`);
                 const pathname = urlObj.pathname;
                 if (pathname === RPC_ENDPOINT && method === 'POST') {
                     try {
@@ -634,12 +604,28 @@ export default function vatts(options: VattsOptions) {
                     const requestPath = pathname.replace('/_vatts/', '');
 
                     if (!isSuspiciousPathname(requestPath)) {
-                        const filePath = resolveWithin(staticPath, requestPath);
+                        let filePath = resolveWithin(staticPath, requestPath);
+                        let isGzipped = false;
+
+                        // --- LÓGICA GZIP (Compatibilidade com Otimizador Go) ---
+                        // Se o arquivo solicitado termina em .js e NÃO existe fisicamente (foi deletado pelo otimizador),
+                        // tentamos encontrar a versão .js.gz
+                        if (filePath && !fs.existsSync(filePath) && filePath.endsWith('.js')) {
+                            const gzipPath = filePath + '.gz';
+                            if (fs.existsSync(gzipPath)) {
+                                filePath = gzipPath;
+                                isGzipped = true;
+                            }
+                        }
 
                         // Verifica se existe E se é arquivo
                         if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
                             const stats = fs.statSync(filePath);
-                            const ext = path.extname(filePath).toLowerCase();
+
+                            // Se for GZIP, usamos '.js' para definir o Content-Type correto (application/javascript),
+                            // caso contrário, pegamos a extensão real do arquivo.
+                            const ext = isGzipped ? '.js' : path.extname(filePath).toLowerCase();
+
                             const contentTypes: Record<string, string> = {
                                 '.js': 'application/javascript',
                                 '.css': 'text/css',
@@ -657,16 +643,20 @@ export default function vatts(options: VattsOptions) {
                                 genericRes.header('Pragma', 'no-cache');
                                 genericRes.header('Expires', '0');
                             } else {
-                                // Em produção, mantemos o cache agressivo (assumindo hash nos arquivos exceto entry points)
-                                // Dica: Se o main.js de prod também não tiver hash, use 'no-cache' nele também
+                                // Em produção, mantemos o cache agressivo
                                 genericRes.header('Cache-Control', 'public, max-age=31536000, immutable');
+                            }
+
+                            // --- HEADER VITAL PARA GZIP ---
+                            if (isGzipped) {
+                                genericRes.header('Content-Encoding', 'gzip');
                             }
 
                             const lastModified = stats.mtime.toUTCString();
                             genericRes.header('Last-Modified', lastModified);
                             genericRes.header('Content-Type', contentTypes[ext] || 'text/plain');
 
-                            // Lógica 304 (Mantida igual, pois ajuda na performance mesmo em dev se o arquivo n mudou nada)
+                            // Lógica 304
                             const ifModifiedSince = req.headers['if-modified-since'];
                             if (ifModifiedSince) {
                                 const requestDate = new Date(ifModifiedSince).getTime();
@@ -692,8 +682,7 @@ export default function vatts(options: VattsOptions) {
                             return; // Encerra aqui com sucesso
 
                         } else {
-                            // CORREÇÃO 2: Se o arquivo não existe, retornamos 404 AQUI.
-                            // Isso impede que o código continue e caia na rota de renderização do HTML (SPA Fallback)
+                            // CORREÇÃO 2: 404 para assets não encontrados
                             if (adapter.type === 'express') {
                                 (res as any).status(404).send('Vatts Asset Not Found');
                             } else {

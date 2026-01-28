@@ -14,12 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 const { rollup, watch: rollupWatch } = require('rollup');
 const path = require('path');
 const Console = require("./api/console").default;
 const fs = require('fs');
-const { readdir, stat, rm } = require("node:fs/promises");
+const crypto = require('crypto');
+const { readdir, stat, rm, rename } = require("node:fs/promises");
 const { loadTsConfigPaths, resolveTsConfigAlias } = require('./tsconfigPaths');
 
 // --- Optimization Plugins ---
@@ -115,12 +115,9 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
 
     return {
         name: 'custom-postcss-plugin',
-        // O load hook anterior estava causando conflitos com o watch interno do Rollup.
-        // Removemos ele e usamos addWatchFile no transform.
         async transform(code, id) {
             if (!id.endsWith('.css')) return null;
 
-            // Garante que o Rollup vigie este arquivo explicitamente
             if (isWatch) {
                 this.addWatchFile(id);
             }
@@ -135,14 +132,15 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
                 } catch (e) { Console.warn(`PostCSS process error:`, e.message); }
             }
 
-            const cleanName = path.basename(id).split('?')[0];
-            // Sanitiza o nome para usar como ID no DOM
-            const safeId = cleanName.replace(/[^a-zA-Z0-9-_]/g, '_');
-            const referenceId = this.emitFile({ type: 'asset', name: cleanName, source: processedCss });
+            // --- FIX: Evitar colisão de nomes usando Hash do ID ---
+            const hash = crypto.createHash('md5').update(id).digest('hex').slice(0, 8);
+            const baseName = path.basename(id).split('?')[0];
+            const uniqueName = `${hash}-${baseName}`;
 
-            // Lógica melhorada para injetar o CSS:
-            // 1. Usa um ID único para evitar tags <link> duplicadas.
-            // 2. Adiciona um timestamp (?t=...) no href se estiver em dev para quebrar o cache do navegador.
+            // Sanitiza o nome para usar como ID no DOM
+            const safeId = uniqueName.replace(/[^a-zA-Z0-9-_]/g, '_');
+            const referenceId = this.emitFile({ type: 'asset', name: uniqueName, source: processedCss });
+
             return {
                 code: `
                 const cssUrl = String(import.meta.ROLLUP_FILE_URL_${referenceId});
@@ -157,7 +155,6 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
                         document.head.appendChild(link);
                     }
                     
-                    // Em dev, força o reload do CSS adicionando timestamp
                     const timestamp = ${isWatch ? 'Date.now()' : 'null'};
                     link.href = timestamp ? (cssUrl + '?t=' + timestamp) : cssUrl;
                 }
@@ -198,6 +195,11 @@ const smartAssetPlugin = (isProduction) => {
             let buffer = await fs.promises.readFile(cleanId);
             const size = buffer.length;
 
+            // --- FIX: Evitar colisão de nomes em assets estáticos ---
+            const hash = crypto.createHash('md5').update(cleanId).digest('hex').slice(0, 8);
+            const baseName = path.basename(cleanId);
+            const uniqueName = `${hash}-${baseName}`;
+
             if (type === 'svg') {
                 if (size < INLINE_LIMIT) {
                     const content = buffer.toString('utf8');
@@ -207,7 +209,7 @@ const smartAssetPlugin = (isProduction) => {
                         export const svgContent = ${JSON.stringify(content)};
                     `;
                 } else {
-                    const referenceId = this.emitFile({ type: 'asset', name: path.basename(cleanId), source: buffer });
+                    const referenceId = this.emitFile({ type: 'asset', name: uniqueName, source: buffer });
                     const content = buffer.toString('utf8');
                     return `
                         export default String(import.meta.ROLLUP_FILE_URL_${referenceId});
@@ -220,7 +222,7 @@ const smartAssetPlugin = (isProduction) => {
                 const base64 = buffer.toString('base64');
                 return `export default "data:${type};base64,${base64}";`;
             } else {
-                const referenceId = this.emitFile({ type: 'asset', name: path.basename(cleanId), source: buffer });
+                const referenceId = this.emitFile({ type: 'asset', name: uniqueName, source: buffer });
                 return `export default String(import.meta.ROLLUP_FILE_URL_${referenceId});`;
             }
         }
@@ -376,11 +378,9 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
                 if (id.includes('node_modules')) {
                     const normalizedId = id.replace(/\\/g, '/');
 
-                    // --- VUE SPLITTING AVANÇADO ---
                     if (/\/node_modules\/vue-router\//.test(normalizedId)) return 'vendor-vue-router';
                     if (/\/node_modules\/(pinia|vuex)\//.test(normalizedId)) return 'vendor-vue-store';
 
-                    // Separa os modulos internos do Vue para evitar um chunk gigante
                     if (/\/node_modules\/(vue|@vue)\//.test(normalizedId)) {
                         if (normalizedId.includes('/runtime-core')) return 'vendor-vue-runtime-core';
                         if (normalizedId.includes('/runtime-dom')) return 'vendor-vue-runtime-dom';
@@ -390,26 +390,20 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
                         return 'vendor-vue-core';
                     }
 
-                    // --- REACT SPLITTING AVANÇADO ---
-                    // Separa DOM de Core e Scheduler
                     if (/\/node_modules\/react-dom\//.test(normalizedId)) return 'vendor-react-dom';
                     if (/\/node_modules\/scheduler\//.test(normalizedId)) return 'vendor-react-scheduler';
                     if (/\/node_modules\/react-router/.test(normalizedId)) return 'vendor-react-router';
                     if (/\/node_modules\/react\//.test(normalizedId)) return 'vendor-react-core';
 
-                    // --- UI LIBS (Granular) ---
                     if (id.includes('framer-motion')) return 'vendor-framer';
                     if (id.includes('@radix-ui')) return 'vendor-radix';
                     if (id.includes('@headlessui')) return 'vendor-headless';
                     if (id.includes('@heroicons')) return 'vendor-icons';
 
-                    // --- UTILS ---
                     if (id.includes('lodash')) return 'vendor-lodash';
                     if (id.includes('date-fns') || id.includes('moment')) return 'vendor-date';
                     if (id.includes('axios')) return 'vendor-axios';
 
-                    // Resto cai em vendor-libs genérico para não criar 1 arquivo por pacote,
-                    // mas já tiramos o peso pesado acima.
                     return 'vendor-libs';
                 }
             }
@@ -418,6 +412,59 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
         const bundle = await rollup(inputOptions);
         await bundle.write(outputOptions);
         await bundle.close();
+
+        // --- Native Optimization Integration ---
+        if (isProduction) {
+            try {
+                // Dynamically require to avoid issues if file doesn't exist in dev/non-opt environments
+                // Assuming ./api/optimizer matches the transpiled location of src/optimizer.ts
+                const { runOptimizer } = require('./api/optimizer');
+
+                const optimizedDir = path.join(outdir, 'optimized');
+
+                // 1. Run Optimizer
+                runOptimizer({
+                    targetDir: outdir,
+                    outputDir: optimizedDir,
+                    // Ignore already optimized assets or node_modules if present
+                    ignoredPatterns: ['assets']
+                });
+
+                // 2. Cleanup: Remove original main*.js and chunks folder from root
+                const rootFiles = await readdir(outdir);
+                for (const file of rootFiles) {
+                    // Match main.js, main.hash.js, etc and the chunks directory
+                    if ((file.startsWith('main') && file.endsWith('.js')) || file === 'chunks') {
+                        await rm(path.join(outdir, file), { recursive: true, force: true });
+                    }
+                }
+
+                // 3. Move optimized files back to root
+                if (fs.existsSync(optimizedDir)) {
+                    const optFiles = await readdir(optimizedDir);
+                    for (const file of optFiles) {
+                        const srcPath = path.join(optimizedDir, file);
+                        const destPath = path.join(outdir, file);
+
+                        // Force remove destination if it exists (e.g. if assets folder exists and we are moving optimized/assets)
+                        // This prevents EEXIST errors on rename
+                        await rm(destPath, { recursive: true, force: true });
+
+                        await rename(srcPath, destPath);
+                    }
+                    // Remove the now empty optimized directory
+                    await rm(optimizedDir, { recursive: true, force: true });
+                }
+
+                Console.log("✅ Build successfully optimized with native optimizer.");
+
+            } catch (err) {
+                Console.error('Native optimization failed:', err);
+                // Not exiting process here to allow build to "succeed" even if optimization fails,
+                // though files might be in a weird state.
+                // If critical, uncomment: process.exit(1);
+            }
+        }
 
     } catch (error) {
         Console.error('An error occurred while building with chunks:', error);
@@ -524,7 +571,6 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
             dir: outdir,
             format: 'es',
             entryFileNames: 'main.js',
-            // CHANGE: Remove hash in watch mode to prevent file accumulation in assets folder
             assetFileNames: 'assets/[name][extname]',
             sourcemap: true,
             intro: processPolyfill
@@ -558,7 +604,6 @@ async function watch(entryPoint, outfile, hotReloadManager = null) {
         const outputOptions = {
             file: outfile,
             format: 'es',
-            // CHANGE: Remove hash in watch mode to prevent file accumulation
             assetFileNames: 'assets/[name][extname]',
             sourcemap: true,
             intro: processPolyfill

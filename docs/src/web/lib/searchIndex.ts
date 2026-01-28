@@ -111,6 +111,10 @@ import layoutVue from "../docs/vatts/vue/layout.md"
 import routingVue from "../docs/vatts/vue/routing.md"
 import rpcVue from "../docs/vatts/vue/rpc.md"
 import componentsVue from "../docs/vatts/vue/components.md"
+
+
+import configFile from "../docs/vatts/configFile.md"
+
 export const sidebarConfig = {
     sections: [
         {
@@ -138,7 +142,7 @@ export const sidebarConfig = {
                         vue: projectStructureVue
                     },
                 },
-
+                {id: 'configuration', icon: 'FaCog', label: 'Configuration', file: configFile},
                 { id: "layout", icon: "FaDiagramProject", label: "Layout System", file: {
                     react: layoutMd,
                         vue: layoutVue

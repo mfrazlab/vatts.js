@@ -26,8 +26,10 @@ import path from 'path';
 import vatts, {FrameworkAdapterFactory} from './index.js'; // Importando o tipo
 import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
 import Console, {Colors} from "./api/console";
-import https, { Server as HttpsServer } from 'https'; // <-- ADICIONAR
-import fs from 'fs'; // <-- ADICIONAR
+import https, { Server as HttpsServer } from 'https';
+import http2, { Http2SecureServer } from 'http2'; // <-- ADICIONADO: Import do HTTP/2
+import fs from 'fs';
+import startProxy from "./api/http3";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -75,7 +77,8 @@ function getLocalExternalIp(): string {
 
 const sendBox = (options: VattsOptions) => {
     const isDev = options.dev;
-    const isSSL = options.ssl && options.ssl.key && options.ssl.cert;
+    // @ts-ignore
+    const isSSL = config.ssl && config.ssl.key && config.ssl.cert;
     const protocol = isSSL ? 'https' : 'http';
     const localIp = getLocalExternalIp();
 
@@ -91,16 +94,18 @@ const sendBox = (options: VattsOptions) => {
     console.log(timer + labelStyle + ' Access on:')
     console.log(' ')
     // 1. Local (Alinhamento: Local tem 6 letras + 4 espaços = 10)
-    console.info(timer + `${labelStyle}  ┃  Local:${Colors.Reset}    ${urlStyle}${protocol}://localhost:${options.port}${Colors.Reset}`);
+    console.info(timer + `${labelStyle}  ┃  Local:${Colors.Reset}    ${urlStyle}${protocol}://localhost:${config?.port}${Colors.Reset}`);
 
     // 2. Network (Alinhamento: Network tem 8 letras + 2 espaços = 10)
     if (localIp) {
-        console.info(timer + `${labelStyle}  ┃  Network:${Colors.Reset}  ${urlStyle}${protocol}://${localIp}:${options.port}${Colors.Reset}`);
+        console.info(timer + `${labelStyle}  ┃  Network:${Colors.Reset}  ${urlStyle}${protocol}://${localIp}:${config?.port}${Colors.Reset}`);
     }
 
     // 3. Infos Extras (Redirect HTTP -> HTTPS)
-    if (isSSL && options.ssl?.redirectPort) {
-        console.info(timer + `${labelStyle}  ┃  Redirect:${Colors.Reset} ${labelStyle}port ${options.ssl.redirectPort} ➜ https${Colors.Reset}`);
+    // @ts-ignore
+    if (isSSL && config.ssl?.redirectPort) {
+        // @ts-ignore
+        console.info(timer + `${labelStyle}  ┃  Redirect:${Colors.Reset} ${labelStyle}port ${config.ssl.redirectPort} ➜ https${Colors.Reset}`);
     }
 
     // 4. Info de Ambiente
@@ -128,7 +133,8 @@ export async function loadVattsConfig(projectDir: string, phase: string): Promis
         maxUrlLength: 2048,
         accessLogging: true,
         envFiles: [],
-        pathRouter: false
+        pathRouter: false,
+        port: 3000
     };
 
     try {
@@ -256,7 +262,7 @@ function applyCors(req: IncomingMessage, res: ServerResponse, corsConfig?: Vatts
 
 /**
  * Middleware para parsing do body com proteções de segurança (versão melhorada).
-*/
+ */
 
 const parseBody = (req: IncomingMessage): Promise<object | string | null> => {
     // Constantes para limites de segurança
@@ -340,7 +346,7 @@ export function setConfig(newConfig: VattsConfig) {
 /**
  * Inicializa servidor nativo do Vatts.js usando HTTP ou HTTPS
  */
-async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port: number, hostname: string) {
+async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostname: string) {
     const time = Date.now();
 
     const projectDir = options.dir || process.cwd();
@@ -353,7 +359,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port:
     await vattsApp.prepare();
 
     const handler = vattsApp.getRequestHandler();
-    const msg = Console.dynamicLine(`${Colors.Bright}Starting Vatts.js on port ${options.port}${Colors.Reset}`);
+    const msg = Console.dynamicLine(`${Colors.Bright}Starting Vatts.js on port ${config?.port}${Colors.Reset}`);
 
     // --- LÓGICA DO LISTENER (REUTILIZÁVEL) ---
     // Extraímos a lógica principal para uma variável
@@ -452,7 +458,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port:
             req.body = await parseBody(req); // Assumindo que parseBody existe
 
             // Adiciona host se não existir (necessário para `new URL`)
-            req.headers.host = req.headers.host || `localhost:${port}`;
+            req.headers.host = req.headers.host || `localhost:${config?.port}`;
 
 
             await handler(req, res);
@@ -491,72 +497,76 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, port:
     };
     // --- FIM DO LISTENER ---
 
-    let server: Server | HttpsServer; // O tipo do servidor pode variar
-    const isSSL = options.ssl && options.ssl.key && options.ssl.cert;
+    // Sempre criamos um servidor HTTP padrão do Node.js.
+    // Se estivermos em modo SSL (HTTP/3), este servidor será apenas o "backend" local.
+    const server = http.createServer(requestListener as any);
 
-    if (isSSL && options.ssl) {
+    // Configurações de timeout (aplicam-se ao backend)
+    server.setTimeout(vattsConfig.serverTimeout || 35000);
+    // @ts-ignore
+    if (server.maxHeadersCount) server.maxHeadersCount = vattsConfig.maxHeadersCount || 100;
+    // @ts-ignore
+    if (server.headersTimeout) server.headersTimeout = vattsConfig.headersTimeout || 60000;
+    // @ts-ignore
+    if (server.requestTimeout) server.requestTimeout = vattsConfig.requestTimeout || 30000;
 
-        const sslOptions = {
-            key: fs.readFileSync(options.ssl.key),
-            cert: fs.readFileSync(options.ssl.cert),
-            ca: options.ssl.ca ? fs.readFileSync(options.ssl.ca) : undefined
-        };
+    const isSSL = config.ssl && config.ssl.key && config.ssl.cert;
 
-        // 1. Cria o servidor HTTPS principal
-        server = https.createServer(sslOptions, requestListener as any);
+    if (isSSL) {
+        // --- MODO SSL (HTTP/3 Proxy Nativo) ---
 
-        // 2. Cria o servidor de REDIRECIONAMENTO (HTTP -> HTTPS)
-        const httpRedirectPort = options.ssl.redirectPort;
-        http.createServer((req, res) => {
-            // Evita host header injection/open redirect: prefere hostname configurado
-            const rawHost = String(req.headers['host'] || '').trim();
-            const configuredHost = (options.hostname || hostname || '').trim();
+        // 1. Definição da Porta do Backend (Onde o Node.js vai rodar escondido)
+        // Se a porta pública for 3000, usamos 3001 para o backend para não dar conflito de porta presa.
+        const backendPort = config.ssl?.backendPort
 
-            let hostToUse = configuredHost;
+        // 2. Portas Públicas
+        const publicPort = config.port! || 443;
+        const redirectPort = config.ssl?.redirectPort || 80;
 
-            // Se não tiver hostname configurado, tenta usar Host do request com validação básica
-            if (!hostToUse) {
-                const hostWithoutPort = rawHost.split(':')[0];
-                // allowlist: hostname simples (sem espaços, sem barras), e sem caracteres perigosos
-                const isValidHost = /^[a-zA-Z0-9.-]+$/.test(hostWithoutPort) && !hostWithoutPort.includes('..');
-                hostToUse = isValidHost ? hostWithoutPort : 'localhost';
+        // 3. Inicia o Node.js em localhost (Backend)
+        server.listen(backendPort, '127.0.0.1', () => {
+            try {
+                // 4. Inicia o Proxy Go (HTTP/3 + Fallback H2/H1)
+                // Isso não bloqueia o Node, roda em background via CGO
+                startProxy({
+                    httpPort: `:${redirectPort}`,      // Porta para redirecionar HTTP -> HTTPS
+                    httpsPort: `:${publicPort}`,      // Porta Principal (UDP/TCP)
+                    backendUrl: `http://127.0.0.1:${backendPort}`, // Para onde enviar o tráfego
+                    certPath: config?.ssl?.cert!,
+                    keyPath: config?.ssl?.key!
+                });
+
+                // Atualiza o box de info para mostrar a porta pública correta
+                sendBox({ ...options });
+
+                msg.end(
+                    `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (HTTP/3 Enabled) ${Colors.Reset}\n` +
+                    `${Colors.Dim} ↳ Backend active on 127.0.0.1:${backendPort}${Colors.Reset}\n` +
+                    `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
+                );
+
+            } catch (err: any) {
+                Console.error(`${Colors.FgRed}[Critical] Failed to start Native HTTP/3 Proxy:${Colors.Reset} ${err.message}`);
+                // Opcional: Fallback ou exit. Geralmente se o SSL falhar, melhor parar.
+                process.exit(1);
             }
-
-            // Monta a URL de redirecionamento
-            let redirectUrl = `https://${hostToUse}`;
-            // Adiciona a porta HTTPS apenas se não for a padrão (443)
-            if (port !== 443) {
-                redirectUrl += `:${port}`;
-            }
-            redirectUrl += req.url || '/';
-
-            res.writeHead(301, { 'Location': redirectUrl });
-            res.end();
-        }).listen(httpRedirectPort, hostname, () => {});
+        });
 
     } else {
-        // --- MODO HTTP (Original) ---
-        // Cria o servidor HTTP nativo
-        server = http.createServer(requestListener as any);
+        // --- MODO HTTP CLÁSSICO (Sem SSL) ---
+        // Roda direto na porta configurada, exposto para o mundo
+        server.listen(config?.port, hostname, () => {
+            sendBox({ ...options });
+            msg.end(`${Colors.Bright}Ready on port ${Colors.BgGreen} ${config?.port} ${Colors.Reset}${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`);
+        });
     }
 
-    // Configurações de segurança do servidor (usa configuração personalizada)
-    server.setTimeout(vattsConfig.serverTimeout || 35000); // Timeout geral do servidor
-    server.maxHeadersCount = vattsConfig.maxHeadersCount || 100; // Limita número de headers
-    server.headersTimeout = vattsConfig.headersTimeout || 60000; // Timeout para headers
-    server.requestTimeout = vattsConfig.requestTimeout || 30000; // Timeout para requisições
-
-    server.listen(port, hostname, () => {
-        sendBox({ ...options, port });
-        msg.end(`${Colors.Bright}Ready on port ${Colors.BgGreen} ${options.port} ${Colors.Reset}${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`);
-    });
-
-    // Configura WebSocket para hot reload (Comum a ambos)
+    // Configura WebSocket (Funciona através do Proxy pois ele suporta upgrade de conexão)
     vattsApp.setupWebSocket(server);
     vattsApp.executeInstrumentation();
+
     return server;
 }
-
 // --- Função Principal ---
 
 export function app(options: VattsOptions = {}) {
@@ -621,7 +631,7 @@ export function app(options: VattsOptions = {}) {
         },
 
         /**
-             * Inicia um servidor Vatts.js fechado (o usuário não tem acesso ao framework)
+         * Inicia um servidor Vatts.js fechado (o usuário não tem acesso ao framework)
          */
         init: async () => {
             const currentVersion = require('../package.json').version;
@@ -657,7 +667,6 @@ ${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite} 
 
 
 
-            const actualPort = options.port || 3000;
             const actualHostname = options.hostname || "0.0.0.0";
 
             if (framework !== 'native') {
@@ -666,7 +675,7 @@ ${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite} 
 
 
 
-            return await initNativeServer(vattsApp, options, actualPort, actualHostname);
+            return await initNativeServer(vattsApp, options, actualHostname);
         }
     }
 }

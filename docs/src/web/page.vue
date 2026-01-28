@@ -124,10 +124,10 @@ export function generateMetadata(): Metadata {
     <Navbar />
 
     <section class="relative z-10 pt-24 pb-20 px-6 text-left overflow-hidden border-b border-white/5">
-      <div class="grid-background" />
-      <div class="grid-corner-circle circle-top-left" />
-      <div class="grid-corner-circle circle-bottom-right" />
-
+      <div class="grid-background"> </div>
+      <div class="grid-corner-circle circle-top-left"> </div>
+      <div class="grid-corner-circle circle-bottom-right" > </div>
+<div></div>
       <div class="relative z-10 max-w-5xl mx-auto">
         <div
             class="vatts-reveal vatts-reveal-fade inline-block px-3 py-1 rounded-full border border-gray-500/20 bg-gray-500/5 text-white text-[10px] font-bold uppercase tracking-[0.2em] mb-8"
@@ -192,7 +192,7 @@ export function generateMetadata(): Metadata {
             WebkitMaskImage: `radial-gradient(ellipse 100% 80% at 50% 50%, rgba(0,0,0,1) 45%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,0.2) 85%, transparent 100%)`,
             animation: 'fastReveal 1.5s ease-out forwards'
           }"
-        />
+        ></div>
       </div>
 
       <section class="relative z-10 max-w-6xl mx-auto px-6 py-32">

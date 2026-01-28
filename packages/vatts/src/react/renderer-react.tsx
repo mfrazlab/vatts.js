@@ -146,8 +146,6 @@ interface BuildAssets {
     styles: string[];
 }
 
-// Retorna as URLs dos scripts e CSS
-// Procura em .vatts/ e .vatts/assets/
 function getBuildAssets(req: GenericRequest): BuildAssets | null {
     const projectDir = process.cwd();
     const distDir = path.join(projectDir, '.vatts');
@@ -171,8 +169,9 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
             const stat = fs.statSync(fullPath);
 
             if (stat.isFile()) {
-                if (file.endsWith('.js')) {
-                    scripts.push(`${urlPrefix}/${file}`);
+                // MODIFICADO: Aceita .js OU .js.gz
+                if (file.endsWith('.js') || file.endsWith('.js.gz')) {
+                    scripts.push(`${urlPrefix}/${file.replace(".gz", '')}`);
                 } else if (file.endsWith('.css')) {
                     styles.push(`${urlPrefix}/${file}`);
                 }
@@ -188,8 +187,9 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
             const manifestFiles = Object.values(manifest);
 
             scripts = manifestFiles
-                .filter((f: any) => f.endsWith('.js'))
-                .map((f: any) => `/_vatts/${f}`);
+                // MODIFICADO: Filtra .js E .js.gz no manifesto
+                .filter((f: any) => f.endsWith('.js') || f.endsWith('.js.gz'))
+                .map((f: any) => `/_vatts/${f.replace(".gz", "")}`);
 
             styles = manifestFiles
                 .filter((f: any) => f.endsWith('.css'))
@@ -203,6 +203,7 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
             // Scan em .vatts/assets/ (Assets estáticos, chunks, CSS extraído)
             processDirectory(assetsDir, '/_vatts/assets');
             processDirectory(chunksDir, '/_vatts/chunks');
+
             // Ordenação básica para garantir que o main carregue
             scripts.sort((a, b) => {
                 if (a.includes('main')) return -1;
@@ -220,7 +221,6 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
         return null;
     }
 }
-
 // --- Componentes de Servidor ---
 
 interface ServerRootProps {

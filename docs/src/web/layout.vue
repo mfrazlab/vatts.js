@@ -24,16 +24,7 @@ function onAfterLeave() {
 </script>
 
 <template>
-  <Transition
-      appear
-      name="page-transition"
-      mode="out-in"
-      @after-leave="onAfterLeave"
-  >
-    <div :key="router.pathname" class="bg-black">
-      <slot />
-    </div>
-  </Transition>
+  <slot />
 </template>
 
 <style>

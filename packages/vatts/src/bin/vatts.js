@@ -46,25 +46,8 @@ function initializeApp(options, isDev) {
         port: options.port,
         hostname: options.hostname,
         framework: 'native',
-        ssl: null,
     };
 
-    if (options.ssl) {
-        const sslDir = path.resolve(process.cwd(), 'certs');
-        const keyPath = path.join(sslDir, 'key.pem');
-        const certPath = path.join(sslDir, 'cert.pem');
-
-        if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-            appOptions.ssl = {
-                key: keyPath,
-                cert: certPath
-            };
-            appOptions.ssl.redirectPort = options.httpRedirectPort || 80;
-        } else {
-            Console.error(`SSL Error: Ensure that './certs/key.pem' and './certs/cert.pem' exist.`);
-            process.exit(1);
-        }
-    }
 
     const helperModule = require("../helpers");
     const helper = helperModule.default(appOptions);
@@ -125,6 +108,7 @@ program
     .option('--no-html', 'Do not generate index.html (assets only)')
     .option('--output-h-data <file>', 'Write the data-h value into this file')
     .action(async (options) => {
+        process.env.NODE_ENV = 'production';
         const projectDir = process.cwd();
         const outputInput = (typeof options.output === 'string' && options.output.trim()) || 'exported';
         const exportDirResolved = path.resolve(projectDir, outputInput);

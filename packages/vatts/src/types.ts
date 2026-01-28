@@ -37,15 +37,8 @@ export interface WebSocketContext {
 export interface VattsOptions {
     dev?: boolean;
     hostname?: string;
-    port?: number;
     dir?: string;
     framework?: 'express' | 'fastify' | 'native';
-    ssl?: {
-        redirectPort: number;
-        key: string;
-        cert: string;
-        ca?: string;
-    };
     envFiles?: string[];
 }
 
@@ -56,7 +49,14 @@ export interface VattsOptions {
  * Essas configurações podem ser definidas no arquivo vatts.config.js
  */
 export interface VattsConfig {
-
+    port: number
+    ssl?: {
+        backendPort: number;
+        redirectPort: number;
+        key: string;
+        cert: string;
+        ca?: string;
+    };
     /**
      * Prefere utilizar rotas por path, sem precisar registrar?
      * Padrão: false

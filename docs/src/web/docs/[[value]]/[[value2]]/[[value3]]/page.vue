@@ -27,7 +27,7 @@ import 'prismjs/components/prism-markup'; // Necessário para HTML/Vue
 import {
   Zap, Book, BookOpen, Package, ChevronLeft, ChevronRight, ChevronDown,
   Download, FileText, Settings, GitCompare, Github, Globe, Palette,
-  Shield, Wrench, Code, Lock, Box, Workflow, Home, Search
+  Shield, Wrench, Code, Lock, Box, Workflow, Home, Search, Cog
 } from 'lucide-vue-next';
 
 // Imports do framework Vatts
@@ -104,7 +104,8 @@ const iconMap: { [key: string]: any } = {
   FaBox: Package,
   FaBook: Book,
   FaShield: Shield,
-  FaLock: Lock
+  FaLock: Lock,
+  FaCog: Cog
 };
 
 // --- Component Logic ---

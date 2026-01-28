@@ -1,0 +1,21 @@
+{
+  "name": "core-go",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "setup:tools": "go install mvdan.cc/garble@latest",
+    "build:win-x64": "set CGO_ENABLED=1&& set GOOS=windows&& set GOARCH=amd64&& set CC=zig cc -target x86_64-windows-gnu&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-win-x64.node -buildmode=c-shared .",
+    "build:win-arm64": "set CGO_ENABLED=1&& set GOOS=windows&& set GOARCH=arm64&& set CC=zig cc -target aarch64-windows-gnu&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-win-arm64.node -buildmode=c-shared .",
+    "build:linux-x64": "set CGO_ENABLED=1&& set GOOS=linux&& set GOARCH=amd64&& set CC=zig cc -target x86_64-linux-gnu&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-linux-x64.node -buildmode=c-shared .",
+    "build:linux-arm64": "set CGO_ENABLED=1&& set GOOS=linux&& set GOARCH=arm64&& set CC=zig cc -target aarch64-linux-gnu&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-linux-arm64.node -buildmode=c-shared .",
+    "build:linux-arm": "set CGO_ENABLED=1&& set GOOS=linux&& set GOARCH=arm&& set CC=zig cc -target arm-linux-gnueabihf&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-linux-arm.node -buildmode=c-shared .",
+    "build:macos-intel": "set CGO_ENABLED=1&& set GOOS=darwin&& set GOARCH=amd64&& set CC=zig cc -target x86_64-macos&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-darwin-x64.node -buildmode=c-shared .",
+    "build:macos-arm": "set CGO_ENABLED=1&& set GOOS=darwin&& set GOARCH=arm64&& set CC=zig cc -target aarch64-macos&& garble -tiny build -ldflags=\"-s -w\" -o ./binaries/core-darwin-arm64.node -buildmode=c-shared .",
+    "build": "set PATH=%USERPROFILE%\\\\go\\\\bin;%PATH% && pnpm run setup:tools && pnpm run build:win-x64 && pnpm run build:linux-x64 && pnpm run build:linux-arm64"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.20.0"
+}
