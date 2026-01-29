@@ -15,7 +15,7 @@ let writer = null;
 let reader = null;
 
 // Configuração
-const TRANSPORT_URL = 'https://127.0.0.1:443/chat';
+const TRANSPORT_URL = 'https://beta.int.mfraz.ovh:4443/chat';
 
 /**
  * Conecta ao servidor WebTransport
@@ -26,15 +26,7 @@ const connect = async () => {
 
     // Inicializa WebTransport
     transport = new WebTransport(TRANSPORT_URL, {
-      serverCertificateHashes: [{
-        algorithm: 'sha-256',
-        value: new Uint8Array([
-          0xbb, 0x17, 0x0a, 0x4f, 0xae, 0xce, 0x24, 0xf6,
-          0xcc, 0x1a, 0x87, 0xae, 0x77, 0xbc, 0xcc, 0xfb,
-          0x1e, 0x04, 0x75, 0xba, 0x19, 0x56, 0xf6, 0xc9,
-          0x88, 0xfe, 0x76, 0x74, 0x68, 0x69, 0x6c, 0x0f
-        ])
-      }]
+      
     });
     await transport.ready;
 

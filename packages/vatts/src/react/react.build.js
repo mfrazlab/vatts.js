@@ -34,9 +34,6 @@ async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins 
     const replaceValues = {
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
         'process.env.PORT': JSON.stringify(process.vatts?.port || 3000),
-        // [FIX] Define o hook do DevTools como um objeto vazio seguro caso não exista,
-        // evitando o ReferenceError em builds de produção ou ambientes restritos.
-        '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })',
         preventAssignment: true
     };
 
@@ -64,6 +61,7 @@ async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins 
         plugins: [
             replace(replaceValues),
 
+            // Injeta plugins como o Virtual Entry ANTES da resolução de módulos padrão
             ...prePlugins,
 
             nodeResolve({

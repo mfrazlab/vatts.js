@@ -35,6 +35,109 @@ try {
 const { createReactConfig } = require('./react/react.build');
 const { createVueConfig } = require('./vue/vue.build');
 
+// --- Virtual Entry Plugin ---
+const virtualEntryPlugin = (options) => {
+    const { routes, layout, notFound, framework, projectDir, pathRouter } = options;
+    const virtualEntryId = 'virtual:vatts-entry';
+    const resolvedEntryId = '\0' + virtualEntryId;
+
+    return {
+        name: 'vatts-virtual-entry',
+        resolveId(id) {
+            if (id === virtualEntryId) {
+                return resolvedEntryId;
+            }
+            return null;
+        },
+        load(id) {
+            if (id === resolvedEntryId) {
+                // Generate imports for routes
+                const imports = routes
+                    .map((route, index) => {
+                        const componentPath = route.componentPath.replace(/\\/g, '/');
+                        return `import route${index} from '${componentPath}';`;
+                    })
+                    .join('\n');
+
+                // Generate layout import
+                const layoutImport = layout
+                    ? `import LayoutComponent from '${layout.componentPath.replace(/\\/g, '/')}';`
+                    : '';
+
+                // Generate NotFound import
+                const notFoundImport = notFound
+                    ? `import NotFoundComponent from '${notFound.componentPath.replace(/\\/g, '/')}';`
+                    : '';
+
+                // Determine default Not Found path (internal to Vatts)
+                // We use absolute path to be safe
+                // [FIX] Removido 'dist' extra do caminho. O __dirname já aponta para a dist quando compilado.
+                const defaultNotFoundFilename = framework === 'vue' ? 'DefaultNotFound.vue' : 'DefaultNotFound.js';
+                const defaultNotFoundPath = path.join(__dirname, framework, defaultNotFoundFilename).replace(/\\/g, '/');
+                
+                // Component Registration Logic
+                let componentRegistration;
+                if (pathRouter === true) {
+                    componentRegistration = routes
+                        .map((route, index) => {
+                            const key = route.componentPath.replace(/\\/g, '/');
+                            return `  '${key}': route${index} || route${index}.default,`;
+                        })
+                        .join('\n');
+                } else {
+                    if (framework === 'vue') {
+                        componentRegistration = routes
+                            .map((route, index) => {
+                                const key = route.componentPath.replace(/\\/g, '/');
+                                return `  '${key}': route${index} || route${index}.default,`;
+                            })
+                            .join('\n');
+                    } else {
+                        componentRegistration = routes
+                            .map((route, index) => {
+                                const key = route.componentPath.replace(/\\/g, '/');
+                                return `  '${key}': route${index} || route${index}.default,`;
+                            })
+                            .join('\n');
+                    }
+                }
+
+                const layoutRegistration = layout
+                    ? `window.__VATTS_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
+                    : `window.__VATTS_LAYOUT__ = null;`;
+
+                const notFoundRegistration = notFound
+                    ? `window.__VATTS_NOT_FOUND__ = NotFoundComponent.default || NotFoundComponent;`
+                    : `window.__VATTS_NOT_FOUND__ = null;`;
+
+                // Framework Client Entry
+                // [FIX] Removido 'dist' extra do caminho.
+                const entryClientFilename = 'entry.client.js';
+                const entryClientPath = path.join(__dirname, framework, entryClientFilename).replace(/\\/g, '/');
+
+                return `// Arquivo gerado virtualmente pelo vatts
+${imports}
+${layoutImport}
+${notFoundImport}
+import DefaultNotFound from '${defaultNotFoundPath}';
+
+window.__VATTS_COMPONENTS__ = {
+${componentRegistration}
+};
+
+${layoutRegistration}
+${notFoundRegistration}
+
+window.__VATTS_DEFAULT_NOT_FOUND__ = DefaultNotFound;
+
+import '${entryClientPath}';
+`;
+            }
+            return null;
+        }
+    };
+};
+
 // --- Common Plugins Definitions ---
 
 const tsconfigPathsPlugin = (projectDir = process.cwd()) => {
@@ -132,12 +235,10 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
                 } catch (e) { Console.warn(`PostCSS process error:`, e.message); }
             }
 
-            // --- FIX: Evitar colisão de nomes usando Hash do ID ---
             const hash = crypto.createHash('md5').update(id).digest('hex').slice(0, 8);
             const baseName = path.basename(id).split('?')[0];
             const uniqueName = `${hash}-${baseName}`;
 
-            // Sanitiza o nome para usar como ID no DOM
             const safeId = uniqueName.replace(/[^a-zA-Z0-9-_]/g, '_');
             const referenceId = this.emitFile({ type: 'asset', name: uniqueName, source: processedCss });
 
@@ -195,7 +296,6 @@ const smartAssetPlugin = (isProduction) => {
             let buffer = await fs.promises.readFile(cleanId);
             const size = buffer.length;
 
-            // --- FIX: Evitar colisão de nomes em assets estáticos ---
             const hash = crypto.createHash('md5').update(cleanId).digest('hex').slice(0, 8);
             const baseName = path.basename(cleanId);
             const uniqueName = `${hash}-${baseName}`;
@@ -247,10 +347,6 @@ function getOptimizationPlugins(isProduction) {
             'process.env.NODE_ENV': JSON.stringify(env),
             'process.env': JSON.stringify({ NODE_ENV: env }),
             'process.browser': 'true',
-            // [FIX] Use bracket notation string replacement.
-            // This prevents SyntaxError "window.({ isDisabled: true })"
-            // and bypasses recursive replacements by downstream plugins.
-            '__REACT_DEVTOOLS_GLOBAL_HOOK__': 'window["__REACT_DEVTOOLS_GLOBAL_HOOK__"]',
             preventAssignment: true,
             objectGuards: true
         }));
@@ -307,11 +403,18 @@ function detectFramework(projectDir = process.cwd()) {
     return 'react';
 }
 
-async function getFrameworkConfig(entryPoint, outdir, isProduction, isWatch = false) {
-    const framework = detectFramework();
+async function getFrameworkConfig(vattsOptions, outdir, isProduction, isWatch = false) {
+    // Determine framework from options or detect
+    const projectDir = vattsOptions.projectDir || process.cwd();
+    const framework = vattsOptions.framework || detectFramework(projectDir);
+    
+    // Ensure framework is in options for plugin
+    vattsOptions.framework = framework;
+    vattsOptions.projectDir = projectDir;
 
     const prePlugins = [
-        tsconfigPathsPlugin(process.cwd()),
+        virtualEntryPlugin(vattsOptions), // Add Virtual Entry Plugin
+        tsconfigPathsPlugin(projectDir),
         {
             name: 'block-vue-artifacts-generic',
             load(id) {
@@ -332,6 +435,9 @@ async function getFrameworkConfig(entryPoint, outdir, isProduction, isWatch = fa
     const pluginConfig = { prePlugins, postPlugins };
     let config;
 
+    // Use virtual entry ID
+    const entryPoint = 'virtual:vatts-entry';
+
     if (framework === 'vue') {
         config = await createVueConfig(entryPoint, outdir, isProduction, pluginConfig);
     } else {
@@ -343,11 +449,12 @@ async function getFrameworkConfig(entryPoint, outdir, isProduction, isWatch = fa
 
 // --- Build Functions ---
 
-async function buildWithChunks(entryPoint, outdir, isProduction = false) {
+// Refactored to accept vattsOptions instead of entryPoint
+async function buildWithChunks(vattsOptions, outdir, isProduction = false) {
     await cleanDirectoryExcept(outdir, 'temp');
 
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, isProduction, false);
+        const inputOptions = await getFrameworkConfig(vattsOptions, outdir, isProduction, false);
         inputOptions.external = nodeBuiltIns;
 
         if (isProduction) {
@@ -366,8 +473,7 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
         if (replacePlugin) inputOptions.plugins.unshift(replacePlugin);
         inputOptions.plugins.push(...otherPlugins);
 
-        // [FIX] Injected polyfill for React DevTools Hook to prevent ReferenceError
-        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
+        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } };`;
 
         const outputOptions = {
             dir: outdir,
@@ -417,56 +523,36 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
         await bundle.write(outputOptions);
         await bundle.close();
 
-        // --- Native Optimization Integration ---
         if (isProduction) {
             try {
-                // Dynamically require to avoid issues if file doesn't exist in dev/non-opt environments
-                // Assuming ./api/optimizer matches the transpiled location of src/optimizer.ts
                 const { runOptimizer } = require('./api/optimizer');
-
                 const optimizedDir = path.join(outdir, 'optimized');
-
-                // 1. Run Optimizer
                 runOptimizer({
                     targetDir: outdir,
                     outputDir: optimizedDir,
-                    // Ignore already optimized assets or node_modules if present
                     ignoredPatterns: ['assets']
                 });
 
-                // 2. Cleanup: Remove original main*.js and chunks folder from root
                 const rootFiles = await readdir(outdir);
                 for (const file of rootFiles) {
-                    // Match main.js, main.hash.js, etc and the chunks directory
                     if ((file.startsWith('main') && file.endsWith('.js')) || file === 'chunks') {
                         await rm(path.join(outdir, file), { recursive: true, force: true });
                     }
                 }
 
-                // 3. Move optimized files back to root
                 if (fs.existsSync(optimizedDir)) {
                     const optFiles = await readdir(optimizedDir);
                     for (const file of optFiles) {
                         const srcPath = path.join(optimizedDir, file);
                         const destPath = path.join(outdir, file);
-
-                        // Force remove destination if it exists (e.g. if assets folder exists and we are moving optimized/assets)
-                        // This prevents EEXIST errors on rename
                         await rm(destPath, { recursive: true, force: true });
-
                         await rename(srcPath, destPath);
                     }
-                    // Remove the now empty optimized directory
                     await rm(optimizedDir, { recursive: true, force: true });
                 }
-
                 Console.log("✅ Build successfully optimized with native optimizer.");
-
             } catch (err) {
                 Console.error('Native optimization failed:', err);
-                // Not exiting process here to allow build to "succeed" even if optimization fails,
-                // though files might be in a weird state.
-                // If critical, uncomment: process.exit(1);
             }
         }
 
@@ -476,12 +562,12 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
     }
 }
 
-async function build(entryPoint, outfile, isProduction = false) {
+async function build(vattsOptions, outfile, isProduction = false) {
     const outdir = path.dirname(outfile);
     await cleanDirectoryExcept(outdir, 'temp');
 
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, isProduction, false);
+        const inputOptions = await getFrameworkConfig(vattsOptions, outdir, isProduction, false);
         inputOptions.external = nodeBuiltIns;
 
         if (isProduction) {
@@ -499,8 +585,7 @@ async function build(entryPoint, outfile, isProduction = false) {
         if (replacePlugin) inputOptions.plugins.unshift(replacePlugin);
         inputOptions.plugins.push(...otherPlugins);
 
-        // [FIX] Injected polyfill for React DevTools Hook
-        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
+        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } };`;
 
         const outputOptions = {
             file: outfile,
@@ -561,17 +646,16 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
     });
 }
 
-async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
+async function watchWithChunks(vattsOptions, outdir, hotReloadManager = null) {
     await cleanDirectoryExcept(outdir, 'temp');
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, false, true);
+        const inputOptions = await getFrameworkConfig(vattsOptions, outdir, false, true);
         inputOptions.external = nodeBuiltIns;
 
         const optimizationPlugins = getOptimizationPlugins(false);
         inputOptions.plugins = [...inputOptions.plugins, ...optimizationPlugins];
 
-        // [FIX] Injected polyfill for React DevTools Hook
-        const processPolyfill = `var process = { env: { NODE_ENV: "development" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
+        const processPolyfill = `var process = { env: { NODE_ENV: "development" } };`;
 
         const outputOptions = {
             dir: outdir,
@@ -584,7 +668,7 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
         const watchOptions = {
             ...inputOptions,
             output: outputOptions,
-            watch: { exclude: 'node_modules/**', clearScreen: false, skipWrite: false, buildDelay: 100 }
+            watch: { exclude: 'node_modules/**', [`${outdir}/**`]: true, clearScreen: false, skipWrite: false, buildDelay: 100 }
         };
         const watcher = rollupWatch(watchOptions);
         await new Promise((resolve) => handleWatcherEvents(watcher, hotReloadManager, resolve));
@@ -596,17 +680,16 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
     }
 }
 
-async function watch(entryPoint, outfile, hotReloadManager = null) {
+async function watch(vattsOptions, outfile, hotReloadManager = null) {
     const outdir = path.dirname(outfile);
     try {
-        const inputOptions = await getFrameworkConfig(entryPoint, outdir, false, true);
+        const inputOptions = await getFrameworkConfig(vattsOptions, outdir, false, true);
         inputOptions.external = nodeBuiltIns;
 
         const optimizationPlugins = getOptimizationPlugins(false);
         inputOptions.plugins = [...inputOptions.plugins, ...optimizationPlugins];
 
-        // [FIX] Injected polyfill for React DevTools Hook
-        const processPolyfill = `var process = { env: { NODE_ENV: "development" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
+        const processPolyfill = `var process = { env: { NODE_ENV: "development" } };`;
 
         const outputOptions = {
             file: outfile,
@@ -618,7 +701,7 @@ async function watch(entryPoint, outfile, hotReloadManager = null) {
         const watchOptions = {
             ...inputOptions,
             output: outputOptions,
-            watch: { exclude: 'node_modules/**', clearScreen: false, buildDelay: 100 }
+            watch: { exclude: 'node_modules/**', [`${outdir}/**`]: true, clearScreen: false, buildDelay: 100 }
         };
         const watcher = rollupWatch(watchOptions);
         await new Promise((resolve) => handleWatcherEvents(watcher, hotReloadManager, resolve));

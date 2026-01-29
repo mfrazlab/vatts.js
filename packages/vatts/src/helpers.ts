@@ -27,9 +27,9 @@ import vatts, {FrameworkAdapterFactory} from './index.js'; // Importando o tipo
 import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
 import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https';
-import http2, { Http2SecureServer } from 'http2'; // <-- ADICIONADO: Import do HTTP/2
+import http2, { Http2SecureServer } from 'http2';
 import fs from 'fs';
-import startProxy, {addTransport, WebTransportClient} from "./api/http3";
+import startProxy from "./api/http3";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -134,7 +134,8 @@ export async function loadVattsConfig(projectDir: string, phase: string): Promis
         accessLogging: true,
         envFiles: [],
         pathRouter: false,
-        port: 3000
+        port: 3000,
+        backendPort: 3001,
     };
 
     try {
@@ -498,7 +499,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     // --- FIM DO LISTENER ---
 
     // Sempre criamos um servidor HTTP padrão do Node.js.
-    // Se estivermos em modo SSL (HTTP/3), este servidor será apenas o "backend" local.
+    // Este servidor será o "backend" local que o Proxy Go vai consumir (escondido).
     const server = http.createServer(requestListener as any);
 
     // Configurações de timeout (aplicam-se ao backend)
@@ -510,109 +511,68 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     // @ts-ignore
     if (server.requestTimeout) server.requestTimeout = vattsConfig.requestTimeout || 30000;
 
-    const isSSL = config.ssl && config.ssl.key && config.ssl.cert;
+    const isSSL = !!(config.ssl && config.ssl.key && config.ssl.cert);
+
+    // --- MODO PROXY NATIVO (SEMPRE ATIVO) ---
+    // Agora usamos o Proxy Go (Vatts Core) para tudo, com ou sem SSL.
+    // Isso garante Shield, Fusion e Cache para todos os usuários.
+
+    // 1. Definição da Porta do Backend (Onde o Node.js vai rodar escondido em localhost)
+    const backendPort = config.backendPort || 3001;
+
+    // 2. Portas Públicas
+    const publicPort = config.port || (isSSL ? 443 : 3000);
+
+    // 3. Configura Argumentos para o Proxy
+    let proxyHttpPort = "";
+    let proxyHttpsPort = "";
+    let certPath = "";
+    let keyPath = "";
 
     if (isSSL) {
-        // --- MODO SSL (HTTP/3 Proxy Nativo) ---
-
-        // 1. Definição da Porta do Backend (Onde o Node.js vai rodar escondido)
-        // Se a porta pública for 3000, usamos 3001 para o backend para não dar conflito de porta presa.
-        const backendPort = config.ssl?.backendPort
-
-        // 2. Portas Públicas
-        const publicPort = config.port! || 443;
+        // Modo SSL: Porta HTTP faz redirect, Porta HTTPS é a principal
         const redirectPort = config.ssl?.redirectPort || 80;
-
-        // 3. Inicia o Node.js em localhost (Backend)
-        server.listen(backendPort, '127.0.0.1', () => {
-            try {
-                // 4. Inicia o Proxy Go (HTTP/3 + Fallback H2/H1)
-                // Isso não bloqueia o Node, roda em background via CGO
-                startProxy({
-                    httpPort: `:${redirectPort}`,      // Porta para redirecionar HTTP -> HTTPS
-                    httpsPort: `:${publicPort}`,      // Porta Principal (UDP/TCP)
-                    backendUrl: `http://127.0.0.1:${backendPort}`, // Para onde enviar o tráfego
-                    certPath: config?.ssl?.cert!,
-                    keyPath: config?.ssl?.key!,
-                    enableWebTransport: true
-                });
-// Lista de clientes conectados na sala
-                const connectedClients = new Set<WebTransportClient>();
-
-// Configura a rota do WebTransport
-                addTransport('/chat', {
-                    onConnect: (client) => {
-                        console.log(`[Chat] Cliente conectado: ${client.id}`);
-                        connectedClients.add(client);
-
-                        // Avisa todo mundo que alguém entrou
-                        broadcast(client.id, JSON.stringify({
-                            type: 'system',
-                            text: `Usuário ${client.id.substring(0, 4)} entrou na sala.`
-                        }));
-                    },
-
-                    onMessage: (client, message) => {
-                        try {
-                            // O frontend manda JSON, a gente repassa pra geral
-                            console.log(`[Chat] Msg de ${client.id}: ${message}`);
-
-                            const payload = JSON.stringify({
-                                type: 'user',
-                                sender: client.id.substring(0, 4),
-                                text: message
-                            });
-
-                            broadcast(null, payload); // Null = envia para todos
-                        } catch (e) {
-                            console.error('Erro ao processar mensagem:', e);
-                        }
-                    },
-
-                    onClose: (client) => {
-                        console.log(`[Chat] Cliente desconectou: ${client.id}`);
-                        connectedClients.delete(client);
-
-                        broadcast(null, JSON.stringify({
-                            type: 'system',
-                            text: `Usuário ${client.id.substring(0, 4)} saiu.`
-                        }));
-                    }
-                });
-
-// Função auxiliar para enviar mensagem para todos
-                function broadcast(senderId: string | null, msg: string) {
-                    for (const client of connectedClients) {
-                        // Opcional: Não enviar de volta para quem mandou (se quiser echo, remova o if)
-                        // if (senderId && client.id === senderId) continue;
-
-                        client.send(msg);
-                    }
-                }
-                // Atualiza o box de info para mostrar a porta pública correta
-                sendBox({ ...options });
-
-                msg.end(
-                    `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (HTTP/3 Enabled) ${Colors.Reset}\n` +
-                    `${Colors.Dim} ↳ Backend active on 127.0.0.1:${backendPort}${Colors.Reset}\n` +
-                    `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
-                );
-
-            } catch (err: any) {
-                Console.error(`${Colors.FgRed}[Critical] Failed to start Native HTTP/3 Proxy:${Colors.Reset} ${err.message}`);
-                // Opcional: Fallback ou exit. Geralmente se o SSL falhar, melhor parar.
-                process.exit(1);
-            }
-        });
-
+        proxyHttpPort = `:${redirectPort}`;
+        proxyHttpsPort = `:${publicPort}`;
+        certPath = config?.ssl?.cert!;
+        keyPath = config?.ssl?.key!;
     } else {
-        // --- MODO HTTP CLÁSSICO (Sem SSL) ---
-        // Roda direto na porta configurada, exposto para o mundo
-        server.listen(config?.port, hostname, () => {
-            sendBox({ ...options });
-            msg.end(`${Colors.Bright}Ready on port ${Colors.BgGreen} ${config?.port} ${Colors.Reset}${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`);
-        });
+        // Modo HTTP Puro (Proxy atua como firewall/cache na porta principal)
+        proxyHttpPort = `:${publicPort}`;
+        proxyHttpsPort = ""; // Ignorado pelo Go quando sem SSL
     }
+
+    // 4. Inicia o Node.js em localhost (Backend)
+    server.listen(backendPort, '127.0.0.1', () => {
+        try {
+            // 5. Inicia o Proxy Go em background
+            // Isso não bloqueia o Node, roda via CGO
+            startProxy({
+                httpPort: proxyHttpPort,
+                httpsPort: proxyHttpsPort,
+                backendUrl: `http://127.0.0.1:${backendPort}`,
+                certPath: certPath,
+                keyPath: keyPath,
+                dev: options.dev ? "true" : "false"
+            });
+
+            // Atualiza o box de info para mostrar a porta pública correta
+            sendBox({ ...options });
+
+            const modeLabel = isSSL ? "HTTP/3 (SSL)" : "HTTP (Shield active)";
+
+            msg.end(
+                `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
+                `${Colors.Dim} ↳ Backend active on 127.0.0.1:${backendPort}${Colors.Reset}\n` +
+                `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
+            );
+
+        } catch (err: any) {
+            Console.error(`${Colors.FgRed}[Critical] Failed to start Native Proxy:${Colors.Reset} ${err.message}`);
+            // Se o Proxy falhar, o Vatts.js não deve rodar exposto sem proteção
+            process.exit(1);
+        }
+    });
 
     // Configura WebSocket (Funciona através do Proxy pois ele suporta upgrade de conexão)
     vattsApp.setupWebSocket(server);
@@ -711,7 +671,7 @@ export function app(options: VattsOptions = {}) {
             // JS STICK LETTERS
 
             console.log(`${Colors.Bright + Colors.FgCyan}
-${Colors.Bright + Colors.FgCyan}              ___ ___  __    ${Colors.FgWhite}        __  
+${Colors.Bright + Colors.FgCyan}            ___ ___  __    ${Colors.FgWhite}        __  
 ${Colors.Bright + Colors.FgCyan}    \\  /  /\\   |   |  /__\`${Colors.FgWhite}        | /__\`    ${Colors.Bright + Colors.FgCyan}Vatts${Colors.FgWhite}.js ${Colors.FgGray}(v${require('../package.json').version}) - mfraz
 ${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite}   \\__/ .__/ ${message}
                                      

@@ -6,7 +6,6 @@ package main
 
 import "C"
 import (
-	"compress/gzip"
 	"core-go/utils"
 	"fmt"
 	"io"
@@ -147,26 +146,6 @@ func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char) 
 	return nil
 }
 
-func compressToGzip(srcPath string) error {
-	srcFile, err := os.Open(srcPath)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	dstFile, err := os.Create(srcPath + ".gz")
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	writer, _ := gzip.NewWriterLevel(dstFile, gzip.BestCompression)
-	defer writer.Close()
-
-	_, err = io.Copy(writer, srcFile)
-	return err
-}
-
 func compressToBrotli(srcPath string) error {
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
@@ -218,12 +197,11 @@ func printTotalStats(entries []string, outDir string) {
 		diff := totalOrig - bestFinal
 		pct := (float64(diff) / float64(totalOrig)) * 100
 
-		original := fmt.Sprintf("  Original : %s%d bytes", utils.Bright+utils.FgGreen, totalOrig)
-		gzipStr := fmt.Sprintf("  Gzip     : %s%d bytes", utils.Bright+utils.FgGreen, totalGzip)
-		brotliStr := fmt.Sprintf("  Brotli   : %s%d bytes", utils.Bright+utils.FgGreen, totalBr)
-		saved := fmt.Sprintf("  Max Saved: %s%d bytes %s(%.2f%%)%s", utils.Bright+utils.FgGreen, diff, utils.Reset+utils.FgGray, pct, utils.Reset)
+		original := fmt.Sprintf("  Original : %s%.2f KB", utils.Bright+utils.FgGreen, float64(totalOrig)/1024)
+		brotliStr := fmt.Sprintf("  Final    : %s%.2f KB", utils.Bright+utils.FgGreen, float64(totalBr)/1024)
+		saved := fmt.Sprintf("  Saved    : %s%.2f KB %s(%.2f%%)%s", utils.Bright+utils.FgGreen, float64(diff)/1024, utils.Reset+utils.FgGray, pct, utils.Reset)
 
 		utils.LogCustomLevel("", false, "", "", utils.FgBlue+utils.Bright+"Optimization summary:"+utils.Reset,
-			original, gzipStr, brotliStr, saved, "Optimizer")
+			original, brotliStr, saved, "Optimizer")
 	}
 }

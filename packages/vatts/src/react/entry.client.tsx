@@ -262,8 +262,12 @@ declare global {
     }
 }
 
+
+
 function initializeClient() {
     try {
+
+
         // Lê os dados do atributo data-h
         const dataElement = document.getElementById('__vatts_data__');
 
@@ -318,7 +322,7 @@ function initializeClient() {
                 console.warn('[Vatts] Warning during unmount:', e);
             }
         }
-
+        console.log((window as any).__VATTS_COMPONENTS__, initialData)
         // Usar createRoot para render inicial (CSR)
         const root = createRoot(container);
 

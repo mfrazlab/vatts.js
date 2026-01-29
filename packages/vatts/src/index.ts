@@ -250,102 +250,6 @@ export type { WebSocketContext, WebSocketHandler } from './types';
 // Exporta os tipos de configuração
 export type { VattsConfig, VattsConfigFunction } from './types';
 
-// Função para verificar se o projeto é grande o suficiente para se beneficiar de chunks
-// Função para gerar o arquivo de entrada para o esbuild
-function createEntryFile(projectDir: string, routes: (RouteConfig & { componentPath: string })[], framework: 'react' | 'vue'): string {
-
-    try {
-        const tempDir = path.join(projectDir, '.vatts', 'temp');
-
-        fs.mkdirSync(tempDir, { recursive: true });
-
-        const entryFilePath = path.join(tempDir, 'entry.client.js');
-        const layout = getLayout();
-        const notFound = getNotFound();
-
-        const imports = routes
-            .map((route, index) => {
-                const relativePath = path.relative(tempDir, route.componentPath).replace(/\\/g, '/');
-                return `import route${index} from '${relativePath}';`;
-            })
-            .join('\n');
-
-        const layoutImport = layout
-            ? `import LayoutComponent from '${path.relative(tempDir, layout.componentPath).replace(/\\/g, '/')}';`
-            : '';
-
-        const notFoundImport = notFound
-            ? `import NotFoundComponent from '${path.relative(tempDir, notFound.componentPath).replace(/\\/g, '/')}';`
-            : '';
-
-        let componentRegistration: string;
-        if(config?.pathRouter === true) {
-            componentRegistration = routes
-                .map((route, index) => `  '${route.componentPath}': route${index} || route${index}.default,`)
-                .join('\n');
-        } else {
-            if(framework === 'vue') {
-                componentRegistration = routes
-                    .map((route, index) => `  '${route.componentPath}': route${index} || route${index}.default,`)
-                    .join('\n');
-            } else {
-                componentRegistration = routes
-                    .map((route, index) => `  '${route.componentPath}': route${index}.component || route${index}.default?.component,`)
-                    .join('\n');
-            }
-        }
-
-        const layoutRegistration = layout
-            ? `window.__VATTS_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
-            : `window.__VATTS_LAYOUT__ = null;`;
-
-        const notFoundRegistration = notFound
-            ? `window.__VATTS_NOT_FOUND__ = NotFoundComponent.default || NotFoundComponent;`
-            : `window.__VATTS_NOT_FOUND__ = null;`;
-
-        // Define os nomes dos arquivos baseados no framework
-        const entryClientFilename = framework === 'vue' ? 'entry.client.js' : 'entry.client.js';
-        const defaultNotFoundFilename = framework === 'vue' ? 'DefaultNotFound.vue' : 'DefaultNotFound.js';
-
-        const sdkDir = path.dirname(__dirname);
-
-        // --- MODIFICAÇÃO: Usando a variável 'framework' para definir o diretório (react ou vue) ---
-        const entryClientPath = path.join(sdkDir, 'dist', framework, entryClientFilename);
-        const relativeEntryPath = path.relative(tempDir, entryClientPath).replace(/\\/g, '/');
-        const defaultNotFoundPath = path.join(sdkDir, 'dist', framework, defaultNotFoundFilename);
-        const relativeDefaultNotFoundPath = path.relative(tempDir, defaultNotFoundPath).replace(/\\/g, '/');
-
-        const entryContent = `// Arquivo gerado automaticamente pelo vatts
-${imports}
-${layoutImport}
-${notFoundImport}
-import DefaultNotFound from '${relativeDefaultNotFoundPath}';
-
-window.__VATTS_COMPONENTS__ = {
-${componentRegistration}
-};
-
-${layoutRegistration}
-${notFoundRegistration}
-
-window.__VATTS_DEFAULT_NOT_FOUND__ = DefaultNotFound;
-
-import '${relativeEntryPath}';
-`;
-
-        try {
-            fs.writeFileSync(entryFilePath, entryContent);
-        } catch (e) {
-            console.error("Error writing entry file", e)
-        }
-
-        return entryFilePath;
-    }catch (e){
-        Console.error("Error creating entry file:", e);
-        throw e;
-    }
-}
-
 export default function vatts(options: VattsOptions) {
     const { dev = true, dir = process.cwd(), envFiles } = options;
     loadEnv({ dir, dev, envFiles });
@@ -391,9 +295,18 @@ export default function vatts(options: VattsOptions) {
 
     let frontendRoutes: (RouteConfig & { componentPath: string })[] = [];
     let hotReloadManager: HotReloadManager | null = null;
-    let entryPoint: string;
+    
+    // Objeto de configuração para o builder (substitui o entryPoint físico)
+    const vattsBuilderOptions: any = {
+        routes: [],
+        layout: null,
+        notFound: null,
+        framework: framework,
+        projectDir: dir,
+        pathRouter: config?.pathRouter
+    };
 
-    const regenerateEntryFile = () => {
+    const updateBuilderOptions = () => {
         const newFrontendRoutes = loadRoutes(userWebRoutesDir);
         const newLayout = loadLayout(userWebDir);
         const newNotFound = loadNotFound(userWebDir);
@@ -407,7 +320,11 @@ export default function vatts(options: VattsOptions) {
         }
 
         frontendRoutes = newFrontendRoutes;
-        entryPoint = createEntryFile(dir, frontendRoutes, framework);
+        
+        // Atualiza as opções passadas para o builder
+        vattsBuilderOptions.routes = frontendRoutes;
+        vattsBuilderOptions.layout = newLayout;
+        vattsBuilderOptions.notFound = newNotFound;
     };
 
     return {
@@ -424,7 +341,7 @@ export default function vatts(options: VattsOptions) {
                 });
 
                 hotReloadManager.onFrontendChange(() => {
-                    regenerateEntryFile();
+                    updateBuilderOptions();
                 });
             }
             const now = Date.now();
@@ -448,7 +365,11 @@ export default function vatts(options: VattsOptions) {
             const outDir = path.join(dir, '.vatts');
             fs.mkdirSync(outDir, {recursive: true});
 
-            entryPoint = createEntryFile(dir, frontendRoutes, framework);
+            // Inicializa as opções do builder
+            vattsBuilderOptions.routes = frontendRoutes;
+            vattsBuilderOptions.layout = layout;
+            vattsBuilderOptions.notFound = notFound;
+            
             clearInterval(spinner1)
             timee.end(`Routes and components loaded in ${Date.now() - now}ms`);
 
@@ -464,7 +385,9 @@ export default function vatts(options: VattsOptions) {
                 }, 100);
 
                 const now = Date.now();
-                await buildWithChunks(entryPoint, outDir, isProduction);
+                
+                // Passa o objeto de opções ao invés do caminho do arquivo
+                await buildWithChunks(vattsBuilderOptions, outDir, isProduction);
                 const elapsed = Date.now() - now;
 
                 clearInterval(spinner);
@@ -478,7 +401,8 @@ export default function vatts(options: VattsOptions) {
             } else {
                 const time = Console.dynamicLine(`  ${Colors.BgYellow} watcher ${Colors.Reset}  Starting client watch`);
                 // @ts-ignore
-                watchWithChunks(entryPoint, outDir, hotReloadManager!).catch(err => {
+                // Passa o objeto de opções ao invés do caminho do arquivo
+                watchWithChunks(vattsBuilderOptions, outDir, hotReloadManager!).catch(err => {
                     Console.error(`Error starting watch`, err);
                 });
                 time.end(`Client Watch started`);

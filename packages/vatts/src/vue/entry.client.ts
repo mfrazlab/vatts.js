@@ -85,6 +85,7 @@ function initializeClient() {
                 console.warn('[Vatts] Warning during unmount:', e);
             }
         }
+        console.log((window as any).__VATTS_COMPONENTS__, initialData)
 
         // Cria a instância do Vue
         const app = createApp(App, {

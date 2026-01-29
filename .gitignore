@@ -43,3 +43,9 @@ examples/**/.hight/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+**/**/.vatts/
+
+**/**/node_modules/
+services/**/binaries/
+services/core-go/go.sum
