@@ -84,9 +84,9 @@ function extractComponentPreloads(componentPath: string): string[] {
             } else if (['.css'].includes(ext)) {
                 tags.add(`<link rel="preload" as="style" href="${publicUrl}">`);
                 tags.add(`<link rel="stylesheet" href="${publicUrl}">`);
-            } else if (['.js', '.js.br'].includes(ext)) {
+            } else if (['.js', '.js.br', '.js.gz'].includes(ext)) {
                 // Adicionado suporte para JS
-                tags.add(`<link rel="preload" as="script" href="${publicUrl.replace(".br", '')}">`);
+                tags.add(`<link rel="preload" as="script" href="${publicUrl.replace(".br", '').replace(".gz", '')}">`);
             } else if (['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.avif'].includes(ext)) {
                 tags.add(`<link rel="preload" as="image" href="${publicUrl}">`);
             }
@@ -316,7 +316,7 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
             if (file.endsWith('.map')) return;
             const fullPath = path.join(directory, file);
             if (fs.statSync(fullPath).isFile()) {
-                if (file.endsWith('.js') || file.endsWith(".js.br")) scripts.push(`${urlPrefix}/${file.replace(".br", '')}`);
+                if (file.endsWith('.js') || file.endsWith(".js.br") || file.endsWith(".js.gz")) scripts.push(`${urlPrefix}/${file.replace(".br", '').replace(".gz", '')}`);
                 else if (file.endsWith('.css')) styles.push(`${urlPrefix}/${file}`);
             }
         });

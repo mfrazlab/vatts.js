@@ -206,6 +206,7 @@ async function handleImageOptimization(req: GenericRequest, res: GenericResponse
             res.header('Content-Type', 'image/webp');
         } else {
             // Outros tipos mantêm original
+            // 3. SALVA NO CACHE PARA A PRÓXIMA VEZ
             const contentTypes: Record<string, string> = {
                 '.svg': 'image/svg+xml',
                 '.gif': 'image/gif'
@@ -520,36 +521,45 @@ export default function vatts(options: VattsOptions) {
                     }
                 }
 
-
-
-
                 if (pathname.startsWith('/_vatts/')) {
                     const staticPath = path.join(dir, '.vatts');
                     const requestPath = pathname.replace('/_vatts/', '');
 
                     if (!isSuspiciousPathname(requestPath)) {
                         let filePath = resolveWithin(staticPath, requestPath);
-                        let isGzipped = false;
+                        let fileToServe = filePath;
+                        let contentEncoding = '';
 
-                        // --- LÓGICA GZIP (Compatibilidade com Otimizador Go) ---
-                        // Se o arquivo solicitado termina em .js e NÃO existe fisicamente (foi deletado pelo otimizador),
-                        // tentamos encontrar a versão .js.gz
-                        if (filePath && !fs.existsSync(filePath) && filePath.endsWith('.js')) {
-                            const gzipPath = filePath + '.br';
-                            if (fs.existsSync(gzipPath)) {
-                                filePath = gzipPath;
-                                isGzipped = true;
+                        // Lógica de Negociação de Conteúdo (Gzip/Brotli)
+                        if (filePath) {
+                            const acceptEncoding = (req.headers['accept-encoding'] || '') as string;
+                            const supportsBrotli = acceptEncoding.includes('br');
+                            const supportsGzip = acceptEncoding.includes('gzip');
+                            
+                            const brPath = filePath + '.br';
+                            const gzPath = filePath + '.gz';
+
+                            // Prioridade: Brotli > Gzip > Original
+                            if (supportsBrotli && fs.existsSync(brPath)) {
+                                fileToServe = brPath;
+                                contentEncoding = 'br';
+                            } else if (supportsGzip && fs.existsSync(gzPath)) {
+                                fileToServe = gzPath;
+                                contentEncoding = 'gzip';
+                            } else if (!fs.existsSync(filePath)) {
+                                // Se o original não existe, e não achamos comprimido compatível,
+                                // não podemos servir nada.
+                                fileToServe = null; 
                             }
                         }
 
                         // Verifica se existe E se é arquivo
-                        if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-                            const stats = fs.statSync(filePath);
+                        if (fileToServe && fs.existsSync(fileToServe) && fs.statSync(fileToServe).isFile()) {
+                            const stats = fs.statSync(fileToServe);
 
-                            // Se for GZIP, usamos '.js' para definir o Content-Type correto (application/javascript),
-                            // caso contrário, pegamos a extensão real do arquivo.
-                            const ext = isGzipped ? '.js' : path.extname(filePath).toLowerCase();
-
+                            // O Content-Type deve ser baseado no arquivo ORIGINAL, não no .br/.gz
+                            const originalExt = path.extname(filePath!).toLowerCase();
+                            
                             const contentTypes: Record<string, string> = {
                                 '.js': 'application/javascript',
                                 '.css': 'text/css',
@@ -562,24 +572,25 @@ export default function vatts(options: VattsOptions) {
 
                             // CORREÇÃO 1: Cache diferenciado para Dev vs Produção
                             if (options.dev) {
-                                // Em dev, proibimos o cache para garantir que main.js atualize sempre
                                 genericRes.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
                                 genericRes.header('Pragma', 'no-cache');
                                 genericRes.header('Expires', '0');
                             } else {
-                                // Em produção, mantemos o cache agressivo
                                 genericRes.header('Cache-Control', 'public, max-age=31536000, immutable');
                             }
 
-                            // --- HEADER VITAL PARA GZIP ---
-                            if (isGzipped) {
-                                genericRes.header('Content-Encoding', 'br');
+                            // Define Content-Encoding se estiver servindo comprimido
+                            if (contentEncoding) {
+                                genericRes.header('Content-Encoding', contentEncoding);
+                                // Remove Content-Length se houver, para evitar conflitos em alguns proxies
+                                // (embora o adapter geralmente lide com isso ao enviar stream/buffer)
                             }
+
+                            genericRes.header('Content-Type', contentTypes[originalExt] || 'text/plain');
 
                             const lastModified = stats.mtime.toUTCString();
                             genericRes.header('Last-Modified', lastModified);
-                            genericRes.header('Content-Type', contentTypes[ext] || 'text/plain');
-
+                            
                             // Lógica 304
                             const ifModifiedSince = req.headers['if-modified-since'];
                             if (ifModifiedSince) {
@@ -598,9 +609,9 @@ export default function vatts(options: VattsOptions) {
 
                             // Envia o arquivo
                             if (adapter.type === 'express') {
-                                (res as any).sendFile(filePath);
+                                (res as any).sendFile(fileToServe);
                             } else {
-                                const fileContent = fs.readFileSync(filePath);
+                                const fileContent = fs.readFileSync(fileToServe);
                                 genericRes.send(fileContent);
                             }
                             return; // Encerra aqui com sucesso

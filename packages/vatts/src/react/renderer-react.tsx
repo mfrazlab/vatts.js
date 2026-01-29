@@ -169,9 +169,9 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
             const stat = fs.statSync(fullPath);
 
             if (stat.isFile()) {
-                // MODIFICADO: Aceita .js OU .js.br
-                if (file.endsWith('.js') || file.endsWith('.js.br')) {
-                    scripts.push(`${urlPrefix}/${file.replace(".br", '')}`);
+                // MODIFICADO: Aceita .js OU .js.bra
+                if (file.endsWith('.js') || file.endsWith('.js.br') || file.endsWith('.js.gz')) {
+                    scripts.push(`${urlPrefix}/${file.replace(".br", '').replace(".gz", '')}`);
                 } else if (file.endsWith('.css')) {
                     styles.push(`${urlPrefix}/${file}`);
                 }
@@ -188,8 +188,8 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
 
             scripts = manifestFiles
                 // MODIFICADO: Filtra .js E .js.br no manifesto
-                .filter((f: any) => f.endsWith('.js') || f.endsWith('.js.br'))
-                .map((f: any) => `/_vatts/${f.replace(".br", "")}`);
+                .filter((f: any) => f.endsWith('.js') || f.endsWith('.js.br') || f.endsWith('.js.gz'))
+                .map((f: any) => `/_vatts/${f.replace(".br", "").replace(".gz", "")}`);
 
             styles = manifestFiles
                 .filter((f: any) => f.endsWith('.css'))

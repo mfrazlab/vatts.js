@@ -50,7 +50,6 @@ export interface VattsOptions {
  */
 export interface VattsConfig {
     port: number
-    backendPort: number;
     ssl?: {
         redirectPort: number;
         key: string;

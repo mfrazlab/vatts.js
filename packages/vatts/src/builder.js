@@ -21,7 +21,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { readdir, stat, rm, rename } = require("node:fs/promises");
 const { loadTsConfigPaths, resolveTsConfigAlias } = require('./tsconfigPaths');
-
+const { config } = require("./helpers")
 // --- Optimization Plugins ---
 let terser, replace;
 try {
@@ -34,6 +34,10 @@ try {
 // Import Framework specific builders
 const { createReactConfig } = require('./react/react.build');
 const { createVueConfig } = require('./vue/vue.build');
+
+
+const excludedFiles = ['vatts.sock'];
+
 
 // --- Virtual Entry Plugin ---
 const virtualEntryPlugin = (options) => {
@@ -451,7 +455,7 @@ async function getFrameworkConfig(vattsOptions, outdir, isProduction, isWatch = 
 
 // Refactored to accept vattsOptions instead of entryPoint
 async function buildWithChunks(vattsOptions, outdir, isProduction = false) {
-    await cleanDirectoryExcept(outdir, 'temp');
+    await cleanDirectoryExcept(outdir, excludedFiles);
 
     try {
         const inputOptions = await getFrameworkConfig(vattsOptions, outdir, isProduction, false);
@@ -527,10 +531,11 @@ async function buildWithChunks(vattsOptions, outdir, isProduction = false) {
             try {
                 const { runOptimizer } = require('./api/optimizer');
                 const optimizedDir = path.join(outdir, 'optimized');
+            
                 runOptimizer({
                     targetDir: outdir,
                     outputDir: optimizedDir,
-                    ignoredPatterns: ['assets']
+                    ignoredPatterns: ['assets'],
                 });
 
                 const rootFiles = await readdir(outdir);
@@ -564,7 +569,7 @@ async function buildWithChunks(vattsOptions, outdir, isProduction = false) {
 
 async function build(vattsOptions, outfile, isProduction = false) {
     const outdir = path.dirname(outfile);
-    await cleanDirectoryExcept(outdir, 'temp');
+    await cleanDirectoryExcept(outdir, excludedFiles);
 
     try {
         const inputOptions = await getFrameworkConfig(vattsOptions, outdir, isProduction, false);
@@ -647,7 +652,7 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
 }
 
 async function watchWithChunks(vattsOptions, outdir, hotReloadManager = null) {
-    await cleanDirectoryExcept(outdir, 'temp');
+    await cleanDirectoryExcept(outdir, excludedFiles);
     try {
         const inputOptions = await getFrameworkConfig(vattsOptions, outdir, false, true);
         inputOptions.external = nodeBuiltIns;
@@ -713,13 +718,17 @@ async function watch(vattsOptions, outfile, hotReloadManager = null) {
     }
 }
 
-async function cleanDirectoryExcept(dirPath, excludeFolder) {
+async function cleanDirectoryExcept(dirPath, excludeItems) {
     try {
         if (!fs.existsSync(dirPath)) return;
-        const excludes = Array.isArray(excludeFolder) ? excludeFolder : [excludeFolder];
+        // Transforma em array para suportar um ou vários itens (arquivos ou pastas)
+        const excludes = Array.isArray(excludeItems) ? excludeItems : [excludeItems];
         const items = await readdir(dirPath);
+
         for (const item of items) {
+            // Verifica se o nome do arquivo ou pasta está na lista de exclusão
             if (excludes.includes(item)) continue;
+
             const itemPath = path.join(dirPath, item);
             try {
                 const info = await stat(itemPath);

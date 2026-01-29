@@ -4,7 +4,7 @@ const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
     return {
         ...defaultConfig,
         pathRouter: true,
-        port: 8080,
+        port: 3001,
     };
 };
 

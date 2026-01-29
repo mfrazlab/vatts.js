@@ -2,6 +2,7 @@ import koffi from 'koffi';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { config } from '../helpers';
 
 /**
  * Interface para as opções do otimizador.
@@ -15,11 +16,12 @@ export interface OptimizerOptions {
     ignoredPatterns?: string[];
     /** (Opcional) Sobrescreve o caminho da biblioteca manualmemte */
     customLibPath?: string;
+    ssl?: boolean;
 }
 
 // Assinatura da função Go
 // Alterado: agora retorna string | null. Se string, é o erro. Se null, sucesso.
-type OptimizeFunc = (target: string, output: string, ignored: string) => string | null;
+type OptimizeFunc = (target: string, output: string, ignored: string, ssl: string) => string | null;
 
 export class NativeOptimizer {
     private static instance: OptimizeFunc | null = null;
@@ -90,7 +92,10 @@ export class NativeOptimizer {
             // Mapeia a função Go: func Optimize(...) *C.char
             // Em Koffi, 'str' como retorno significa char* (string C)
             // Se o Go retornar nil, o Koffi converte para null no JS
-            this.instance = lib.func('Optimize', 'str', ['str', 'str', 'str']);
+            
+            // CORREÇÃO: Adicionado o quarto 'str' para o argumento SSL
+            this.instance = lib.func('Optimize', 'str', ['str', 'str', 'str', 'str']);
+            
             return this.instance;
         } catch (error) {
             throw new Error(`Falha ao carregar a biblioteca nativa em ${libPath}: ${error}`);
@@ -102,6 +107,16 @@ export class NativeOptimizer {
      */
     public static run(options: OptimizerOptions): void {
         const { targetDir, outputDir = '', ignoredPatterns = [], customLibPath } = options;
+        
+        let ssl = "false";
+        // Verifica se ssl foi passado explicitamente, senão pega da config global
+        if (options.ssl !== undefined && options.ssl !== null) {
+             ssl = options.ssl ? 'true' : 'false';
+        } else {
+            // Garante que config existe antes de acessar propriedades profundas
+            const isSSL = !!(config?.ssl?.key && config?.ssl?.cert);
+            ssl = isSSL ? 'true' : 'false';
+        }
 
         const optimize = this.loadLibrary(customLibPath);
 
@@ -114,7 +129,7 @@ export class NativeOptimizer {
             return;
         }
 
-        const errorMsg = optimize(absTarget, absOutput, ignoredStr);
+        const errorMsg = optimize(absTarget, absOutput, ignoredStr, ssl);
         if (errorMsg) {
             throw new Error(errorMsg);
         }

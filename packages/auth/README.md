@@ -14,14 +14,14 @@ ___
 
 ## Getting Started
 
-**@vatts/auth** is the official authentication package for the **Vatts.js** framework, providing secure, flexible, and production-ready authentication with JWT, multiple OAuth providers, session management, and full React integration.
+**@vatts/auth** is the official authentication package for the **Vatts.js** framework, providing secure, flexible, and production-ready authentication with JWT, multiple OAuth providers and session management.
 
 - Secure by default — robust JWT implementation
 - Multiple providers — OAuth, credentials, and custom
-- Ready for React — integrated hooks and components
+- Ready for React and Vue — integrated hooks and components
 - Strong typing — 100% TypeScript
 - Zero configuration — works out-of-the-box
-- Production-ready — HTTP-only cookies, CSRF protection, and more
+- Production-ready — CSRF protection, and more
 
 ___
 
@@ -33,7 +33,7 @@ ___
 
 ## Community
 
-Join the Vatts.js community on [GitHub Discussions](https://github.com/mfraz/vatts) to ask questions, share ideas, and showcase your projects.
+Join the Vatts.js community on [GitHub Discussions](https://github.com/mfraz/vatts.js) to ask questions, share ideas, and showcase your projects.
 
 ___
 
@@ -47,6 +47,6 @@ ___
 
 Copyright 2026 mfraz
 
-This project is licensed under the [Apache License 2.0](../../LICENSE).
+This project is licensed under the [Apache License 2.0](./LICENSE).
 
 ___

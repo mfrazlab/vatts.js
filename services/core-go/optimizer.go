@@ -6,6 +6,7 @@ package main
 
 import "C"
 import (
+	"compress/gzip"
 	"core-go/utils"
 	"fmt"
 	"io"
@@ -18,11 +19,11 @@ import (
 )
 
 //export Optimize
-func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char) *C.char {
+func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char, sslC *C.char) *C.char {
 	targetDir := C.GoString(targetDirC)
 	outputDir := C.GoString(outputDirC)
 	ignoredPatternsStr := C.GoString(ignoredPatternsC)
-
+	ssl := C.GoString(sslC)
 	var ignoredList []string
 	if ignoredPatternsStr != "" {
 		ignoredList = strings.Split(ignoredPatternsStr, ",")
@@ -122,10 +123,16 @@ func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char) 
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".js") {
-			// Brotli Compression
-			if err := compressToBrotli(path); err != nil {
-				return fmt.Errorf("brotli failure %s: %v", info.Name(), err)
+			if ssl == "true" {
+				if err := compressToBrotli(path); err != nil {
+					return fmt.Errorf("brotli failure %s: %v", info.Name(), err)
+				}
+			} else {
+				if err := compressToGzip(path); err != nil {
+					return fmt.Errorf("gzip failure %s: %v", info.Name(), err)
+				}
 			}
+		
 			// Remove original source to save space
 			if err := os.Remove(path); err != nil {
 				return fmt.Errorf("failed to delete original %s: %v", info.Name(), err)
@@ -144,6 +151,26 @@ func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char) 
 	printTotalStats(entryPoints, outputDir)
 
 	return nil
+}
+
+func compressToGzip(srcPath string) error {
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(srcPath + ".gz")
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	writer, _ := gzip.NewWriterLevel(dstFile, gzip.BestCompression)
+	defer writer.Close()
+
+	_, err = io.Copy(writer, srcFile)
+	return err
 }
 
 func compressToBrotli(srcPath string) error {

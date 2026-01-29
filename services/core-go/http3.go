@@ -7,6 +7,7 @@ package main
 import "C"
 import (
 	"bytes"
+	"context"
 	"core-go/cache"
 	"core-go/security"
 	"core-go/traffic"
@@ -15,9 +16,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,6 +34,21 @@ type errorLogWriter struct{}
 func (w *errorLogWriter) Write(p []byte) (n int, err error) {
 	utils.Error(strings.TrimSpace(string(p)))
 	return len(p), nil
+}
+
+// getSocketPath define o caminho do socket (IPC) para o Zero-Link
+// Funciona em Linux, Mac e Windows (Build 17063+)
+func getSocketPath() string {
+	cwd, _ := os.Getwd()
+	// Cria a pasta oculta .vatts no diretório do projeto
+	socketDir := filepath.Join(cwd, ".vatts")
+	
+	// Garante que o diretório existe
+	if _, err := os.Stat(socketDir); os.IsNotExist(err) {
+		os.Mkdir(socketDir, 0755)
+	}
+
+	return filepath.Join(socketDir, "vatts.sock")
 }
 
 //export StartServer
@@ -66,10 +85,31 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 
 	customErrorLog := log.New(&errorLogWriter{}, "", 0)
 
+	// --- CONFIGURAÇÃO ZERO-LINK (IPC) ---
+	socketPath := getSocketPath()
+	
+	// Criamos um Dialer otimizado para IPC
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ErrorLog = customErrorLog
+	
+	// Aqui a mágica acontece: Substituímos o transporte TCP padrão
+	// por um que força a conexão no socket local.
 	proxy.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// Ignoramos o 'network' (tcp) e 'addr' (127.0.0.1) originais.
+			// Forçamos "unix" (mesmo no Windows moderno) para usar o arquivo .sock
+			return dialer.DialContext(ctx, "unix", socketPath)
+		},
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		MaxIdleConns:          1000,             // Mantém muitas conexões abertas no socket
+		IdleConnTimeout:       90 * time.Second, // Sockets locais são baratos, pode segurar
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	// Modifica a resposta para salvar no cache ETERNO se necessário
@@ -104,7 +144,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 1. VATTS DEEP-SHIELD (Segurança)
-		// Verifica payloads maliciosos antes de qualquer coisa
 		if err := security.AnalyzeRequest(r); err != nil {
 			utils.LogCustomLevel("", false, "", "", utils.FgRed+utils.Bright+"BLOCKED:"+utils.Reset,
 				"Deep-Shield halted request from", r.RemoteAddr, "Reason:", err.Error())
@@ -112,7 +151,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 			return
 		}
 
-		// Se estiver usando SSL, anuncia o HTTP/3
 		if useSSL {
 			w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, cleanPort))
 		}
@@ -139,7 +177,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 		w.Header().Set("X-Vatts-Cache", "MISS")
 
 		// 3. VATTS FUSION (Atomic Request Coalescing)
-		// Protege o backend contra "Thundering Herd" (várias requisições iguais ao mesmo tempo)
 		traffic.ServeFusion(w, r, proxy)
 	})
 
@@ -149,7 +186,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 		if useSSL {
 			// --- MODO SEGURO (HTTPS + H3) ---
 			
-			// Redirecionador HTTP -> HTTPS (Opcional, só se porta HTTP for definida)
+			// Redirecionador HTTP -> HTTPS (Opcional)
 			if httpPort != "" {
 				go func() {
 					server := &http.Server{
@@ -189,7 +226,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 
 		} else {
 			// --- MODO SIMPLES (HTTP Puro) ---
-			// Sem SSL, sem HTTP/3, apenas o servidor proxy tunado
 			go func() {
 				server := &http.Server{
 					Addr:     httpPort,
@@ -200,7 +236,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, backendUrlC *C.char, cer
 			}()
 		}
 
-		// Monitora erros fatais
 		for err := range errChan {
 			if err != nil {
 				utils.Error("Error on proxy server: ", err)

@@ -11,7 +11,7 @@ export interface ProxyOptions {
     httpPort: string;
     /** Porta HTTPS/HTTP3 (ex: ":443") - Opcional se não usar SSL */
     httpsPort?: string;
-    /** URL do servidor backend (ex: "http://localhost:3000") */
+    /** URL do servidor backend (ex: "http://localhost:3000") - Usada para headers de host */
     backendUrl: string;
     /** Caminho para o arquivo de certificado SSL (.pem) - Opcional */
     certPath?: string;
@@ -34,6 +34,28 @@ type StartServerFunc = (
     dev: string
 ) => string | null;
 
+/**
+ * Retorna o caminho do socket IPC (Zero-Link) compatível com o Vatts Core.
+ * Cria o diretório .vatts se não existir.
+ */
+export const getSocketPath = (): string => {
+    const socketDir = path.join(process.cwd(), '.vatts');
+    
+    // Garante que a pasta existe (igual ao Go)
+    if (!fs.existsSync(socketDir)) {
+        try {
+            fs.mkdirSync(socketDir, { recursive: true });
+        } catch (e) {
+            // Ignora erro se já existir (concorrência)
+        }
+    }
+
+    const socketPath = path.join(socketDir, 'vatts.sock');
+    
+    // Retorna o caminho absoluto do arquivo de socket.
+    // O Go (core-go) e o Node devem usar exatamente este caminho.
+    return socketPath;
+};
 
 export class NativeProxy {
     private static instance: StartServerFunc | null = null;
@@ -80,9 +102,7 @@ export class NativeProxy {
 
         const filename = `core-${osName}-${archName}${ext}`;
 
-        // Ajuste o caminho relativo conforme a estrutura do seu projeto
-        // Assumindo que estará na pasta '../core-go/binaries' ou similar relativo a este arquivo
-        // Ajustei para apontar para core-go/binaries baseando-se na estrutura do package.json
+        // Aponta para a pasta onde os binários compilados do Go ficam
         return path.resolve(__dirname, '..', 'core-go', 'binaries', filename);
     }
 
@@ -97,16 +117,21 @@ export class NativeProxy {
         if (!fs.existsSync(libPath)) {
             // Tenta fallback para pasta raiz do core-go se não achar em binaries (para dev local)
             const fallbackPath = path.resolve(__dirname, '..', 'core-go', path.basename(libPath));
-            if (!fs.existsSync(fallbackPath) && !customPath) {
+            if (fs.existsSync(fallbackPath)) {
+                 const lib = koffi.load(fallbackPath);
+                 this.instance = lib.func('StartServer', 'str', ['str', 'str', 'str', 'str', 'str', 'str']);
+                 return this.instance;
+            }
+            
+            if (!customPath) {
                  throw new Error(
-                    `Biblioteca nativa não encontrada em: ${libPath}\n`
+                    `Biblioteca nativa não encontrada em: ${libPath}\nCertifique-se de ter compilado o core-go.`
                 );
             }
         }
 
         try {
-            const finalPath = fs.existsSync(libPath) ? libPath : path.resolve(__dirname, '..', 'core-go', path.basename(libPath));
-            const lib = koffi.load(finalPath);
+            const lib = koffi.load(libPath);
             
             // Mapeia a função Go: StartServer
             // Argumentos: 6 strings
@@ -153,7 +178,6 @@ export class NativeProxy {
         }
 
         // Chama a função nativa
-        // Passamos strings vazias onde não há valor, o Go cuidará da lógica (useSSL check)
         const errorMsg = startServer(httpPort, httpsPort, backendUrl, absCert, absKey, dev);
 
         if (errorMsg) {

@@ -29,7 +29,8 @@ import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https';
 import http2, { Http2SecureServer } from 'http2';
 import fs from 'fs';
-import startProxy from "./api/http3";
+// Adicionado getSocketPath aos imports
+import startProxy, { getSocketPath } from "./api/http3";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -135,7 +136,7 @@ export async function loadVattsConfig(projectDir: string, phase: string): Promis
         envFiles: [],
         pathRouter: false,
         port: 3000,
-        backendPort: 3001,
+        // backendPort removido do padrão lógico, mas mantido na tipagem se necessário para compatibilidade retroativa
     };
 
     try {
@@ -347,12 +348,11 @@ export function setConfig(newConfig: VattsConfig) {
 /**
  * Inicializa servidor nativo do Vatts.js usando HTTP ou HTTPS
  */
-async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostname: string) {
+async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostname: string, vattsConfig: VattsConfig) {
     const time = Date.now();
 
-    const projectDir = options.dir || process.cwd();
-    const phase = options.dev ? 'development' : 'production';
-    const vattsConfig = await loadVattsConfig(projectDir, phase);
+
+
     config = vattsConfig
     // Passa envFiles da config para as opções do vatts
     options.envFiles = vattsConfig.envFiles;
@@ -516,9 +516,18 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     // --- MODO PROXY NATIVO (SEMPRE ATIVO) ---
     // Agora usamos o Proxy Go (Vatts Core) para tudo, com ou sem SSL.
     // Isso garante Shield, Fusion e Cache para todos os usuários.
+    // E agora com ZERO-LINK via IPC (Unix Socket / Named Pipe)
 
-    // 1. Definição da Porta do Backend (Onde o Node.js vai rodar escondido em localhost)
-    const backendPort = config.backendPort || 3001;
+    // 1. Obtém o caminho do Socket e garante limpeza
+    const socketPath = getSocketPath();
+    // Limpeza de arquivo de socket órfão (importante para evitar EADDRINUSE)
+    if (fs.existsSync(socketPath)) {
+        try {
+            fs.unlinkSync(socketPath);
+        } catch (e) {
+            Console.warn(`Could not cleanup socket file: ${e}`);
+        }
+    }
 
     // 2. Portas Públicas
     const publicPort = config.port || (isSSL ? 443 : 3000);
@@ -542,15 +551,17 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         proxyHttpsPort = ""; // Ignorado pelo Go quando sem SSL
     }
 
-    // 4. Inicia o Node.js em localhost (Backend)
-    server.listen(backendPort, '127.0.0.1', () => {
+    // 4. Inicia o Node.js no SOCKET (Zero-Link) em vez de porta TCP
+    server.listen(socketPath, () => {
         try {
             // 5. Inicia o Proxy Go em background
             // Isso não bloqueia o Node, roda via CGO
+            // backendUrl agora é irrelevante para o DNS, mas passamos localhost
+            // porque o Go força o transporte para usar o socket.
             startProxy({
                 httpPort: proxyHttpPort,
                 httpsPort: proxyHttpsPort,
-                backendUrl: `http://127.0.0.1:${backendPort}`,
+                backendUrl: `http://127.0.0.1`, // Host dummy, o Go usa o socketPath
                 certPath: certPath,
                 keyPath: keyPath,
                 dev: options.dev ? "true" : "false"
@@ -563,7 +574,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
 
             msg.end(
                 `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
-                `${Colors.Dim} ↳ Backend active on 127.0.0.1:${backendPort}${Colors.Reset}\n` +
+                `${Colors.Dim} ↳ Backend active on IPC (Zero-Link)${Colors.Reset}\n` +
                 `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
             );
 
@@ -647,6 +658,10 @@ export function app(options: VattsOptions = {}) {
          * Inicia um servidor Vatts.js fechado (o usuário não tem acesso ao framework)
          */
         init: async () => {
+            const projectDir = options.dir || process.cwd();
+            const phase = options.dev ? 'development' : 'production';
+            const vattsConfig = await loadVattsConfig(projectDir, phase);
+            config = vattsConfig
             const currentVersion = require('../package.json').version;
 
             async function verifyVersion(): Promise<string> {
@@ -685,10 +700,8 @@ ${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite} 
             if (framework !== 'native') {
                 Console.warn(`The "${framework}" framework was selected, but the init() method only works with the "native" framework. Starting native server...`);
             }
-
-
-
-            return await initNativeServer(vattsApp, options, actualHostname);
+            
+            return await initNativeServer(vattsApp, options, actualHostname, config);
         }
     }
 }
