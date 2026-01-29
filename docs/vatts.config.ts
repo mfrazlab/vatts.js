@@ -8,8 +8,8 @@ const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
         ssl: {
             backendPort: 3000,
             redirectPort: 80,
-            key: '../certs/localhost-key.pem',
-            cert: '../certs/localhost.pem',
+            key: '../certs/vatts.com-key.pem',
+            cert: '../certs/vatts.com.pem',
         }
     };
 };

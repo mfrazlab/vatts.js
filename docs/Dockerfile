@@ -8,6 +8,7 @@ COPY . .
 
 RUN pnpm install
 
-EXPOSE 3000
+EXPOSE 80
+EXPOSE 443
 
 CMD ["pnpm", "start"]

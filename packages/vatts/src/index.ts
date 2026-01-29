@@ -611,7 +611,7 @@ export default function vatts(options: VattsOptions) {
                         // Se o arquivo solicitado termina em .js e NÃO existe fisicamente (foi deletado pelo otimizador),
                         // tentamos encontrar a versão .js.gz
                         if (filePath && !fs.existsSync(filePath) && filePath.endsWith('.js')) {
-                            const gzipPath = filePath + '.gz';
+                            const gzipPath = filePath + '.br';
                             if (fs.existsSync(gzipPath)) {
                                 filePath = gzipPath;
                                 isGzipped = true;
@@ -649,7 +649,7 @@ export default function vatts(options: VattsOptions) {
 
                             // --- HEADER VITAL PARA GZIP ---
                             if (isGzipped) {
-                                genericRes.header('Content-Encoding', 'gzip');
+                                genericRes.header('Content-Encoding', 'br');
                             }
 
                             const lastModified = stats.mtime.toUTCString();

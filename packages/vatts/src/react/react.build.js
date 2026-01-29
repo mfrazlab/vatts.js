@@ -34,6 +34,9 @@ async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins 
     const replaceValues = {
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
         'process.env.PORT': JSON.stringify(process.vatts?.port || 3000),
+        // [FIX] Define o hook do DevTools como um objeto vazio seguro caso não exista,
+        // evitando o ReferenceError em builds de produção ou ambientes restritos.
+        '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })',
         preventAssignment: true
     };
 
@@ -97,7 +100,9 @@ async function createReactConfig(entryPoint, outdir, isProduction, { prePlugins 
                 treeShaking: true,
                 target: 'esnext',
                 jsx: 'automatic',
-                define: { __VERSION__: '"1.0.0"' },
+                define: {
+                    __VERSION__: '"1.0.0"',
+                },
                 loaders: esbuildLoaders
             })
         ],

@@ -29,7 +29,7 @@ import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https';
 import http2, { Http2SecureServer } from 'http2'; // <-- ADICIONADO: Import do HTTP/2
 import fs from 'fs';
-import startProxy from "./api/http3";
+import startProxy, {addTransport, WebTransportClient} from "./api/http3";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -533,9 +533,62 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
                     httpsPort: `:${publicPort}`,      // Porta Principal (UDP/TCP)
                     backendUrl: `http://127.0.0.1:${backendPort}`, // Para onde enviar o tráfego
                     certPath: config?.ssl?.cert!,
-                    keyPath: config?.ssl?.key!
+                    keyPath: config?.ssl?.key!,
+                    enableWebTransport: true
+                });
+// Lista de clientes conectados na sala
+                const connectedClients = new Set<WebTransportClient>();
+
+// Configura a rota do WebTransport
+                addTransport('/chat', {
+                    onConnect: (client) => {
+                        console.log(`[Chat] Cliente conectado: ${client.id}`);
+                        connectedClients.add(client);
+
+                        // Avisa todo mundo que alguém entrou
+                        broadcast(client.id, JSON.stringify({
+                            type: 'system',
+                            text: `Usuário ${client.id.substring(0, 4)} entrou na sala.`
+                        }));
+                    },
+
+                    onMessage: (client, message) => {
+                        try {
+                            // O frontend manda JSON, a gente repassa pra geral
+                            console.log(`[Chat] Msg de ${client.id}: ${message}`);
+
+                            const payload = JSON.stringify({
+                                type: 'user',
+                                sender: client.id.substring(0, 4),
+                                text: message
+                            });
+
+                            broadcast(null, payload); // Null = envia para todos
+                        } catch (e) {
+                            console.error('Erro ao processar mensagem:', e);
+                        }
+                    },
+
+                    onClose: (client) => {
+                        console.log(`[Chat] Cliente desconectou: ${client.id}`);
+                        connectedClients.delete(client);
+
+                        broadcast(null, JSON.stringify({
+                            type: 'system',
+                            text: `Usuário ${client.id.substring(0, 4)} saiu.`
+                        }));
+                    }
                 });
 
+// Função auxiliar para enviar mensagem para todos
+                function broadcast(senderId: string | null, msg: string) {
+                    for (const client of connectedClients) {
+                        // Opcional: Não enviar de volta para quem mandou (se quiser echo, remova o if)
+                        // if (senderId && client.id === senderId) continue;
+
+                        client.send(msg);
+                    }
+                }
                 // Atualiza o box de info para mostrar a porta pública correta
                 sendBox({ ...options });
 

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/andybalholm/brotli"
 	"github.com/evanw/esbuild/pkg/api"
 )
 
@@ -122,9 +123,11 @@ func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char) 
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".js") {
-			if err := compressToGzip(path); err != nil {
-				return fmt.Errorf("compression failure %s: %v", info.Name(), err)
+			// Brotli Compression
+			if err := compressToBrotli(path); err != nil {
+				return fmt.Errorf("brotli failure %s: %v", info.Name(), err)
 			}
+			// Remove original source to save space
 			if err := os.Remove(path); err != nil {
 				return fmt.Errorf("failed to delete original %s: %v", info.Name(), err)
 			}
@@ -164,8 +167,29 @@ func compressToGzip(srcPath string) error {
 	return err
 }
 
+func compressToBrotli(srcPath string) error {
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(srcPath + ".br")
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	// Qualidade 11 é a máxima do Brotli (equivalente ao BestCompression)
+	writer := brotli.NewWriterLevel(dstFile, brotli.BestCompression)
+	defer writer.Close()
+
+	_, err = io.Copy(writer, srcFile)
+	return err
+}
+
 func printTotalStats(entries []string, outDir string) {
-	var totalOrig, totalGzip int64
+	var totalOrig, totalGzip, totalBr int64
 
 	for _, f := range entries {
 		if info, err := os.Stat(f); err == nil {
@@ -174,20 +198,32 @@ func printTotalStats(entries []string, outDir string) {
 	}
 
 	filepath.Walk(outDir, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() && strings.HasSuffix(info.Name(), ".gz") {
-			totalGzip += info.Size()
+		if err == nil && !info.IsDir() {
+			if strings.HasSuffix(info.Name(), ".gz") {
+				totalGzip += info.Size()
+			} else if strings.HasSuffix(info.Name(), ".br") {
+				totalBr += info.Size()
+			}
 		}
 		return nil
 	})
 
 	if totalOrig > 0 {
-		diff := totalOrig - totalGzip
+		// Consideramos a maior economia (geralmente Brotli)
+		bestFinal := totalBr
+		if totalGzip < totalBr && totalGzip > 0 {
+			bestFinal = totalGzip
+		}
+
+		diff := totalOrig - bestFinal
 		pct := (float64(diff) / float64(totalOrig)) * 100
-		original := fmt.Sprintf("  Original :%s %d bytes", utils.Bright+utils.FgGreen, totalOrig)
-		final := fmt.Sprintf("  Final    : %s%d bytes", utils.Bright+utils.FgGreen, totalGzip)
-		saved := fmt.Sprintf("  Saved    : %s%d bytes %s(%.2f%%)%s", utils.Bright+utils.FgGreen, diff, utils.Reset+utils.FgGray, pct, utils.Reset)
+
+		original := fmt.Sprintf("  Original : %s%d bytes", utils.Bright+utils.FgGreen, totalOrig)
+		gzipStr := fmt.Sprintf("  Gzip     : %s%d bytes", utils.Bright+utils.FgGreen, totalGzip)
+		brotliStr := fmt.Sprintf("  Brotli   : %s%d bytes", utils.Bright+utils.FgGreen, totalBr)
+		saved := fmt.Sprintf("  Max Saved: %s%d bytes %s(%.2f%%)%s", utils.Bright+utils.FgGreen, diff, utils.Reset+utils.FgGray, pct, utils.Reset)
 
 		utils.LogCustomLevel("", false, "", "", utils.FgBlue+utils.Bright+"Optimization summary:"+utils.Reset,
-			original, final, saved, "Optimizer")
+			original, gzipStr, brotliStr, saved, "Optimizer")
 	}
 }

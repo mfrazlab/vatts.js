@@ -247,7 +247,10 @@ function getOptimizationPlugins(isProduction) {
             'process.env.NODE_ENV': JSON.stringify(env),
             'process.env': JSON.stringify({ NODE_ENV: env }),
             'process.browser': 'true',
-            '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })',
+            // [FIX] Use bracket notation string replacement.
+            // This prevents SyntaxError "window.({ isDisabled: true })"
+            // and bypasses recursive replacements by downstream plugins.
+            '__REACT_DEVTOOLS_GLOBAL_HOOK__': 'window["__REACT_DEVTOOLS_GLOBAL_HOOK__"]',
             preventAssignment: true,
             objectGuards: true
         }));
@@ -363,7 +366,8 @@ async function buildWithChunks(entryPoint, outdir, isProduction = false) {
         if (replacePlugin) inputOptions.plugins.unshift(replacePlugin);
         inputOptions.plugins.push(...otherPlugins);
 
-        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } };`;
+        // [FIX] Injected polyfill for React DevTools Hook to prevent ReferenceError
+        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
 
         const outputOptions = {
             dir: outdir,
@@ -495,7 +499,8 @@ async function build(entryPoint, outfile, isProduction = false) {
         if (replacePlugin) inputOptions.plugins.unshift(replacePlugin);
         inputOptions.plugins.push(...otherPlugins);
 
-        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } };`;
+        // [FIX] Injected polyfill for React DevTools Hook
+        const processPolyfill = `var process = { env: { NODE_ENV: "${isProduction ? 'production' : 'development'}" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
 
         const outputOptions = {
             file: outfile,
@@ -565,7 +570,8 @@ async function watchWithChunks(entryPoint, outdir, hotReloadManager = null) {
         const optimizationPlugins = getOptimizationPlugins(false);
         inputOptions.plugins = [...inputOptions.plugins, ...optimizationPlugins];
 
-        const processPolyfill = `var process = { env: { NODE_ENV: "development" } };`;
+        // [FIX] Injected polyfill for React DevTools Hook
+        const processPolyfill = `var process = { env: { NODE_ENV: "development" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
 
         const outputOptions = {
             dir: outdir,
@@ -599,7 +605,8 @@ async function watch(entryPoint, outfile, hotReloadManager = null) {
         const optimizationPlugins = getOptimizationPlugins(false);
         inputOptions.plugins = [...inputOptions.plugins, ...optimizationPlugins];
 
-        const processPolyfill = `var process = { env: { NODE_ENV: "development" } };`;
+        // [FIX] Injected polyfill for React DevTools Hook
+        const processPolyfill = `var process = { env: { NODE_ENV: "development" } }; try { if (typeof window !== 'undefined' && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') { window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }; } } catch(e) {}`;
 
         const outputOptions = {
             file: outfile,

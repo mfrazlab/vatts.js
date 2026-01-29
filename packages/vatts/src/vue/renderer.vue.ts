@@ -84,9 +84,9 @@ function extractComponentPreloads(componentPath: string): string[] {
             } else if (['.css'].includes(ext)) {
                 tags.add(`<link rel="preload" as="style" href="${publicUrl}">`);
                 tags.add(`<link rel="stylesheet" href="${publicUrl}">`);
-            } else if (['.js', '.js.gz'].includes(ext)) {
+            } else if (['.js', '.js.br'].includes(ext)) {
                 // Adicionado suporte para JS
-                tags.add(`<link rel="preload" as="script" href="${publicUrl.replace(".gz", '')}">`);
+                tags.add(`<link rel="preload" as="script" href="${publicUrl.replace(".br", '')}">`);
             } else if (['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.avif'].includes(ext)) {
                 tags.add(`<link rel="preload" as="image" href="${publicUrl}">`);
             }
@@ -316,7 +316,7 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
             if (file.endsWith('.map')) return;
             const fullPath = path.join(directory, file);
             if (fs.statSync(fullPath).isFile()) {
-                if (file.endsWith('.js') || file.endsWith(".js.gz")) scripts.push(`${urlPrefix}/${file.replace(".gz", '')}`);
+                if (file.endsWith('.js') || file.endsWith(".js.br")) scripts.push(`${urlPrefix}/${file.replace(".br", '')}`);
                 else if (file.endsWith('.css')) styles.push(`${urlPrefix}/${file}`);
             }
         });
@@ -327,7 +327,7 @@ function getBuildAssets(req: GenericRequest): BuildAssets | null {
         if (fs.existsSync(manifestPath)) {
             const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
             const manifestFiles = Object.values(manifest);
-            scripts = manifestFiles.filter((f: any) => f.endsWith('.js') || f.endsWith(".js.gz")).map((f: any) => `/_vatts/${f.replace('.gz', '')}`);
+            scripts = manifestFiles.filter((f: any) => f.endsWith('.js') || f.endsWith(".js.br")).map((f: any) => `/_vatts/${f.replace('.br', '')}`);
             styles = manifestFiles.filter((f: any) => f.endsWith('.css')).map((f: any) => `/_vatts/${f}`);
         } else {
             processDirectory(distDir, '/_vatts');
