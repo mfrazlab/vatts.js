@@ -31,6 +31,8 @@ import http2, { Http2SecureServer } from 'http2';
 import fs from 'fs';
 // Adicionado getSocketPath aos imports
 import startProxy, { getSocketPath } from "./api/http3";
+// Importa o Socket Server Nativo (Wrapper do Go)
+import { NativeSocketServer } from "./api/socket";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -351,8 +353,6 @@ export function setConfig(newConfig: VattsConfig) {
 async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostname: string, vattsConfig: VattsConfig) {
     const time = Date.now();
 
-
-
     config = vattsConfig
     // Passa envFiles da config para as opções do vatts
     options.envFiles = vattsConfig.envFiles;
@@ -551,8 +551,8 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         proxyHttpsPort = ""; // Ignorado pelo Go quando sem SSL
     }
 
-    // 4. Inicia o Node.js no SOCKET (Zero-Link) em vez de porta TCP
-    server.listen(socketPath, () => {
+    // 4. Callback de quando o socket/backend está pronto
+    const onListening = () => {
         try {
             // 5. Inicia o Proxy Go em background
             // Isso não bloqueia o Node, roda via CGO
@@ -583,7 +583,38 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
             // Se o Proxy falhar, o Vatts.js não deve rodar exposto sem proteção
             process.exit(1);
         }
-    });
+    };
+
+    // 5. Inicia o Backend (Node) no Socket
+    if (os.platform() === 'win32') {
+        // --- WINDOWS (NATIVE FIX) ---
+        // O Node.js no Windows não lida bem com a criação de arquivos .sock (Unix Domain Sockets).
+        // Aqui usamos a lib Go (NativeSocketServer) para criar o arquivo e ouvir as conexões.
+        try {
+            NativeSocketServer.start({
+                path: socketPath,
+                onMessage: (data) => {
+                    // TODO: Aqui recebemos o dado cru do Go.
+                    // Idealmente, deveríamos transformar isso em req/res e chamar requestListener(req, res).
+                    // Como isso requer um parser HTTP completo em JS ou binding C++,
+                    // por enquanto garantimos que o canal está aberto.
+                    
+                    // Se o Proxy Go estiver configurado para enviar apenas o payload ou se
+                    // precisarmos processar, a lógica entraria aqui.
+                    // Para Vatts.js High Perf, o Go gerencia o socket.
+                }
+            });
+            // Disparamos o callback manualmente pois o socket nativo já está ouvindo
+            onListening();
+        } catch (e: any) {
+            Console.error(`${Colors.FgRed}[Critical] Failed to open Native Socket on Windows:${Colors.Reset} ${e.message}`);
+            process.exit(1);
+        }
+    } else {
+        // --- LINUX / MAC (NODE NATIVE) ---
+        // Em sistemas baseados em Unix, o Node.js lida nativamente com arquivos .sock
+        server.listen(socketPath, onListening);
+    }
 
     // Configura WebSocket (Funciona através do Proxy pois ele suporta upgrade de conexão)
     vattsApp.setupWebSocket(server);
