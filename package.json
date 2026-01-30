@@ -6,6 +6,7 @@
   "author": "mfraz",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.20.0",
+  
   "keywords": [
     "vatts.js",
     "vatts",
