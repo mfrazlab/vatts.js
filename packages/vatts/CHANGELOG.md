@@ -1,3 +1,7 @@
+## 2.0.1 (2026-01-30)
+
+Merge branch 'canary' into latest
+
 ## 2.0.0 (2026-01-30)
 
 Fiz readme.md
