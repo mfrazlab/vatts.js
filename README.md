@@ -21,7 +21,7 @@
 
 **Vatts.js** is a modern, full-featured web framework for **Node.js** with first-class support for **React and Vue**.
 
-It is the first framework to offer native HTTP/3 support out of the box. Powered by an internal proxy engine that enables HTTP/3 with SSL termination. This means your applications benefit from the latest web transport protocol.
+It is the first framework to offer native HTTP/3 support out of the box, powered by a Go-based HTTP server with built-in SSL termination. Applications run directly on the latest web transport protocol, without proxies or external layers.
 
 Vatts.js is a **multi-framework platform**, allowing you to build applications using **either React or Vue per project** — not both at the same time.  
 This keeps the ecosystem clean, predictable, and optimized for performance and tooling.
@@ -29,7 +29,7 @@ This keeps the ecosystem clean, predictable, and optimized for performance and t
 Vatts removes unnecessary configuration and complex abstractions, allowing you to focus on what truly matters: **building fast, secure, and scalable applications**.
 
 ### Why choose Vatts.js?
--  **Native Proxy** — modern, secure, and high-performance networking with **HTTP/3 support**
+-  **Native HTTP** — modern, secure, and high-performance networking with **HTTP/3 support**
 -  Extremely fast — architecture optimized for low overhead
 -  Intuitive API — easy to learn and pleasant to use
 -  Productivity from the first minute — zero unnecessary boilerplate
