@@ -27,7 +27,7 @@
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
-    "vatts": "workspace:*"
+    "vatts": "file:../../packages/vatts/vatts-1.4.1-test.2.tgz"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",

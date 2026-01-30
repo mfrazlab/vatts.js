@@ -104,10 +104,6 @@ const sendBox = (options: VattsOptions) => {
         console.info(timer + `${labelStyle}  ┃  Network:${Colors.Reset}  ${urlStyle}${protocol}://${localIp}:${config?.port}${Colors.Reset}`);
     }
 
-    if(config?.ssl?.http3Port) {
-        console.info(timer + `${labelStyle}  ┃  HTTP/3:${Colors.Reset}   ${urlStyle}${protocol}://${localIp}:${config.ssl.http3Port}${Colors.Reset}`);
-    }
-
     // 3. Infos Extras (Redirect HTTP -> HTTPS)
     // @ts-ignore
     if (isSSL && config.ssl?.redirectPort) {
@@ -279,7 +275,7 @@ const parseBody = (req: IncomingMessage): Promise<object | string | null> => {
     const BODY_TIMEOUT = 30000; // 30 segundos
 
     return new Promise((resolve, reject) => {
-        if (req.method === 'GET' || req.method === 'HEAD') {
+        if (req.method === 'GET' || req.method === 'HEAD' || req.headers.upgrade) {
             resolve(null);
             return;
         }
@@ -411,23 +407,26 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         }
 
         // Timeout por requisição (usa configuração personalizada)
-        req.setTimeout(vattsConfig.individualRequestTimeout || 30000, () => {
-            res.statusCode = 408; // Request Timeout
-            res.end('Request timeout');
-
-            // Log de timeout
-            if (vattsConfig.accessLogging) {
-                const duration = Date.now() - requestStartTime;
-                Console.info(`${Colors.FgYellow}${method}${Colors.Reset} ${url} ${Colors.FgRed}408${Colors.Reset} ${Colors.FgGray}${duration}ms${Colors.Reset}`);
-            }
-        });
+        // WebSocket não deve ter timeout de requisição padrão HTTP
+        if (!req.headers.upgrade) {
+            req.setTimeout(vattsConfig.individualRequestTimeout || 30000, () => {
+                res.statusCode = 408; // Request Timeout
+                res.end('Request timeout');
+    
+                // Log de timeout
+                if (vattsConfig.accessLogging) {
+                    const duration = Date.now() - requestStartTime;
+                    Console.info(`${Colors.FgYellow}${method}${Colors.Reset} ${url} ${Colors.FgRed}408${Colors.Reset} ${Colors.FgGray}${duration}ms${Colors.Reset}`);
+                }
+            });
+        }
 
         // Intercepta o método end() para logar quando a resposta for enviada
         const originalEnd = res.end.bind(res);
         let hasEnded = false;
 
         res.end = function(this: ServerResponse, ...args: any[]): any {
-            if (!hasEnded && vattsConfig.accessLogging && !url.includes("/api/rpc") && (!url.includes("_vatts/") && !url.includes(".js") && !url.includes(".css") )) {
+            if (!hasEnded && vattsConfig.accessLogging && !url.includes("/api/rpc") && (!url.includes("_vatts/") && !url.includes(".js") && !url.includes(".css") && !url.includes("hotreload"))) {
                 hasEnded = true;
                 const duration = Date.now() - requestStartTime;
                 const statusCode = res.statusCode || 200;
@@ -527,11 +526,29 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     // Ponte virtual: Go <-> Memória <-> Node HTTP Parser
     class NativeBridge extends Duplex {
         constructor(public connId: number) {
-            super();
+            super({ 
+                // Removemos decodeStrings: false para permitir que o parser interno (se existir) funcione,
+                // mas implementamos nosso próprio parser no _write para garantir a conversão.
+                allowHalfOpen: true 
+            });
         }
+
+        // Propriedades para simular net.Socket
+        remoteAddress = '127.0.0.1';
+        remoteFamily = 'IPv4';
+        remotePort = 0;
+        localAddress = '127.0.0.1';
+        localPort = 0;
+
+        // Implementa métodos do net.Socket
+        setNoDelay(noDelay?: boolean) { return this; }
+        setKeepAlive(enable?: boolean, initialDelay?: number) { return this; }
+        ref() { return this; }
+        unref() { return this; }
 
         // Implementa setTimeout para satisfazer a interface do net.Socket usada pelo http.Server
         setTimeout(msecs: number, callback?: () => void) {
+            if (msecs === 0) return this; // Disable timeout (comum em WS)
             if (callback) {
                 this.once('timeout', callback);
             }
@@ -544,9 +561,14 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
 
         _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error | null) => void) {
             try {
+                // Parser simples: Se vier string, converte para Buffer antes de enviar.
+                // Isso resolve problemas onde o ws tenta mandar texto mas a ponte espera bytes crus.
+                const buffer = typeof chunk === 'string' 
+                    ? Buffer.from(chunk, encoding) 
+                    : chunk;
+
                 // Node respondeu -> Envia de volta para o Go via CGO
-                // MUDANÇA: Passamos o chunk (Buffer) diretamente, sem converter para string
-                NativeServer.write(this.connId, chunk);
+                NativeServer.write(this.connId, buffer);
                 callback();
             } catch (err: any) {
                 callback(err);
@@ -590,7 +612,6 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
             httpsPort: goHttpsPort,
             certPath: certPath,
             keyPath: keyPath,
-            http3Port: vattsConfig.ssl?.http3Port ? `:${vattsConfig.ssl.http3Port}` : '',
             // Callback: Chegou dados do Go (Browser -> Go -> Node)
             onData: (connId, data) => {
                 let bridge = connections.get(connId);
@@ -627,11 +648,11 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         // Atualiza UI
         sendBox({ ...options });
 
-        const httpLabel = vattsConfig.ssl?.http3Port ? `HTTP/3 (${vattsConfig.ssl?.http3Port || ''})` : "HTTP/2";
-        const modeLabel = isSSL ? httpLabel : "HTTP (Shield active)";
+        const modeLabel = isSSL ? "HTTP/3 (SSL)" : "HTTP (Shield active)";
         msg.end(
             `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
-            `${Colors.Dim} ↳ Engine running on Native Bridge in ${Date.now() - time}ms${Colors.Reset}\n`
+            `${Colors.Dim} ↳ Engine running on Native Bridge (No-Socket)${Colors.Reset}\n` +
+            `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
         );
 
         // MANTÉM O PROCESSO VIVO

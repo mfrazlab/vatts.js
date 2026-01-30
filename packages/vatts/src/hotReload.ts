@@ -617,10 +617,24 @@ export class HotReloadManager {
     // Mantendo métodos de cache iguais
     private clearBackendCache(filePath: string) {
         const absolutePath = path.resolve(filePath);
+        // Limpa o arquivo alterado
         delete require.cache[absolutePath];
-        const dirname = path.dirname(absolutePath);
+
+        // ESTRATÉGIA DE INVALIDAÇÃO PROFUNDA PARA TYPESCRIPT:
+        // O problema de mudar tipagem e dar erro de runtime é porque arquivos "pais"
+        // (que importam o arquivo alterado) ainda mantêm a referência compilada antiga na memória do Node.
+        // Ao invés de tentar adivinhar a árvore de dependência, limpamos o cache de TODO o código-fonte do projeto.
+        // Isso força o Node/ts-node a recompilar/reler as referências, atualizando as tipagens e objetos em tempo real.
+        
         Object.keys(require.cache).forEach(key => {
-            if (key.startsWith(dirname)) delete require.cache[key];
+            // Não limpa node_modules (bibliotecas são estáticas)
+            if (key.includes('node_modules')) return;
+
+            // Se o arquivo estiver dentro do diretório do projeto, força a limpeza.
+            // Isso garante que controllers, services e models recarreguem a nova estrutura da tipagem alterada.
+            if (key.startsWith(this.projectDir)) {
+                delete require.cache[key];
+            }
         });
     }
 

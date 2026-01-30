@@ -103,7 +103,7 @@ const ResourceAnalyzer = () => {
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                                <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[8px] border-b-black mb-0.5"></div>
+                                <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-8 border-b-black mb-0.5"></div>
                             </div>
                             <span className="text-white font-medium text-sm">User's analyzer</span>
                             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-gray-400 font-bold uppercase tracking-wider">PRO</span>
@@ -178,8 +178,8 @@ const ResourceAnalyzer = () => {
                             {filteredAssets.map((asset) => (
                                 <div
                                     key={asset.id}
-                                    className={`group bg-white/[0.02] border rounded-xl p-5 hover:border-white/20 transition-all cursor-pointer relative overflow-hidden ${
-                                        asset.isHeavy ? 'border-red-500/40 bg-red-500/[0.02]' : 'border-white/10'
+                                    className={`group bg-white/2 border rounded-xl p-5 hover:border-white/20 transition-all cursor-pointer relative overflow-hidden ${
+                                        asset.isHeavy ? 'border-red-500/40 bg-red-500/2' : 'border-white/10'
                                     }`}
                                 >
                                     {asset.isHeavy && (
@@ -230,7 +230,7 @@ const ResourceAnalyzer = () => {
                         {/* Sidebar Stats */}
                         <div className="space-y-6">
                             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Performance Insights</h2>
-                            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-5 space-y-6">
+                            <div className="bg-white/2 border border-white/10 rounded-xl p-5 space-y-6">
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-xs">
                                         <span className="text-gray-400">Total Page Weight</span>

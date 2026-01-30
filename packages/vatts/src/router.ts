@@ -600,6 +600,27 @@ function handleWebSocketConnection(ws: WebSocket, req: IncomingMessage, hwebReq:
         return;
     }
 
+    // --- FIX: Parser Automático de Buffer para String ---
+    // A biblioteca 'ws' geralmente emite Buffers para mensagens que vêm de Sockets não-padrão.
+    // Isso intercepta o evento 'message' e força a conversão para string antes de chegar no seu handler.
+    const originalOn = ws.on.bind(ws);
+    // @ts-ignore - Sobrescrevendo para injetar o parser
+    ws.on = function (event: string | symbol, listener: (...args: any[]) => void) {
+        if (event === 'message') {
+            const wrappedListener = (data: any, isBinary: boolean) => {
+                // Se for Buffer, converte pra String. Se já for string, mantém.
+                const payload = Buffer.isBuffer(data) ? data.toString() : data;
+                listener(payload, isBinary);
+            };
+            return originalOn(event, wrappedListener);
+        }
+        return originalOn(event, listener);
+    };
+    // Garante que addListener também use a versão patcheada
+    // @ts-ignore
+    ws.addListener = ws.on;
+    // ---------------------------------------------------
+
     const context: WebSocketContext = {
         vattsReq: hwebReq,
         ws,

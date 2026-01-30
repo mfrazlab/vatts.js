@@ -6,7 +6,8 @@ package traffic
 
 import (
 	"bytes"
-	"log"
+	"core-go/utils"
+
 	"net/http"
 	"sync"
 )
@@ -85,7 +86,7 @@ func ServeFusion(w http.ResponseWriter, r *http.Request, next http.Handler) {
 	globalGroup.mu.Unlock()
 
 	if c.dups > 0 {
-		log.Printf("[FUSION EFFECT] Collapsed %d requests for %s", c.dups, key)
+		utils.Info("Collapsed %d requests for %s", c.dups, key)
 	}
 
 	copyResponse(w, c.val, "LEADER")

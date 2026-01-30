@@ -29,6 +29,7 @@ import (
 	"core-go/utils"
 	"fmt"
 	"io"
+
 	"net/http"
 	"net/http/httputil"
 	"strings"
@@ -45,9 +46,15 @@ import (
 	"core-go/traffic"
 )
 
+// Interface genérica para tratar tanto HTTP padrão (Pipe) quanto WebSockets (net.Conn)
+type ProxyConnection interface {
+	Write(p []byte) (n int, err error)
+	Close() error
+}
+
 var (
-	// Mapa que conecta o ID da requisição ao Pipe de resposta
-	conns = make(map[int]*io.PipeWriter)
+	// Mapa que conecta o ID da requisição à conexão (Pipe ou Socket Real)
+	conns = make(map[int]ProxyConnection)
 
 	// Contador atômico para gerar IDs únicos
 	nextID int64 = 0
@@ -56,12 +63,11 @@ var (
 )
 
 //export StartServer
-func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback, http3PortC *C.char) *C.char {
+func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback) *C.char {
 	httpPort := C.GoString(httpPortC)
 	httpsPort := C.GoString(httpsPortC)
 	certPath := C.GoString(certPathC)
 	keyPath := C.GoString(keyPathC)
-	http3Port := C.GoString(http3PortC)
 
 	useSSL := certPath != "" && keyPath != ""
 	if useSSL && httpsPort == "" {
@@ -78,6 +84,76 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 	nodeBridgeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := int(atomic.AddInt64(&nextID, 1))
 
+		// Verifica se é WebSocket / Upgrade
+		isUpgrade := false
+		if strings.ToLower(r.Header.Get("Connection")) == "upgrade" &&
+			strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
+			isUpgrade = true
+		}
+
+		// Se for WebSocket, precisamos fazer o Hijack da conexão TCP
+		if isUpgrade {
+			hijacker, ok := w.(http.Hijacker)
+			if !ok {
+				http.Error(w, "Websocket not supported by server interface", http.StatusInternalServerError)
+				return
+			}
+			
+			// Toma o controle da conexão TCP bruta
+			clientConn, _, err := hijacker.Hijack()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			// Registra a conexão TCP direta no mapa
+			mutex.Lock()
+			conns[id] = clientConn
+			mutex.Unlock()
+
+			// Notifica o Node que a conexão fechou quando sairmos
+			defer func() {
+				mutex.Lock()
+				delete(conns, id)
+				mutex.Unlock()
+				clientConn.Close()
+				C.dispatch_close(onClose, C.int(id))
+			}()
+
+			// --- Envia o Handshake inicial para o Node ---
+			// Precisamos reconstruir a request HTTP crua para o Node processar o Upgrade
+			r.Proto = "HTTP/1.1"
+			r.ProtoMajor = 1
+			r.ProtoMinor = 1
+			
+			dump, err := httputil.DumpRequest(r, false) // Headers apenas
+			if err == nil {
+				cHeaders := C.CBytes(dump)
+				C.dispatch_data(onData, C.int(id), cHeaders, C.int(len(dump)))
+				C.free(cHeaders)
+			}
+			
+			// --- Loop de Leitura (Cliente -> Node) ---
+			// Tudo que o cliente mandar agora (frames WS), mandamos direto pro Node
+			buf := make([]byte, 32*1024)
+			for {
+				// Define deadline para evitar zumbis, mas longo para WS
+				clientConn.SetReadDeadline(time.Now().Add(60 * time.Minute))
+				n, err := clientConn.Read(buf)
+				if n > 0 {
+					chunk := C.CBytes(buf[:n])
+					C.dispatch_data(onData, C.int(id), chunk, C.int(n))
+					C.free(chunk)
+				}
+				if err != nil {
+					// EOF ou erro de conexão encerra o loop
+					break
+				}
+			}
+			return
+		}
+
+		// --- FLUXO PADRÃO HTTP (Pipe Request/Response) ---
 		pr, pw := io.Pipe()
 
 		mutex.Lock()
@@ -124,30 +200,23 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 
 		resp, err := http.ReadResponse(bufio.NewReader(pr), r)
 		if err != nil {
+			// Pode acontecer se o pipe fechar antes da resposta completa
 			utils.Error("Error reading response from Node: ", err)
 			return
 		}
 		defer resp.Body.Close()
 
 		// --- Lógica de Cache (Write) ---
-		// Se for GET, 200 OK e uma rota cacheável, salvamos no cache
 		shouldCache := r.Method == "GET" && resp.StatusCode == 200 && cache.IsCacheable(r.URL.Path)
-
 		var bodyReader io.Reader = resp.Body
-		var _ []byte
 
 		if shouldCache {
-			// Lemos o corpo para a memória (respeitando o limite) para poder salvar
-			// Usamos LimitReader para evitar DOS de memória
 			limitR := io.LimitReader(resp.Body, int64(cache.MaxFileSize)+1)
 			b, err := io.ReadAll(limitR)
 			if err == nil && len(b) <= cache.MaxFileSize {
-				_ = b
-				// Clona os headers para o cache (Aplicando filtro HTTP/3)
 				headerClone := make(http.Header)
 				for k, vv := range resp.Header {
 					lowerK := strings.ToLower(k)
-					// Remove headers proibidos no HTTP/2 e HTTP/3 que o Node (HTTP/1.1) pode ter enviado
 					if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" || lowerK == "transfer-encoding" || lowerK == "upgrade" {
 						continue
 					}
@@ -156,7 +225,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 					}
 				}
 
-				// Salva no Store
 				cache.Store.Lock()
 				cache.Store.Items[r.URL.String()] = &cache.Item{
 					Body:       b,
@@ -164,11 +232,8 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 					Expiration: time.Now().Add(cache.TTL),
 				}
 				cache.Store.Unlock()
-
-				// Agora usamos o buffer da memória para responder ao cliente
 				bodyReader = io.NopCloser(bytes.NewReader(b))
 			} else {
-				// Se passou do tamanho ou erro, respondemos o que lemos + o resto original
 				if len(b) > 0 {
 					bodyReader = io.MultiReader(bytes.NewReader(b), resp.Body)
 				}
@@ -178,6 +243,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 		// Copia Headers
 		for k, v := range resp.Header {
 			lowerK := strings.ToLower(k)
+			// Em HTTP normal não copiamos headers de controle de conexão
 			if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" || lowerK == "transfer-encoding" || lowerK == "upgrade" {
 				continue
 			}
@@ -186,21 +252,11 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 			}
 		}
 		w.WriteHeader(resp.StatusCode)
-
-		// Copia Body (Do reader preparado ou do original)
 		io.Copy(w, bodyReader)
 	})
 
 	// 2. Montagem da Pipeline de Handlers
-	// Ordem: Alt-Svc -> Security -> Cache (Read) -> Traffic Fusion -> Node Bridge
-
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Adiciona Alt-Svc para avisar que HTTP/3 está disponível
-		if http3Port != "" {
-			// Se a porta for ":443", o header fica h3=":443"; ma=86400
-			w.Header().Set("Alt-Svc", fmt.Sprintf(`h3="%s"; ma=86400`, http3Port))
-		}
-
 		// A. Security Check
 		if err := security.AnalyzeRequest(r); err != nil {
 			utils.Warn("[SECURITY] Blocked ", r.RemoteAddr, err)
@@ -208,8 +264,11 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 			return
 		}
 
-		// B. Cache Read Check
-		if r.Method == "GET" && cache.IsCacheable(r.URL.Path) {
+		// B. Cache Read Check (Apenas GET simples, não WebSocket)
+		if r.Method == "GET" && 
+		   r.Header.Get("Upgrade") == "" && 
+		   cache.IsCacheable(r.URL.Path) {
+			
 			cache.Store.RLock()
 			item, ok := cache.Store.Items[r.URL.String()]
 			cache.Store.RUnlock()
@@ -228,24 +287,25 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 		}
 
 		// C. Traffic Fusion (Coalescing) + D. Node Bridge
-		// O Fusion vai agrupar requisições simultâneas para a mesma URL
-		// e chamar o nodeBridgeHandler apenas uma vez.
-		traffic.ServeFusion(w, r, nodeBridgeHandler)
+		// Não usamos Fusion para WebSockets
+		if r.Header.Get("Upgrade") != "" {
+			nodeBridgeHandler.ServeHTTP(w, r)
+		} else {
+			traffic.ServeFusion(w, r, nodeBridgeHandler)
+		}
 	})
 
 	go func() {
 		errChan := make(chan error)
 
 		if useSSL {
-			if http3Port != "" {
-				go func() {
-					serverH3 := http3.Server{
-						Addr:    http3Port,
-						Handler: mainHandler, // Usa o handler com middleware
-					}
-					errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
-				}()
-			}
+			go func() {
+				serverH3 := http3.Server{
+					Addr:    httpsPort,
+					Handler: mainHandler,
+				}
+				errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
+			}()
 
 			go func() {
 				errChan <- http.ListenAndServeTLS(httpsPort, certPath, keyPath, mainHandler)
@@ -282,14 +342,15 @@ func WriteToConn(connID C.int, dataPtr unsafe.Pointer, length C.int) *C.char {
 	data := C.GoBytes(dataPtr, length)
 
 	mutex.Lock()
-	pw, exists := conns[id]
+	conn, exists := conns[id]
 	mutex.Unlock()
 
 	if !exists {
 		return C.CString("Connection not found (request ended)")
 	}
 
-	_, err := pw.Write(data)
+	// Write polimórfico (funciona tanto para Pipe quanto para Socket TCP)
+	_, err := conn.Write(data)
 	if err != nil {
 		return C.CString(fmt.Sprintf("Write error: %v", err))
 	}
@@ -302,10 +363,11 @@ func CloseConn(connID C.int) {
 	id := int(connID)
 
 	mutex.Lock()
-	pw, exists := conns[id]
+	conn, exists := conns[id]
 	if exists {
-		pw.Close()
+		conn.Close()
 		delete(conns, id)
 	}
 	mutex.Unlock()
 }
+
