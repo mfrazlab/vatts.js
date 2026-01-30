@@ -10,6 +10,7 @@ export interface NativeServerOptions {
     httpPort: string;
     httpsPort: string;
     http3Port?: string;
+    devMode: string;
     certPath: string;
     keyPath: string;
     // Callback recebe o ID e o Buffer cru (não string)
@@ -92,6 +93,7 @@ export class NativeServer {
                 'str', 'str', 'str', 'str',
                 koffi.pointer(OnDataCallback),
                 koffi.pointer(OnCloseCallback),
+                'str',
                 'str'
             ]);
 
@@ -115,7 +117,8 @@ export class NativeServer {
             onData,
             onClose,
             customLibPath,
-            http3Port
+            http3Port,
+            devMode
         } = options;
 
         this.loadLibrary(customLibPath);
@@ -151,7 +154,8 @@ export class NativeServer {
             keyPath,
             onDataPtr,
             onClosePtr,
-            http3Port || ''
+            http3Port || '',
+            devMode || ''
         );
 
         if (err) {

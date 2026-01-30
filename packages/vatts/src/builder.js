@@ -618,7 +618,7 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
     let lastStartedBuildId = 0;
     const erroredBuildIds = new Set();
 
-    watcher.on('event', event => {
+    watcher.on('event', async event => {
         if (event.code === 'START') {
             currentBuildId += 1;
             lastStartedBuildId = currentBuildId;
@@ -638,7 +638,7 @@ function handleWatcherEvents(watcher, hotReloadManager, resolveFirstBuild) {
             else Console.error("Build Error:", event.error);
             if (resolveFirstBuild) resolveFirstBuild();
         }
-        if (event.code === 'BUNDLE_END') event.result.close();
+        if (event.code === 'BUNDLE_END') await event.result.close();
         if (event.code === 'END') {
             const endBuildId = currentBuildId;
             const hadError = erroredBuildIds.has(endBuildId);
@@ -670,10 +670,17 @@ async function watchWithChunks(vattsOptions, outdir, hotReloadManager = null) {
             sourcemap: true,
             intro: processPolyfill
         };
+        
+        // Correcting the watch options syntax
         const watchOptions = {
             ...inputOptions,
             output: outputOptions,
-            watch: { exclude: 'node_modules/**', [`${outdir}/**`]: true, clearScreen: false, skipWrite: false, buildDelay: 100 }
+            watch: { 
+                exclude: ['node_modules/**', path.join(outdir, '**').replace(/\\/g, '/')], 
+                clearScreen: false, 
+                skipWrite: false, 
+                buildDelay: 100 
+            }
         };
         const watcher = rollupWatch(watchOptions);
         await new Promise((resolve) => handleWatcherEvents(watcher, hotReloadManager, resolve));
@@ -703,10 +710,16 @@ async function watch(vattsOptions, outfile, hotReloadManager = null) {
             sourcemap: true,
             intro: processPolyfill
         };
+        
+        // Correcting the watch options syntax
         const watchOptions = {
             ...inputOptions,
             output: outputOptions,
-            watch: { exclude: 'node_modules/**', [`${outdir}/**`]: true, clearScreen: false, buildDelay: 100 }
+            watch: { 
+                exclude: ['node_modules/**', path.join(outdir, '**').replace(/\\/g, '/')], 
+                clearScreen: false, 
+                buildDelay: 100 
+            }
         };
         const watcher = rollupWatch(watchOptions);
         await new Promise((resolve) => handleWatcherEvents(watcher, hotReloadManager, resolve));

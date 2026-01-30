@@ -290,7 +290,8 @@ export class HotReloadManager {
             filePath.endsWith('.tsx') ||
             filePath.endsWith(".ts") ||
             filePath.endsWith(".vue") ||
-            filePath.endsWith(".css")
+            filePath.endsWith(".css") ||
+            filePath.endsWith(".md")
 
         const isBackendFile = filePath.includes(path.join('src', 'backend')) && !isFrontendFile;
 

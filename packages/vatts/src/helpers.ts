@@ -612,6 +612,8 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
             httpsPort: goHttpsPort,
             certPath: certPath,
             keyPath: keyPath,
+            http3Port: config.ssl?.http3Port ? `:${config.ssl?.http3Port}` : "",
+            devMode: options.dev ? "true" : "false",
             // Callback: Chegou dados do Go (Browser -> Go -> Node)
             onData: (connId, data) => {
                 let bridge = connections.get(connId);

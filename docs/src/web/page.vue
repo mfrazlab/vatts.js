@@ -3,13 +3,14 @@ import { ref, onMounted, computed } from 'vue';
 import {
   Zap, Shield, Globe, Box, Wrench, Github,
   Search, X, Cpu, Layers, ArrowRight,
-  Terminal, Palette, Wifi, Code, Network
+  Terminal, Palette, Wifi, Code, Network,
+  Server, Gauge // Ícones novos para representar Go/Server e Performance
 } from 'lucide-vue-next';
 
 // Imports do framework Vatts (versão Vue)
 import { importServer, Link, VattsImage } from "vatts/vue";
 
-// Componentes (Assumindo que existem versões .vue deles)
+// Componentes
 import Navbar from "./components/Navbar.vue";
 import Footer from "./components/Footer.vue";
 
@@ -22,7 +23,7 @@ const isSearchOpen = ref(false);
 const version = ref("1.0.0");
 const primaryColor = "#a8a8a8";
 
-// Lifecycle - Equivalente ao useState(async...) do React
+// Lifecycle
 onMounted(async () => {
   try {
     const v = await PackageVersion();
@@ -34,7 +35,7 @@ onMounted(async () => {
   }
 });
 
-// Particles - Equivalente ao useMemo
+// Particles
 const particles = computed(() =>
     Array.from({ length: 60 }).map((_, i) => ({
       id: i,
@@ -47,7 +48,7 @@ const particles = computed(() =>
     }))
 );
 
-// Refs para animações (Scroll Reveal)
+// Refs para animações
 const heroTitle = ref(null);
 const heroSubtitle = ref(null);
 const heroButtons = ref(null);
@@ -69,16 +70,16 @@ const featuresList = [
   },
   {
     icon: Zap,
-    title: "Powered by Rollup",
-    desc: "Designed for fast builds and maximum production performance.",
+    title: "Low-Level Optimization",
+    desc: "Built-in bytecode optimizer for .js assets. Smaller bundles, faster parsing.",
     color: "text-orange-400",
     bg: "bg-orange-500/10",
     border: "hover:border-orange-500/30"
   },
   {
     icon: Wifi,
-    title: "Native WebSockets",
-    desc: "Real-time ready. Upgrade any route to a persistent connection.",
+    title: "Native HTTP/3 Support",
+    desc: "The only framework with native HTTP and built-in HTTP/3 support.",
     color: "text-teal-400",
     bg: "bg-teal-500/10",
     border: "hover:border-teal-500/30"
@@ -86,7 +87,7 @@ const featuresList = [
   {
     icon: Code,
     title: "Native React support",
-    desc: "Build fast, scalable, and modern interfaces using the most popular ecosystem in the market.",
+    desc: "Build fast, scalable, and modern interfaces using the most popular ecosystem.",
     color: "text-cyan-400",
     bg: "bg-cyan-500/10",
     border: "hover:border-cyan-500/30"
@@ -94,7 +95,7 @@ const featuresList = [
   {
     icon: Box,
     title: "Native Vue.js support",
-    desc: "Create elegant and highly productive applications with an insanely smooth learning curve.",
+    desc: "Create elegant and highly productive applications with a smooth learning curve.",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     border: "hover:border-emerald-500/30"
@@ -102,7 +103,7 @@ const featuresList = [
   {
     icon: Network,
     title: "Choose your framework",
-    desc: "Pick React or Vue and work your way — no lock-in, no headaches, just productivity.",
+    desc: "Pick React or Vue and work your way — no lock-in, no headaches.",
     color: "text-violet-400",
     bg: "bg-violet-500/10",
     border: "hover:border-violet-500/30"
@@ -127,7 +128,6 @@ export function generateMetadata(): Metadata {
       <div class="grid-background"> </div>
       <div class="grid-corner-circle circle-top-left"> </div>
       <div class="grid-corner-circle circle-bottom-right" > </div>
-<div></div>
       <div class="relative z-10 max-w-5xl mx-auto">
         <div
             class="vatts-reveal vatts-reveal-fade inline-block px-3 py-1 rounded-full border border-gray-500/20 bg-gray-500/5 text-white text-[10px] font-bold uppercase tracking-[0.2em] mb-8"
@@ -150,7 +150,7 @@ export function generateMetadata(): Metadata {
             class="vatts-reveal vatts-reveal-up vatts-stagger max-w-2xl text-lg md:text-xl text-slate-400 leading-relaxed mb-12 font-medium"
             :style="{ '--d': '160ms' }"
         >
-          Vatts.js is a high-performance full-stack primitive for building massive React and Vue applications. Zero fluff. Just raw speed, full type safety, and an exceptional developer experience.
+          Vatts.js is a high-performance full-stack primitive. It combines Node.js orchestration with a <strong>Go-powered HTTP/3 core</strong> for unmatched speed and raw power.
         </p>
 
         <div
@@ -212,7 +212,6 @@ export function generateMetadata(): Metadata {
                 <div class="flex-1">
                   <div class="flex justify-between items-center mb-1">
                     <h3 class="text-xl font-bold text-white">Rollup</h3>
-                    <span class="text-[10px] font-mono text-slate-500">@latest</span>
                   </div>
                   <p class="text-sm text-slate-400">Fast builds and maximum production performance.</p>
                 </div>
@@ -224,7 +223,7 @@ export function generateMetadata(): Metadata {
                   <span class="text-yellow-400 text-[10px]">Node API</span>
                 </div>
                 <div class="space-y-1.5">
-                  <div class="flex flex-wrap gap-1">
+                   <div class="flex flex-wrap gap-1">
                     <span class="text-purple-400">import</span>
                     <span>{</span>
                     <span class="text-yellow-300">build</span>
@@ -232,22 +231,7 @@ export function generateMetadata(): Metadata {
                     <span class="text-purple-400">from</span>
                     <span class="text-emerald-400">'rollup'</span>
                   </div>
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">await</span>
-                    <span class="text-blue-400">build</span>
-                    <span>(</span>
-                    <span>{</span>
-                  </div>
-                  <div class="pl-4 flex flex-wrap gap-1 text-slate-400">
-                    <span class="text-sky-400">root</span>
-                    <span>:</span>
-                    <span class="text-emerald-400">'./src'</span>
-                    <span>,</span>
-                  </div>
-                  <div class="flex flex-wrap gap-1">
-                    <span>}</span>
-                    <span>)</span>
-                  </div>
+                  <div class="text-slate-500">// Efficient bundling</div>
                 </div>
               </div>
             </div>
@@ -258,7 +242,6 @@ export function generateMetadata(): Metadata {
               <div class="flex items-start gap-5 mb-8 relative z-10">
                 <div class="shrink-0 p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20 text-cyan-400">
                   <svg width="28" height="28" viewBox="-10.5 -9.45 21 18.9" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-sky-400"><circle cx="0" cy="0" r="2" fill="currentColor"></circle><g stroke="currentColor" stroke-width="1" fill="none"><ellipse rx="10" ry="4.5"></ellipse><ellipse rx="10" ry="4.5" transform="rotate(60)"></ellipse><ellipse rx="10" ry="4.5" transform="rotate(120)"></ellipse></g></svg>
-
                 </div>
                 <div class="flex-1">
                   <div class="flex justify-between items-center mb-1">
@@ -268,43 +251,15 @@ export function generateMetadata(): Metadata {
                   <p class="text-sm text-slate-400">Instant interactions and seamless Suspense.</p>
                 </div>
               </div>
-
-              <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
+               <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
                 <div class="flex justify-between text-slate-500 mb-3 pb-2">
-                  <span>counter.tsx</span>
-                  <span class="text-cyan-400 text-[10px]">Client</span>
+                   <span>counter.tsx</span>
+                   <span class="text-cyan-400 text-[10px]">Client</span>
                 </div>
-                <div class="space-y-1.5">
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">function</span>
-                    <span class="text-blue-400">Counter</span>
-                    <span>()</span>
-                    <span>{</span>
-                  </div>
-                  <div class="pl-4 flex flex-wrap gap-1">
-                    <span class="text-purple-400">const</span>
-                    <span>[</span>
-                    <span class="text-sky-400">counter</span>
-                    <span>,</span>
-                    <span class="text-blue-400">setCounter</span>
-                    <span>]</span>
-                    <span>=</span>
-                    <span class="text-yellow-300">useState</span>
-                    <span>(</span>
-                    <span class="text-emerald-400">0</span>
-                    <span>)</span>
-                  </div>
-                  <div class="pl-4 flex flex-wrap gap-1">
-                    <span class="text-blue-400">setCounter</span>
-                    <span>(</span>
-                    <span class="text-sky-400">counter</span>
-                    <span class="text-slate-400"> + </span>
-                    <span class="text-emerald-400">1</span>
-                    <span>)</span>
-                  </div>
-                  <div>}</div>
+                <div class="text-slate-400">
+                  <span class="text-purple-400">const</span> [<span class="text-sky-400">s</span>, <span class="text-blue-400">set</span>] = <span class="text-yellow-300">useState</span>(<span class="text-emerald-400">0</span>)
                 </div>
-              </div>
+               </div>
             </div>
           </div>
 
@@ -317,41 +272,58 @@ export function generateMetadata(): Metadata {
                 <div class="flex-1">
                   <div class="flex justify-between items-center mb-1">
                     <h3 class="text-xl font-bold text-white">Vue 3</h3>
-                    <span class="text-[10px] font-mono text-slate-500">Stable</span>
+                    <span class="text--[10px] font-mono text-slate-500">Stable</span>
                   </div>
                   <p class="text-sm text-slate-400">Instant interactions and seamless async rendering.</p>
+                </div>
+              </div>
+              <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
+                 <div class="flex justify-between text-slate-500 mb-3 pb-2 border-b border-white/5">
+                   <span>App.vue</span>
+                   <span class="text-emerald-400 text-[10px]">Setup</span>
+                 </div>
+                 <div class="text-slate-400">
+                   <span class="text-purple-400">const</span> <span class="text-sky-400">val</span> = <span class="text-amber-400">ref</span>(<span class="text-pink-400">0</span>)
+                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-blue-500/20 transition-all duration-500 vatts-tilt vatts-sheen">
+            <div class="relative h-full bg-[#111111] rounded-[10px] p-8 overflow-hidden border border-white/5 flex flex-col">
+              <div class="flex items-start gap-5 mb-8 relative z-10">
+                <div class="shrink-0 p-2.5 bg-blue-500/10 rounded-lg border border-blue-500/20 text-blue-400">
+                  <Server :size="28" />
+                </div>
+                <div class="flex-1">
+                  <div class="flex justify-between items-center mb-1">
+                    <h3 class="text-xl font-bold text-white">Hybrid Runtime</h3>
+                  
+                  </div>
+                  <p class="text-sm text-slate-400 mt-2">
+                    We use a dedicated Go system to handle all HTTP traffic, offloading the event loop.
+                  </p>
                 </div>
               </div>
 
               <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
                 <div class="flex justify-between text-slate-500 mb-3 pb-2 border-b border-white/5">
-                  <span>App.vue</span>
-                  <span class="text-emerald-400 text-[10px]">Composition API</span>
+                  <span>vatts.config.ts</span>
+                  <span class="text-blue-400 text-[10px]">Network Layer</span>
                 </div>
                 <div class="space-y-1.5">
                   <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">const</span>
-                    <span class="text-sky-400">count</span>
-                    <span>=</span>
-                    <span class="text-amber-400">ref</span>
-                    <span class="text-slate-500">(</span>
-                    <span class="text-pink-400">0</span>
-                    <span class="text-slate-500">)</span>
-                  </div>
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">const</span>
-                    <span class="text-sky-400">inc</span>
-                    <span>=</span>
-                    <span class="text-slate-500">() {{ "=>" }}</span>
-                    <span class="text-sky-400">count</span>
-                    <span class="text-slate-400">.value++</span>
-                  </div>
+  <span class="text-purple-400">func</span>
+  <span class="text-sky-400">StartHttpServer</span><span>()</span>
+  <span>{</span><span>}</span>
+</div>
+
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-pink-500/20 transition-all duration-500 vatts-tilt vatts-sheen md:col-start-2">
+<div class="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-pink-500/20 transition-all duration-500 vatts-tilt vatts-sheen">
             <div class="relative h-full bg-[#111111] rounded-[10px] p-8 overflow-hidden border border-white/5 flex flex-col">
               <div class="flex items-start gap-5 mb-8 relative z-10">
                 <div class="shrink-0 p-2.5 bg-pink-500/10 rounded-lg border border-pink-500/20">
@@ -367,8 +339,7 @@ export function generateMetadata(): Metadata {
                   <p class="text-sm text-slate-400">Modern utility-first design system built-in.</p>
                 </div>
               </div>
-
-              <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
+               <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
                 <div class="flex justify-between text-slate-500 mb-3 pb-2">
                   <span>styles.css</span>
                   <span class="text-pink-400 text-[10px]">Zero Runtime</span>
@@ -395,6 +366,68 @@ export function generateMetadata(): Metadata {
               </div>
             </div>
           </div>
+
+          <div class="group relative p-1 rounded-xl bg-gradient-to-b from-white/10 to-white/5 hover:to-orange-500/20 transition-all duration-500 vatts-tilt vatts-sheen">
+            <div class="relative h-full bg-[#111111] rounded-[10px] p-8 overflow-hidden border border-white/5 flex flex-col">
+              <div class="flex items-start gap-5 mb-8 relative z-10">
+                <div class="shrink-0 p-2.5 bg-orange-500/10 rounded-lg border border-orange-500/20 text-orange-400">
+                  <Gauge :size="28" />
+                </div>
+                <div class="flex-1">
+                  <div class="flex justify-between items-center mb-1">
+                    <h3 class="text-xl font-bold text-white">Native Optimizer</h3>
+                  </div>
+                  <p class="text-sm text-slate-400 mt-2">
+                    Low-level optimizer and compressor for .js files.
+                  </p>
+                </div>
+              </div>
+
+
+              
+              <div class="mt-auto bg-[#171717] rounded-lg p-4 font-mono text-[11px] text-slate-300">
+  <div class="flex justify-between text-slate-500 mb-3 pb-2">
+    <span>Terminal</span>
+    <span class="text-sky-400 text-[10px]">Optimizer</span>
+  </div>
+
+  <div class="space-y-1">
+    <div class="flex gap-3">
+      <span class="text-slate-500">18:16:20</span>
+      <span class="text-sky-400">Optimization summary:</span>
+    </div>
+
+    <div class="flex gap-3">
+      <span class="text-slate-500">18:16:20</span>
+      <span>
+        Original&nbsp;:
+        <span class="text-emerald-400">427.24 KB</span>
+      </span>
+    </div>
+
+    <div class="flex gap-3">
+      <span class="text-slate-500">18:16:20</span>
+      <span>
+        Final&nbsp;&nbsp;&nbsp;&nbsp;:
+        <span class="text-emerald-400">124.34 KB</span>
+      </span>
+    </div>
+
+    <div class="flex gap-3">
+      <span class="text-slate-500">18:16:20</span>
+      <span>
+        Saved&nbsp;&nbsp;&nbsp;&nbsp;:
+        <span class="text-emerald-400">302.90 KB</span>
+        <span class="text-slate-500">(70.90%)</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+            </div>
+          </div>
+
+          
 
         </div>
       </section>
@@ -425,50 +458,14 @@ export function generateMetadata(): Metadata {
                   <p class="text-slate-400 max-w-md">Direct server-to-client communication. Expose your backend logic specifically to your frontend with zero boilerplate.</p>
                 </div>
               </div>
-
+              
               <div class="mt-auto relative z-10 rounded-xl bg-[#171717] p-4 font-mono text-[11px] leading-relaxed text-slate-300 shadow-2xl backdrop-blur transition-all duration-300 group-hover:border-blue-500/30">
                 <div class="mb-3 flex items-center justify-between pb-2 text-slate-500">
                   <span class="text-xs">src/backend/actions.ts</span>
                   <span class="text-xs font-medium text-cyan-400">Server Side</span>
                 </div>
                 <div class="space-y-1.5">
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">import</span>
-                    <span>{</span>
-                    <span class="text-yellow-300">Expose</span>
-                    <span>}</span>
-                    <span class="text-purple-400">from</span>
-                    <span class="text-emerald-400">"vatts/rpc"</span>
-                  </div>
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">import</span>
-                    <span>{</span>
-                    <span class="text-yellow-300">platform</span>
-                    <span>}</span>
-                    <span class="text-purple-400">from</span>
-                    <span class="text-emerald-400">"node:os"</span>
-                  </div>
-                  <div class="h-2" />
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">export function</span>
-                    <div class="gap-0">
-                      <span class="text-blue-400">getPlatform</span>
-                      <span>()</span>
-                    </div>
-                    <span>{</span>
-                  </div>
-                  <div class="pl-4 text-slate-400">
-                    <span class="text-purple-400">return</span>
-                    <span class="ml-1">platform()</span>
-                  </div>
-                  <div>}</div>
-                  <div class="h-1" />
-                  <div class="flex gap-0">
-                    <span class="text-yellow-300">Expose</span>
-                    <span>(</span>
-                    <span class="text-blue-400">getUser</span>
-                    <span>)</span>
-                  </div>
+                    <span class="text-yellow-300">Expose</span>(<span class="text-blue-400">getUser</span>)
                 </div>
               </div>
             </div>
@@ -488,36 +485,11 @@ export function generateMetadata(): Metadata {
                   <p class="text-slate-400">Secure session management built-in. Protect your routes and data effortlessly.</p>
                 </div>
               </div>
-
+              
               <div class="mt-auto relative z-10 rounded-xl bg-[#171717] p-4 font-mono text-[11px] leading-relaxed text-slate-300 shadow-2xl backdrop-blur transition-all duration-300 group-hover:border-blue-500/30">
-                <div class="mb-3 flex items-center justify-between text-slate-500">
-                  <span class="text-xs">profile.tsx</span>
-                  <span class="h-2 w-2 rounded-full bg-emerald-400/70" />
-                </div>
-                <div class="space-y-1">
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">import</span>
-                    <span>{</span>
-                    <span class="text-yellow-300">useSession</span>
-                    <span>}</span>
-                    <span class="text-purple-400">from</span>
-                    <span class="text-emerald-400">"@vatts/auth"</span>
-                  </div>
-                  <div class="flex flex-wrap gap-1">
-                    <span class="text-purple-400">const</span>
-                    <span>{</span>
-                    <span class="text-sky-400">user</span>
-                    <span>}</span>
-                    <span>=</span>
-                    <div class="gap-0">
-                      <span class="text-blue-400">useSession</span>
-                      <span>()</span>
-                    </div>
-                  </div>
-                  <div class="pt-1 text-slate-500">
-                    <span class="text-emerald-400">//</span> Auto-protected context
-                  </div>
-                </div>
+                 <div class="space-y-1 text-slate-400">
+                   <span class="text-purple-400">const</span> { <span class="text-sky-400">user</span> } = <span class="text-blue-400">useSession</span>()
+                 </div>
               </div>
             </div>
           </div>
@@ -696,12 +668,12 @@ export function generateMetadata(): Metadata {
 </template>
 
 <style>
-/* CSS do Grid Background e Animações */
+/* CSS do Grid Background e Animações - Mantido igual */
 .grid-background {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0; /* CORREÇÃO: Garante que comece invisível */
+  opacity: 0;
   background-image:
       linear-gradient(to right, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
@@ -718,7 +690,7 @@ export function generateMetadata(): Metadata {
   border: 1px dashed rgba(255, 255, 255, 0.15);
   border-radius: 50%;
   z-index: 1;
-  opacity: 0; /* Já estava aqui, mas é vital */
+  opacity: 0;
   mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
   -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
   animation: gridFadeIn 1.5s ease-out 0.3s forwards;
@@ -732,7 +704,7 @@ export function generateMetadata(): Metadata {
 .circle-bottom-right {
   bottom: -100px;
   right: -100px;
-  opacity: 0; /* Garante opacidade inicial 0 */
+  opacity: 0;
 }
 
 @keyframes gridFadeIn {
@@ -748,7 +720,7 @@ export function generateMetadata(): Metadata {
 
 @keyframes fastReveal {
   0% {
-    opacity: 0; /* Começa invisível */
+    opacity: 0;
     transform: scale(0.96);
   }
   100% {

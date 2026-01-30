@@ -8,8 +8,17 @@ This guide will help you create a new Vatts.js application and run it locally.
 
 Before getting started, make sure your environment meets the following requirements:
 
-- Node.js version 22 or higher
-- A supported operating system: macOS, Windows (including WSL), or Linux
+- Node.js version 24 or higher
+
+| Operating System    | Version                  | Supported              |
+| ------------------- | ------------------------ | ---------------------- |
+| **Windows**         | Windows 11               | ✅                      |
+|                     | Windows 10               | ✅                      |
+|                     | WSL2                     | ✅                      |
+| **Linux**           | Ubuntu 18.04+            | ✅                      |
+|                     | Debian 9+                | ✅                      |
+
+
 
 ---
 

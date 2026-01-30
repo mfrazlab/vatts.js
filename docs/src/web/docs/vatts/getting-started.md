@@ -14,6 +14,7 @@ It allows you to build complete web applications, from frontend components to ba
 
 Vatts.js is designed around the following principles:
 
+- A high-performance HTTP core written in Go, responsible for request handling and networking
 - Instant development feedback
 - Native TypeScript and JavaScript support
 - Automatic routing for both frontend and backend
@@ -31,7 +32,7 @@ Before working with Vatts, you should be familiar with:
 - HTML for markup
 - CSS for styling
 - TypeScript and JavaScript for application logic
-- React for building user interfaces
+- React or Vue for building user interfaces
 
 A basic understanding of React will help you quickly understand the concepts and workflow used by Vatts.js.
 

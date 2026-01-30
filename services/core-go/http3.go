@@ -63,12 +63,13 @@ var (
 )
 
 //export StartServer
-func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback) *C.char {
+func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback, http3PortC *C.char, dev *C.char) *C.char {
 	httpPort := C.GoString(httpPortC)
 	httpsPort := C.GoString(httpsPortC)
 	certPath := C.GoString(certPathC)
 	keyPath := C.GoString(keyPathC)
-
+	http3Port := C.GoString(http3PortC)
+	devMode := C.GoString(dev) == "true"
 	useSSL := certPath != "" && keyPath != ""
 	if useSSL && httpsPort == "" {
 		return C.CString("Error: HTTPS port required for SSL mode")
@@ -210,7 +211,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 		shouldCache := r.Method == "GET" && resp.StatusCode == 200 && cache.IsCacheable(r.URL.Path)
 		var bodyReader io.Reader = resp.Body
 
-		if shouldCache {
+		if shouldCache && !devMode {
 			limitR := io.LimitReader(resp.Body, int64(cache.MaxFileSize)+1)
 			b, err := io.ReadAll(limitR)
 			if err == nil && len(b) <= cache.MaxFileSize {
@@ -299,13 +300,15 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 		errChan := make(chan error)
 
 		if useSSL {
-			go func() {
-				serverH3 := http3.Server{
-					Addr:    httpsPort,
-					Handler: mainHandler,
-				}
-				errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
-			}()
+			if http3Port != "" {
+				go func() {
+					serverH3 := http3.Server{
+						Addr:    httpsPort,
+						Handler: mainHandler,
+					}
+					errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
+				}()
+			}
 
 			go func() {
 				errChan <- http.ListenAndServeTLS(httpsPort, certPath, keyPath, mainHandler)

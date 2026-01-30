@@ -17,7 +17,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <footer class="relative z-10 py-12 px-6 bg-black border-t border-white/[0.06]">
+  <footer class="relative z-10 py-12 px-6 bg-black border-t border-white/10">
     <div class="max-w-7xl mx-auto">
       <div class="flex flex-col md:flex-row justify-between items-center gap-8">
         <div class="flex flex-col items-center md:items-start gap-3">
