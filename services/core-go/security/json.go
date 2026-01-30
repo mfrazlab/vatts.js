@@ -52,16 +52,16 @@ func scanBody(r *http.Request) error {
 	payload := string(bodyBytes)
 
 	// 1. Prototype Pollution
-	if strings.Contains(payload, "\"__proto__\"") || 
-	   strings.Contains(payload, "\"constructor\"") || 
-	   strings.Contains(payload, "\"prototype\"") {
+	if strings.Contains(payload, "\"__proto__\"") ||
+		strings.Contains(payload, "\"constructor\"") ||
+		strings.Contains(payload, "\"prototype\"") {
 		return ErrMaliciousPayload
 	}
 
 	// 2. NoSQL Injection Básico
-	if strings.Contains(payload, "\"$ne\"") || 
-	   strings.Contains(payload, "\"$gt\"") || 
-	   strings.Contains(payload, "\"$where\"") {
+	if strings.Contains(payload, "\"$ne\"") ||
+		strings.Contains(payload, "\"$gt\"") ||
+		strings.Contains(payload, "\"$where\"") {
 		return ErrMaliciousPayload
 	}
 

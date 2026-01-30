@@ -22,6 +22,7 @@ import http, {IncomingMessage, Server, ServerResponse} from 'http';
 import os from 'os';
 import {URLSearchParams} from 'url'; // API moderna, substitui 'querystring'
 import path from 'path';
+import { Duplex } from 'stream'; // Necessário para a ponte do Socket
 // Helpers para integração com diferentes frameworks
 import vatts, {FrameworkAdapterFactory} from './index.js'; // Importando o tipo
 import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
@@ -29,10 +30,9 @@ import Console, {Colors} from "./api/console";
 import https, { Server as HttpsServer } from 'https';
 import http2, { Http2SecureServer } from 'http2';
 import fs from 'fs';
-// Adicionado getSocketPath aos imports
-import startProxy, { getSocketPath } from "./api/http3";
-// Importa o Socket Server Nativo (Wrapper do Go)
-import { NativeSocketServer } from "./api/socket";
+
+// Nova API do Servidor Nativo (Go HTTP/3)
+import { NativeServer } from "./api/native-server";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -498,8 +498,9 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     };
     // --- FIM DO LISTENER ---
 
-    // Sempre criamos um servidor HTTP padrão do Node.js.
-    // Este servidor será o "backend" local que o Proxy Go vai consumir (escondido).
+    // Sempre criamos um servidor HTTP padrão do Node.js para processar a lógica.
+    // Mas ele NÃO vai escutar em nenhuma porta TCP ou Socket de arquivo.
+    // Ele será alimentado exclusivamente pela ponte de memória do NativeServer.
     const server = http.createServer(requestListener as any);
 
     // Configurações de timeout (aplicam-se ao backend)
@@ -513,110 +514,132 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
 
     const isSSL = !!(config.ssl && config.ssl.key && config.ssl.cert);
 
-    // --- MODO PROXY NATIVO (SEMPRE ATIVO) ---
-    // Agora usamos o Proxy Go (Vatts Core) para tudo, com ou sem SSL.
-    // Isso garante Shield, Fusion e Cache para todos os usuários.
-    // E agora com ZERO-LINK via IPC (Unix Socket / Named Pipe)
+    // --- NOVA ARQUITETURA: Native Bridge (Todos os SOs) ---
+    // Substitui node:net e arquivos .sock.
+    // Cria um stream Duplex virtual para cada requisição que chega do Go.
 
-    // 1. Obtém o caminho do Socket e garante limpeza
-    const socketPath = getSocketPath();
-    // Limpeza de arquivo de socket órfão (importante para evitar EADDRINUSE)
-    if (fs.existsSync(socketPath)) {
-        try {
-            fs.unlinkSync(socketPath);
-        } catch (e) {
-            Console.warn(`Could not cleanup socket file: ${e}`);
+    const connections = new Map<number, Duplex>();
+
+    // Ponte virtual: Go <-> Memória <-> Node HTTP Parser
+    class NativeBridge extends Duplex {
+        constructor(public connId: number) {
+            super();
+        }
+
+        // Implementa setTimeout para satisfazer a interface do net.Socket usada pelo http.Server
+        setTimeout(msecs: number, callback?: () => void) {
+            if (callback) {
+                this.once('timeout', callback);
+            }
+            return this;
+        }
+
+        _read(size: number) {
+            // No-op: Os dados são empurrados externamente pelo onData do NativeServer
+        }
+
+        _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error | null) => void) {
+            try {
+                // Node respondeu -> Envia de volta para o Go via CGO
+                // MUDANÇA: Passamos o chunk (Buffer) diretamente, sem converter para string
+                NativeServer.write(this.connId, chunk);
+                callback();
+            } catch (err: any) {
+                callback(err);
+            }
+        }
+
+        _final(callback: (error?: Error | null) => void) {
+            NativeServer.closeConnection(this.connId);
+            callback();
+        }
+
+        _destroy(error: Error | null, callback: (error: Error | null) => void) {
+            NativeServer.closeConnection(this.connId);
+            callback(error);
         }
     }
 
-    // 2. Portas Públicas
+    // Configura portas para o Go StartServer
     const publicPort = config.port || (isSSL ? 443 : 3000);
-
-    // 3. Configura Argumentos para o Proxy
-    let proxyHttpPort = "";
-    let proxyHttpsPort = "";
+    let goHttpPort = "";
+    let goHttpsPort = "";
     let certPath = "";
     let keyPath = "";
 
     if (isSSL) {
-        // Modo SSL: Porta HTTP faz redirect, Porta HTTPS é a principal
+        // SSL: HTTP faz redirect (80 por padrão), HTTPS é a principal
         const redirectPort = config.ssl?.redirectPort || 80;
-        proxyHttpPort = `:${redirectPort}`;
-        proxyHttpsPort = `:${publicPort}`;
-        certPath = config?.ssl?.cert!;
-        keyPath = config?.ssl?.key!;
+        goHttpPort = `:${redirectPort}`;
+        goHttpsPort = `:${publicPort}`;
+        certPath = config?.ssl?.cert || "";
+        keyPath = config?.ssl?.key || "";
     } else {
-        // Modo HTTP Puro (Proxy atua como firewall/cache na porta principal)
-        proxyHttpPort = `:${publicPort}`;
-        proxyHttpsPort = ""; // Ignorado pelo Go quando sem SSL
+        // Non-SSL: HTTP é a principal
+        goHttpPort = `:${publicPort}`;
+        // httpsPort vazio diz pro Go não iniciar TLS
     }
 
-    // 4. Callback de quando o socket/backend está pronto
-    const onListening = () => {
-        try {
-            // 5. Inicia o Proxy Go em background
-            // Isso não bloqueia o Node, roda via CGO
-            // backendUrl agora é irrelevante para o DNS, mas passamos localhost
-            // porque o Go força o transporte para usar o socket.
-            startProxy({
-                httpPort: proxyHttpPort,
-                httpsPort: proxyHttpsPort,
-                backendUrl: `http://127.0.0.1`, // Host dummy, o Go usa o socketPath
-                certPath: certPath,
-                keyPath: keyPath,
-                dev: options.dev ? "true" : "false"
-            });
+    try {
+        NativeServer.start({
+            httpPort: goHttpPort,
+            httpsPort: goHttpsPort,
+            certPath: certPath,
+            keyPath: keyPath,
+            // Callback: Chegou dados do Go (Browser -> Go -> Node)
+            onData: (connId, data) => {
+                let bridge = connections.get(connId);
 
-            // Atualiza o box de info para mostrar a porta pública correta
-            sendBox({ ...options });
+                if (!bridge) {
+                    // Nova requisição/conexão
+                    bridge = new NativeBridge(connId);
+                    connections.set(connId, bridge);
 
-            const modeLabel = isSSL ? "HTTP/3 (SSL)" : "HTTP (Shield active)";
+                    // Simula uma conexão TCP chegando no servidor Node
+                    // O servidor começa a ler do stream 'bridge' e parsear o HTTP
+                    server.emit('connection', bridge);
 
-            msg.end(
-                `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
-                `${Colors.Dim} ↳ Backend active on IPC (Zero-Link)${Colors.Reset}\n` +
-                `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
-            );
-
-        } catch (err: any) {
-            Console.error(`${Colors.FgRed}[Critical] Failed to start Native Proxy:${Colors.Reset} ${err.message}`);
-            // Se o Proxy falhar, o Vatts.js não deve rodar exposto sem proteção
-            process.exit(1);
-        }
-    };
-
-    // 5. Inicia o Backend (Node) no Socket
-    if (os.platform() === 'win32') {
-        // --- WINDOWS (NATIVE FIX) ---
-        // O Node.js no Windows não lida bem com a criação de arquivos .sock (Unix Domain Sockets).
-        // Aqui usamos a lib Go (NativeSocketServer) para criar o arquivo e ouvir as conexões.
-        try {
-            NativeSocketServer.start({
-                path: socketPath,
-                onMessage: (data) => {
-                    // TODO: Aqui recebemos o dado cru do Go.
-                    // Idealmente, deveríamos transformar isso em req/res e chamar requestListener(req, res).
-                    // Como isso requer um parser HTTP completo em JS ou binding C++,
-                    // por enquanto garantimos que o canal está aberto.
-                    
-                    // Se o Proxy Go estiver configurado para enviar apenas o payload ou se
-                    // precisarmos processar, a lógica entraria aqui.
-                    // Para Vatts.js High Perf, o Go gerencia o socket.
+                    // Limpeza local
+                    bridge.on('close', () => {
+                        connections.delete(connId);
+                    });
                 }
-            });
-            // Disparamos o callback manualmente pois o socket nativo já está ouvindo
-            onListening();
-        } catch (e: any) {
-            Console.error(`${Colors.FgRed}[Critical] Failed to open Native Socket on Windows:${Colors.Reset} ${e.message}`);
-            process.exit(1);
-        }
-    } else {
-        // --- LINUX / MAC (NODE NATIVE) ---
-        // Em sistemas baseados em Unix, o Node.js lida nativamente com arquivos .sock
-        server.listen(socketPath, onListening);
+
+                // Empurra os dados (Buffer cru) para o parser do Node
+                bridge.push(data);
+            },
+            // Callback: Conexão fechou lá no Go
+            onClose: (connId) => {
+                const bridge = connections.get(connId);
+                if (bridge) {
+                    bridge.push(null); // EOF
+                    bridge.destroy();
+                    connections.delete(connId);
+                }
+            }
+        });
+
+        // Atualiza UI
+        sendBox({ ...options });
+
+        const modeLabel = isSSL ? "HTTP/3 (SSL)" : "HTTP (Shield active)";
+        msg.end(
+            `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
+            `${Colors.Dim} ↳ Engine running on Native Bridge (No-Socket)${Colors.Reset}\n` +
+            `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
+        );
+
+        // MANTÉM O PROCESSO VIVO
+        // Como não chamamos server.listen(), o event loop do Node ficaria vazio e o processo morreria.
+        // Este intervalo mantém o processo rodando para processar os callbacks do CGO.
+        setInterval(() => {}, 2147483647);
+
+    } catch (e: any) {
+        Console.error(`${Colors.FgRed}[Critical] Failed to start Native Server:${Colors.Reset} ${e.message}`);
+        process.exit(1);
     }
 
-    // Configura WebSocket (Funciona através do Proxy pois ele suporta upgrade de conexão)
+    // Configura WebSocket (Funciona através do Proxy pois ele suporta upgrade de conexão via raw bytes)
     vattsApp.setupWebSocket(server);
     vattsApp.executeInstrumentation();
 
@@ -731,7 +754,7 @@ ${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite} 
             if (framework !== 'native') {
                 Console.warn(`The "${framework}" framework was selected, but the init() method only works with the "native" framework. Starting native server...`);
             }
-            
+
             return await initNativeServer(vattsApp, options, actualHostname, config);
         }
     }

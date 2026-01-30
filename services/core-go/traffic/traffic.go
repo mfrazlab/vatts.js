@@ -6,9 +6,8 @@ package traffic
 
 import (
 	"bytes"
-	"core-go/utils"
+	"log"
 	"net/http"
-	"net/http/httputil"
 	"sync"
 )
 
@@ -35,9 +34,10 @@ var globalGroup = &FusionGroup{
 }
 
 // ServeFusion tenta fundir requisições idênticas (GET)
-func ServeFusion(w http.ResponseWriter, r *http.Request, proxy *httputil.ReverseProxy) {
+// Adaptação: Aceita http.Handler em vez de *httputil.ReverseProxy para compatibilidade
+func ServeFusion(w http.ResponseWriter, r *http.Request, next http.Handler) {
 	if r.Method != "GET" {
-		proxy.ServeHTTP(w, r)
+		next.ServeHTTP(w, r)
 		return
 	}
 
@@ -50,7 +50,7 @@ func ServeFusion(w http.ResponseWriter, r *http.Request, proxy *httputil.Reverse
 		c.wg.Wait()
 
 		if c.err != nil || c.val == nil {
-			proxy.ServeHTTP(w, r)
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -69,7 +69,8 @@ func ServeFusion(w http.ResponseWriter, r *http.Request, proxy *httputil.Reverse
 		code:   http.StatusOK,
 	}
 
-	proxy.ServeHTTP(recorder, r)
+	// Executa o handler real (Proxy p/ Node)
+	next.ServeHTTP(recorder, r)
 
 	c.val = &ResponseSnapshot{
 		Code:   recorder.code,
@@ -84,8 +85,7 @@ func ServeFusion(w http.ResponseWriter, r *http.Request, proxy *httputil.Reverse
 	globalGroup.mu.Unlock()
 
 	if c.dups > 0 {
-		utils.LogCustomLevel("", false, "", "", utils.FgCyan+utils.Bright+"FUSION EFFECT:"+utils.Reset,
-			"Collapsed", c.dups, "requests for", key)
+		log.Printf("[FUSION EFFECT] Collapsed %d requests for %s", c.dups, key)
 	}
 
 	copyResponse(w, c.val, "LEADER")

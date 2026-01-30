@@ -132,7 +132,7 @@ func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char, 
 					return fmt.Errorf("gzip failure %s: %v", info.Name(), err)
 				}
 			}
-		
+
 			// Remove original source to save space
 			if err := os.Remove(path); err != nil {
 				return fmt.Errorf("failed to delete original %s: %v", info.Name(), err)
