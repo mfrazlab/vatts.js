@@ -49,3 +49,5 @@ pnpm-lock.yaml
 **/**/node_modules/
 services/**/binaries/
 services/core-go/go.sum
+
+docs/
