@@ -1,7 +1,7 @@
 <div align="center">  
   <picture>  
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png">  
-      <img alt="Vatts.js logo" src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" width="128">  
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mfrazlab/vatts.js/docs/public/logo.png">  
+      <img alt="Vatts.js logo" src="https://raw.githubusercontent.com/mfrazlab/vatts.js/docs/public/logo.png" width="128">  
     </picture>  
   <h1>Vatts.js</h1>  
 
@@ -47,7 +47,7 @@ ___
 
 ## Community
 
-The Vatts.js community can be found on [GitHub Discussions](https://github.com/mfraz/vatts), where you can ask questions, share ideas, and showcase your projects with others.
+The Vatts.js community can be found on [GitHub Discussions](https://github.com/mfraz/vatts.js), where you can ask questions, share ideas, and showcase your projects with others.
 
 ___
 

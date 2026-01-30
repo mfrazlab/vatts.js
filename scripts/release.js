@@ -15,7 +15,8 @@ const PACKAGES_TO_SYNC = [
 // Onde gerar Changelogs
 const CHANGELOG_TARGETS = [
   'CHANGELOG.md',             // Raiz
-  'packages/auth/CHANGELOG.md' // Auth
+  'packages/auth/CHANGELOG.md', // Auth
+  'packages/vatts/CHANGELOG.md'  // Vatts
 ];
 
 // Configuração do Core-Go
