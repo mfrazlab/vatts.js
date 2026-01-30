@@ -625,7 +625,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         const modeLabel = isSSL ? "HTTP/3 (SSL)" : "HTTP (Shield active)";
         msg.end(
             `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
-            `${Colors.Dim} ↳ Engine running on Native Bridge (No-Socket)${Colors.Reset}\n` +
+            `${Colors.Dim} ↳ Engine running on Native Bridge${Colors.Reset}\n` +
             `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
         );
 

@@ -4,12 +4,8 @@ const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
     return {
         ...defaultConfig,
         pathRouter: true,
-        port: 443,
-        ssl: {
-            redirectPort: 80,
-            key: '../certs/localhost-key.pem',
-            cert: '../certs/localhost.pem',
-        }
+        port: 8080,
+       
     };
 };
 
