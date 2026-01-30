@@ -56,11 +56,12 @@ var (
 )
 
 //export StartServer
-func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback) *C.char {
+func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback, http3PortC *C.char) *C.char {
 	httpPort := C.GoString(httpPortC)
 	httpsPort := C.GoString(httpsPortC)
 	certPath := C.GoString(certPathC)
 	keyPath := C.GoString(keyPathC)
+	http3Port := C.GoString(http3PortC)
 
 	useSSL := certPath != "" && keyPath != ""
 	if useSSL && httpsPort == "" {
@@ -191,9 +192,15 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 	})
 
 	// 2. Montagem da Pipeline de Handlers
-	// Ordem: Security -> Cache (Read) -> Traffic Fusion -> Node Bridge
+	// Ordem: Alt-Svc -> Security -> Cache (Read) -> Traffic Fusion -> Node Bridge
 
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Adiciona Alt-Svc para avisar que HTTP/3 está disponível
+		if http3Port != "" {
+			// Se a porta for ":443", o header fica h3=":443"; ma=86400
+			w.Header().Set("Alt-Svc", fmt.Sprintf(`h3="%s"; ma=86400`, http3Port))
+		}
+
 		// A. Security Check
 		if err := security.AnalyzeRequest(r); err != nil {
 			utils.Warn("[SECURITY] Blocked ", r.RemoteAddr, err)
@@ -230,14 +237,15 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 		errChan := make(chan error)
 
 		if useSSL {
-
-			go func() {
-				serverH3 := http3.Server{
-					Addr:    httpsPort,
-					Handler: mainHandler, // Usa o handler com middleware
-				}
-				errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
-			}()
+			if http3Port != "" {
+				go func() {
+					serverH3 := http3.Server{
+						Addr:    http3Port,
+						Handler: mainHandler, // Usa o handler com middleware
+					}
+					errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
+				}()
+			}
 
 			go func() {
 				errChan <- http.ListenAndServeTLS(httpsPort, certPath, keyPath, mainHandler)

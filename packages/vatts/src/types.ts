@@ -51,6 +51,7 @@ export interface VattsOptions {
 export interface VattsConfig {
     port: number
     ssl?: {
+        http3Port?: number;
         redirectPort: number;
         key: string;
         cert: string;

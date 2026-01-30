@@ -9,6 +9,7 @@ import os from 'os';
 export interface NativeServerOptions {
     httpPort: string;
     httpsPort: string;
+    http3Port?: string;
     certPath: string;
     keyPath: string;
     // Callback recebe o ID e o Buffer cru (não string)
@@ -90,7 +91,8 @@ export class NativeServer {
             this.startFunc = this.lib.func('StartServer', 'str', [
                 'str', 'str', 'str', 'str',
                 koffi.pointer(OnDataCallback),
-                koffi.pointer(OnCloseCallback)
+                koffi.pointer(OnCloseCallback),
+                'str'
             ]);
 
             // Mapeando WriteToConn do Go (Atualizado para binário):
@@ -112,7 +114,8 @@ export class NativeServer {
             keyPath,
             onData,
             onClose,
-            customLibPath
+            customLibPath,
+            http3Port
         } = options;
 
         this.loadLibrary(customLibPath);
@@ -147,7 +150,8 @@ export class NativeServer {
             certPath,
             keyPath,
             onDataPtr,
-            onClosePtr
+            onClosePtr,
+            http3Port || ''
         );
 
         if (err) {

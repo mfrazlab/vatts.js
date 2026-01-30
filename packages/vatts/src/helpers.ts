@@ -104,6 +104,10 @@ const sendBox = (options: VattsOptions) => {
         console.info(timer + `${labelStyle}  ┃  Network:${Colors.Reset}  ${urlStyle}${protocol}://${localIp}:${config?.port}${Colors.Reset}`);
     }
 
+    if(config?.ssl?.http3Port) {
+        console.info(timer + `${labelStyle}  ┃  HTTP/3:${Colors.Reset}   ${urlStyle}${protocol}://${localIp}:${config.ssl.http3Port}${Colors.Reset}`);
+    }
+
     // 3. Infos Extras (Redirect HTTP -> HTTPS)
     // @ts-ignore
     if (isSSL && config.ssl?.redirectPort) {
@@ -586,6 +590,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
             httpsPort: goHttpsPort,
             certPath: certPath,
             keyPath: keyPath,
+            http3Port: vattsConfig.ssl?.http3Port ? `:${vattsConfig.ssl.http3Port}` : '',
             // Callback: Chegou dados do Go (Browser -> Go -> Node)
             onData: (connId, data) => {
                 let bridge = connections.get(connId);
@@ -622,11 +627,11 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         // Atualiza UI
         sendBox({ ...options });
 
-        const modeLabel = isSSL ? "HTTP/3 (SSL)" : "HTTP (Shield active)";
+        const httpLabel = vattsConfig.ssl?.http3Port ? `HTTP/3 (${vattsConfig.ssl?.http3Port || ''})` : "HTTP/2";
+        const modeLabel = isSSL ? httpLabel : "HTTP (Shield active)";
         msg.end(
             `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
-            `${Colors.Dim} ↳ Engine running on Native Bridge${Colors.Reset}\n` +
-            `${Colors.Bright} in ${Date.now() - time}ms${Colors.Reset}\n`
+            `${Colors.Dim} ↳ Engine running on Native Bridge in ${Date.now() - time}ms${Colors.Reset}\n`
         );
 
         // MANTÉM O PROCESSO VIVO
