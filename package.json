@@ -1,6 +1,6 @@
 {
   "name": "vatts-framework",
-  "version": "1.4.1-test.2",
+  "version": "2.0.0-canary.1",
   "description": "Monorepo for the Vatts.js framework",
   "private": true,
   "author": "mfraz",
@@ -15,14 +15,10 @@
   "scripts": {
     "build": "pnpm run clean && pnpm -r --filter \"!./services/**\" run build",
     "clean": "pnpm -r exec rimraf dist",
-
-    "publish:sdk-alpha": "pnpm run version:sync && pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish publish --no-git-checks --access=public --tag=test",
-
-    "version:sync": "node -e \"const fs=require('fs'); const v=require('./package.json').version; ['packages/vatts','packages/auth','examples/basic-app'].forEach(p=>{const f=`${p}/package.json`; if(fs.existsSync(f)){const j=JSON.parse(fs.readFileSync(f)); j.version=v; fs.writeFileSync(f, JSON.stringify(j,null,2)+'\\n')}})\"",
-    "publish:sdk": "pnpm run version:sync && pnpm run build && pnpm -r --filter \"./packages/**\" --filter \"!create-vatts-app\" publish --no-git-checks --access=public",
-
-    "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public",
-    "publish:create-app-alpha": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"
+    
+    "release": "node scripts/release.js",
+    
+    "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
