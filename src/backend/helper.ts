@@ -20,7 +20,7 @@ export async function PackageVersion(): Promise<string | null> {
         const data = await response.json();
 
         // Pegamos todas as versões disponíveis no objeto 'versions'
-        const allVersions = Object.keys(data.versions);
+        const allVersions = Object.keys(data.versions).filter(v => !v.includes("2.0.1-canary.1"));
 
         // 2. Ordenação SemVer
         // Usamos localeCompare com 'numeric: true' para que 1.10 seja > 1.2
