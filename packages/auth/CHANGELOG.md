@@ -1,3 +1,7 @@
+## 2.0.0-canary.2 (2026-01-30)
+
+Update version to 2.0.0-canary.2 to fix the compatibility
+
 ## 2.0.1-canary.1 (2026-01-30)
 
 feat: Enhance Vatts.js documentation and features

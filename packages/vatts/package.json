@@ -1,6 +1,6 @@
 {
   "name": "vatts",
-  "version": "2.0.1-canary.1",
+  "version": "2.0.0-canary.2",
   "description": "Vatts.js is a high-level framework for building web applications with ease and speed. It provides a robust set of tools and features to streamline development and enhance productivity.",
   "types": "dist/index.d.ts",
   "author": "mfraz",
