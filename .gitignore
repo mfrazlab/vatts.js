@@ -51,3 +51,4 @@ services/**/binaries/
 services/core-go/go.sum
 
 docs/
+docs/**

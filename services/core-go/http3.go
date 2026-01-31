@@ -85,6 +85,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 	certPath := C.GoString(certPathC)
 	keyPath := C.GoString(keyPathC)
 	http3Port := C.GoString(http3PortC)
+	utils.Info("Starting HTTP/3 Server on port " + http3Port + "...")
 	devMode := C.GoString(dev) == "true"
 	useSSL := certPath != "" && keyPath != ""
 	if useSSL && httpsPort == "" {
@@ -274,6 +275,20 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 
 	// 2. Montagem da Pipeline de Handlers
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// --- [CORREÇÃO HTTP/3] Injeção do Alt-Svc ---
+		// Isso avisa ao cliente que o HTTP/3 está disponível na porta UDP especificada.
+		// Sem isso, o navegador/cliente continua usando TCP e não faz o upgrade.
+		if http3Port != "" {
+			// Remove o ":" se existir, apenas para garantir a formatação correta no header
+			// Ex: se http3Port for ":443", extraímos "443"
+			h3PortClean := http3Port
+			if strings.Contains(h3PortClean, ":") {
+				parts := strings.Split(h3PortClean, ":")
+				h3PortClean = parts[len(parts)-1]
+			}
+			w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, h3PortClean))
+		}
+
 		// A. Security Check
 		if err := security.AnalyzeRequest(r); err != nil {
 			utils.Warn("[SECURITY] Blocked ", r.RemoteAddr, err)
@@ -296,6 +311,17 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 						w.Header().Add(k, val)
 					}
 				}
+				
+				// Se estiver servindo do cache, também precisamos mandar o Alt-Svc
+				if http3Port != "" {
+					h3PortClean := http3Port
+					if strings.Contains(h3PortClean, ":") {
+						parts := strings.Split(h3PortClean, ":")
+						h3PortClean = parts[len(parts)-1]
+					}
+					w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, h3PortClean))
+				}
+
 				w.Header().Set("X-Vatts-Cache", "HIT")
 				w.WriteHeader(http.StatusOK)
 				w.Write(item.Body)
@@ -317,9 +343,10 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 
 		if useSSL {
 			if http3Port != "" {
+				utils.Info("Starting HTTP/3 Server on port " + http3Port + "...")
 				go func() {
 					serverH3 := http3.Server{
-						Addr:    httpsPort,
+						Addr:    http3Port, // [CORREÇÃO] Usando a porta correta para o bind UDP
 						Handler: mainHandler,
 					}
 					errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
@@ -389,4 +416,3 @@ func CloseConn(connID C.int) {
 	}
 	mutex.Unlock()
 }
-

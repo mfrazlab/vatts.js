@@ -136,36 +136,45 @@ try {
   // ---------------------------------------------------------
   console.log('🐙 Iniciando operações Git e GitHub...');
 
-  // 5.1 Commit na branch atual (canary) para salvar as alterações de versão/changelog
-  console.log(`   📌 Commitando alterações na branch atual...`);
-  execSync('git add .', { cwd: ROOT_DIR });
+  // 5.1 Commit na branch atual (canary) IGNORANDO A PASTA DOCS
+  console.log(`   📌 Commitando alterações (ignorando ./docs)...`);
+  
+  // O ":!docs" diz para o git adicionar tudo EXCETO o caminho docs
+  execSync('git add . -- ":!docs"', { cwd: ROOT_DIR });
+  
   try {
     execSync(`git commit -m "chore(release): v${NEW_VERSION}"`, { cwd: ROOT_DIR });
   } catch (e) {
     console.log('   ⚠️  Nada para comitar (talvez já tenha sido comitado).');
   }
   
-  // Salva o nome da branch atual para voltar depois
+  // Pega o nome da branch atual (canary)
   const currentBranch = execSync('git branch --show-current').toString().trim();
-  console.log(`   🌿 Branch atual detectada: ${currentBranch}`);
+  console.log(`   🌿 Branch atual: ${currentBranch}`);
 
-  // 5.2 Checkout Latest, Merge e Push
-  console.log(`   twisted_rightwards_arrows  Mudando para ${BRANCH_PROD} e aplicando alterações...`);
+  // 5.2 Hard Reset na Latest (Sem Merge)
+  // Aqui fazemos o "latest" virar exatamente o que o "canary" é agora.
+  console.log(`   🔄 Forçando a branch ${BRANCH_PROD} a ser idêntica a ${currentBranch}...`);
+  
   execSync(`git checkout ${BRANCH_PROD}`, { stdio: 'inherit', cwd: ROOT_DIR });
-  execSync(`git merge ${currentBranch}`, { stdio: 'inherit', cwd: ROOT_DIR });
-  execSync('git push', { stdio: 'inherit', cwd: ROOT_DIR });
+  
+  // Hard reset faz a branch local latest ficar IGUAL à branch de origem (canary)
+  execSync(`git reset --hard ${currentBranch}`, { stdio: 'inherit', cwd: ROOT_DIR });
+  
+  // Force push é obrigatório aqui pois reescrevemos o histórico do latest
+  console.log(`   🔥 Enviando ${BRANCH_PROD} com Force Push...`);
+  execSync(`git push origin ${BRANCH_PROD} --force`, { stdio: 'inherit', cwd: ROOT_DIR });
 
   // 5.3 Criar Release no GitHub
   console.log('   🏷️  Criando Release no GitHub...');
   try {
-    // Tenta usar o CLI do GitHub (gh) se instalado
-    const releaseNotes = lastCommitMsg.replace(/"/g, '\\"'); // Escapar aspas
+    const releaseNotes = lastCommitMsg.replace(/"/g, '\\"');
+    // Nota: target agora é BRANCH_PROD (que acabamos de resetar)
     const ghCommand = `gh release create v${NEW_VERSION} --title "v${NEW_VERSION}" --notes "${releaseNotes}" --target ${BRANCH_PROD}`;
     execSync(ghCommand, { stdio: 'inherit', cwd: ROOT_DIR });
     console.log('   ✅ Release criada via GitHub CLI!');
   } catch (err) {
-    // Fallback: Cria apenas a tag local e dá push
-    console.warn('   ⚠️  GitHub CLI (gh) não encontrado ou erro. Usando tags do git padrão.');
+    console.warn('   ⚠️  GitHub CLI (gh) falhou ou não instalado. Criando tag git manual.');
     execSync(`git tag v${NEW_VERSION}`, { cwd: ROOT_DIR });
     execSync('git push --tags', { stdio: 'inherit', cwd: ROOT_DIR });
     console.log('   ✅ Tag v' + NEW_VERSION + ' enviada!');
