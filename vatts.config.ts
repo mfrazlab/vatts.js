@@ -4,13 +4,7 @@ const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
     return {
         ...defaultConfig,
         pathRouter: true,
-        port: 443,
-        ssl: {
-            http3Port: 4443,
-            redirectPort: 80,
-            key: '/etc/letsencrypt/live/beta.int.mfraz.ovh/privkey.pem',
-            cert: '/etc/letsencrypt/live/beta.int.mfraz.ovh/fullchain.pem',
-        }
+        port: 3000,
     };
 };
 
