@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import SearchModal from "./SearchModal.vue"; // Assumindo extensão .vue
-import { VattsImage, Link } from "vatts/vue";
+import { VattsImage, Link, router } from "vatts/vue";
 import { sidebarConfig } from "../lib/searchIndex";
 import type { SearchDoc } from "../lib/searchIndex";
 
@@ -28,16 +28,34 @@ const docsForSearch = computed<SearchDoc[]>(() => {
   );
 });
 
+// Computed para links ativos baseado no currentPath
+const activeLinksComputed = computed(() => {
+  const active: { [key: string]: boolean } = {};
+  navLinks.forEach((link) => {
+    active[link.href] = !link.external && !!currentPath.value && currentPath.value.startsWith(link.href);
+  });
+  return active;
+});
+
 // Função auxiliar para verificar link ativo
 const isActiveLink = (href: string, external: boolean) => {
-  return !external && currentPath.value.startsWith(href);
+  return activeLinksComputed.value[href] || false;
 };
 
-const getLinkClasses = (active: boolean) => {
+const getLinkClasses = (href: string, external: boolean) => {
+  const active = isActiveLink(href, external);
   return active
       ? "text-blue-500 font-semibold"
       : "text-slate-400 hover:text-white";
 };
+
+// Watcher para detectar mudanças de rota
+watch(() => typeof window !== 'undefined' ? window.location.href : '', (newHref) => {
+  console.log('MUDOU')
+  if (typeof window !== 'undefined') {
+    currentPath.value = window.location.pathname;
+  }
+}, { immediate: true });
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -86,7 +104,7 @@ onUnmounted(() => {
               v-if="link.external"
               :href="link.href"
               class="text-sm font-medium transition-colors"
-              :class="getLinkClasses(isActiveLink(link.href, link.external))"
+              :class="getLinkClasses(link.href, link.external)"
           >
             {{ link.label }}
           </a>
@@ -95,7 +113,7 @@ onUnmounted(() => {
               v-else
               :href="link.href"
               class="text-sm font-medium transition-colors"
-              :class="getLinkClasses(isActiveLink(link.href, link.external))"
+              :class="getLinkClasses(link.href, link.external)"
           >
             {{ link.label }}
           </Link>

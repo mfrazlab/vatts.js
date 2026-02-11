@@ -1,4 +1,5 @@
 <script lang="ts">
+import Navbar from '@/web/components/Navbar.vue';
 import type { Metadata } from "vatts/vue";
 export const metadata: Metadata = {
   title: "Vatts.js | The Fastest Framework for React",
@@ -24,6 +25,7 @@ function onAfterLeave() {
 </script>
 
 <template>
+  <Navbar />
   <slot />
 </template>
 

@@ -1,16 +1,8 @@
 <script setup lang="ts">
-const props = defineProps({
-  params: {
-    type: Object,
-    default: () => ({})
-  }
-});
+import "./style.css"
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-
 import { marked } from 'marked';
 import Prism from 'prismjs';
-
-
 
 // Importar linguagens Prism
 import 'prismjs/components/prism-javascript';
@@ -36,6 +28,14 @@ import { sidebarConfig } from "@/web/lib/searchIndex";
 
 import Navbar from "../../../../components/Navbar.vue";
 import Footer from "../../../../components/Footer.vue";
+
+// Props devem vir DEPOIS dos imports
+const props = defineProps({
+  params: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
 // --- Configurações do Markdown e Prism (Fora do setup para performance) ---
 
@@ -72,7 +72,7 @@ renderer.code = ({ text, lang }: any) => {
   const highlighted = Prism.highlight(text, Prism.languages[validLanguage], validLanguage);
 
   return `
-        <div class="code-block my-8 group relative rounded-xl border border-white/5 bg-[#0a0a0c]">
+        <div class=" font-jmono code-block my-8 group relative rounded-xl border border-white/5 bg-[#0a0a0c]">
             <div class="code-header flex justify-between items-center px-4 py-2 bg-white/[0.03] rounded-t-xl border-b border-white/5">
                 <span class="text-[10px] uppercase tracking-widest font-bold text-zinc-500">${lang || 'text'}</span>
                 <button class="copy-button p-1 text-zinc-600 hover:text-white transition-colors" onclick="navigator.clipboard.writeText(this.getAttribute('data-code'))" data-code="${text.replace(/"/g, '&quot;')}">
@@ -176,8 +176,8 @@ watch([activeSection, framework], async () => {
 </script>
 
 <template>
-  <div class="relative min-h-screen bg-black text-slate-400 selection:bg-white/10 isolate flex flex-col">
-    <Navbar />
+  <div class="font-dm relative min-h-screen bg-black text-slate-400 selection:bg-white/10 isolate flex flex-col">
+    
 
     <div class="relative z-0 flex flex-1 min-w-0 bg-black">
 
@@ -325,7 +325,6 @@ pre[class*="language-"] {
 </style>
 <script lang="ts">
 import {Metadata} from "vatts/vue";
-import {sidebarConfig} from "@/web/lib/searchIndex";
 
 export function generateMetadata(params: any): Metadata {
   const isFrameworkParam = params?.value2 === 'react' || params?.value2 === 'vue';

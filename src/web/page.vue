@@ -13,7 +13,7 @@ import { importServer, Link, VattsImage } from "vatts/vue";
 // Componentes
 import Navbar from "./components/Navbar.vue";
 import Footer from "./components/Footer.vue";
-
+console.log(window.location)
 // Server RPC
 const api = importServer<typeof import("../backend/helper")>("../backend/helper");
 const { PackageVersion } = api;
@@ -121,8 +121,6 @@ export function generateMetadata(): Metadata {
 </script>
 <template>
   <div class="min-h-screen bg-black text-slate-300 selection:bg-[#2b2b2a]/30 font-sans selection:text-white relative custom-scrollbar">
-
-    <Navbar />
 
     <section class="relative z-10 pt-24 pb-20 px-6 text-left overflow-hidden border-b border-white/5">
       <div class="grid-background"> </div>
