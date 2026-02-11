@@ -1,7 +1,6 @@
 import React from 'react';
 import {Metadata, router} from "vatts/react"
 import './globals.css';
-
 interface LayoutProps {
     children: React.ReactNode;
 }

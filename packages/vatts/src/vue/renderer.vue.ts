@@ -24,6 +24,60 @@ import * as vue from "vue"
 
 import * as vueServerRenderer from "@vue/server-renderer"
 import BuildingPage from "./BuildingPage.vue";
+import ServerErrorPage from "./server-error.vue";
+
+function getRequestUrl(req: GenericRequest): string | undefined {
+    return (req as any)?.originalUrl || (req as any)?.url;
+}
+
+function buildVueShellDocument(options: {
+    lang: string;
+    title: string;
+    metaTagsHtml: string;
+    scriptPreloadsHtml: string;
+    componentPreloadsHtml: string;
+    stylesHtml: string;
+    obfuscatedData: string;
+    scriptsHtml: string;
+    hotReloadScript: string;
+    bodyInnerHtml: string;
+}): string {
+    const {
+        lang,
+        title,
+        metaTagsHtml,
+        scriptPreloadsHtml,
+        componentPreloadsHtml,
+        stylesHtml,
+        obfuscatedData,
+        scriptsHtml,
+        hotReloadScript,
+        bodyInnerHtml,
+    } = options;
+
+    return `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+    <meta charset="utf-8" />
+    <title>${title}</title>
+    ${metaTagsHtml}
+    ${scriptPreloadsHtml}
+    ${componentPreloadsHtml}
+    ${stylesHtml}
+</head>
+<body>
+    <script id="__vatts_data__" type="text/plain" data-h="${obfuscatedData}"></script>
+    <div id="root">${bodyInnerHtml || ''}</div>
+    ${scriptsHtml}
+    ${hotReloadScript ? `<div style="display:none">${hotReloadScript}</div>` : ''}
+</body>
+</html>`;
+}
+
+function stripScriptTags(html: string): string {
+    if (!html) return '';
+    return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+}
 
 // --- Helpers de Servidor (Duplicados para manter isolamento) ---
 
@@ -65,9 +119,39 @@ function obfuscateData(data: any): string {
 /**
  * Analisa o código fonte do componente para encontrar imports estáticos de assets
  * e gerar links de preload para injetar no head.
+ * * ATUALIZADO: Verifica se o arquivo existe em .vatts/assets (com hash) antes de gerar o link.
  */
 function extractComponentPreloads(componentPath: string): string[] {
     if (!componentPath || !fs.existsSync(componentPath)) return [];
+
+    // Localização dos assets compilados para verificação de hash
+    const assetsDir = path.join(process.cwd(), '.vatts', 'assets');
+    let availableAssets: string[] = [];
+    try {
+        if (fs.existsSync(assetsDir)) {
+            availableAssets = fs.readdirSync(assetsDir);
+        }
+    } catch (e) {
+        // Silently fail if assets dir not found
+    }
+
+    // Função auxiliar para encontrar o arquivo real com hash
+    const findHashedAsset = (filename: string): string | null => {
+        // 1. Se o arquivo existe exatamente como pedido
+        if (availableAssets.includes(filename)) return filename;
+
+        // 2. Procura por versão com hash (ex: style.css -> style.CjdCylXW.css ou da8dfae3-style.CjdCylXW.css)
+        const ext = path.extname(filename);
+        const base = path.basename(filename, ext); // "style"
+        
+        // Filtra arquivos que terminam com a extensão correta e contêm o nome base
+        // Isso garante que pegamos o arquivo hasheado gerado pelo build
+        const match = availableAssets.find(asset => 
+            asset.endsWith(ext) && asset.includes(base)
+        );
+
+        return match || null;
+    };
 
     try {
         const content = fs.readFileSync(componentPath, 'utf8');
@@ -75,9 +159,19 @@ function extractComponentPreloads(componentPath: string): string[] {
 
         const processPath = (fullPath: string) => {
             const filename = path.basename(fullPath);
-            const ext = path.extname(filename).toLowerCase();
-            // Assume estrutura flattened do Vatts em /_vatts/assets/ onde os arquivos finais residem
-            const publicUrl = `/_vatts/assets/${filename}`;
+            
+            // VERIFICAÇÃO DE HASH:
+            // Tenta encontrar o nome real do arquivo na pasta de assets.
+            // Se não encontrar (retornar null), ignoramos o arquivo para não gerar link quebrado (404).
+            const realFilename = findHashedAsset(filename);
+
+            if (!realFilename) {
+                return; // Bloqueia a entrada se não tiver correspondente hash/físico
+            }
+
+            const ext = path.extname(realFilename).toLowerCase();
+            // Usa o nome real encontrado (com hash)
+            const publicUrl = `/_vatts/assets/${realFilename}`;
 
             if (['.mp4', '.webm'].includes(ext)) {
                 tags.add(`<link rel="preload" as="video" href="${publicUrl}">`);
@@ -110,7 +204,8 @@ function extractComponentPreloads(componentPath: string): string[] {
         const imgTagRegex = /<img\s+[^>]*src=['"]([^'"]+\.(png|jpg|jpeg|gif|svg|webp|avif))['"]/g;
         while ((match = imgTagRegex.exec(content)) !== null) {
             const src = match[1];
-            tags.add(`<link rel="preload" as="image" href="${src}">`);
+            // Para tags img src, também processamos para tentar achar a versão hash
+            processPath(src); 
         }
 
         return Array.from(tags);
@@ -367,13 +462,122 @@ export async function renderVue({ req, res, route, params, allRoutes }: RenderOp
     }
 
     const { createSSRApp, h } = vue;
-    const { renderToNodeStream } = vueServerRenderer;
+    const { renderToNodeStream, renderToString } = vueServerRenderer as any;
     const { generateMetadata } = route;
     const isProduction = !(req as any).hwebDev;
     const hotReloadManager = (req as any).hotReloadManager;
 
+    let assets: BuildAssets | null = null;
+    let metadata: Metadata = { title: 'Vatts App' };
+    let layoutInfo: any = null;
+
+    const sendShell = async (options: {
+        error?: unknown;
+        bodyInnerHtml: string;
+        statusCode: number;
+        includeScripts?: boolean;
+    }) => {
+        const includeScripts = options.includeScripts !== false;
+        if (!assets) {
+            if (!res.headersSent) {
+                res.statusCode = options.statusCode;
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                res.end(isProduction ? '' : '<h1>SSR Error</h1>');
+            }
+            return;
+        }
+
+        const hotReloadScript = includeScripts && !isProduction && hotReloadManager ? hotReloadManager.getClientScript() : '';
+        let metaTagsHtml = (() => {
+            try {
+                return generateMetaTags(metadata);
+            } catch {
+                return '';
+            }
+        })();
+        if (!includeScripts) {
+            metaTagsHtml = stripScriptTags(metaTagsHtml);
+        }
+        const htmlLang = metadata.language || 'pt-BR';
+        const title = metadata.title || 'Vatts.js';
+
+        const scriptPreloadsHtml = includeScripts
+            ? assets.scripts.map((src) => `<link rel="modulepreload" href="${src}">`).join('\n')
+            : '';
+        const componentPreloadsHtml = includeScripts
+            ? (() => {
+                  try {
+                      const componentPreloads = extractComponentPreloads(
+                          route.componentPath ? path.resolve(process.cwd(), route.componentPath) : ''
+                      );
+                      return componentPreloads.join('\n');
+                  } catch {
+                      return '';
+                  }
+              })()
+            : '';
+        const stylesHtml = assets.styles.map((styleUrl) => `<link rel="stylesheet" href="${styleUrl}">`).join('\n');
+        const scriptsHtml = includeScripts
+            ? assets.scripts.map((src) => `<script type="module" src="${src}"></script>`).join('\n')
+            : '';
+
+        const obfuscatedData = (() => {
+            try {
+                return obfuscateData({
+                    routes: [],
+                    initialComponentPath: route.componentPath,
+                    initialParams: params,
+                });
+            } catch {
+                return '';
+            }
+        })();
+
+        res.statusCode = options.statusCode;
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.end(
+            buildVueShellDocument({
+                lang: htmlLang,
+                title,
+                metaTagsHtml,
+                scriptPreloadsHtml,
+                componentPreloadsHtml,
+                stylesHtml,
+                obfuscatedData,
+                scriptsHtml,
+                hotReloadScript,
+                bodyInnerHtml: options.bodyInnerHtml,
+            })
+        );
+    };
+
+    const sendSsrError = async (error: unknown) => {
+        if (isProduction) {
+            await sendShell({ bodyInnerHtml: '', statusCode: 200, includeScripts: true });
+            return;
+        }
+
+        try {
+            const ErrorRoot = {
+                setup() {
+                    return () =>
+                        h(ServerErrorPage as any, {
+                            error,
+                            requestUrl: getRequestUrl(req),
+                            hint: 'O SSR falhou ao renderizar essa rota. Veja o erro abaixo.',
+                        });
+                },
+            };
+            const errorApp = createSSRApp(ErrorRoot);
+            const errorHtml = await renderToString(errorApp);
+            await sendShell({ bodyInnerHtml: errorHtml, statusCode: 500, includeScripts: false });
+        } catch {
+            await sendShell({ bodyInnerHtml: '<h1>SSR Error</h1>', statusCode: 500, includeScripts: false });
+        }
+    };
+
     try {
-        const assets = getBuildAssets(req);
+        assets = getBuildAssets(req);
 
         if (!assets || assets.scripts.length === 0) {
 
@@ -400,14 +604,13 @@ export async function renderVue({ req, res, route, params, allRoutes }: RenderOp
         }
 
         // 1. Layout (Carrega e Corrige se necessário)
-        const layoutInfo = getLayout();
+        layoutInfo = getLayout();
         let LayoutComponent: any = null;
         if (layoutInfo) {
             LayoutComponent = ensureVueComponent(null, path.resolve(process.cwd(), layoutInfo.componentPath));
         }
 
         // 2. Metadata
-        let metadata: Metadata = { title: 'Vatts App' };
         if (layoutInfo && layoutInfo.metadata) {
             metadata = { ...metadata, ...layoutInfo.metadata };
         }
@@ -478,51 +681,37 @@ export async function renderVue({ req, res, route, params, allRoutes }: RenderOp
 
         const app = createSSRApp(RootComponent);
 
-        // 5. Stream
-        const stream = renderToNodeStream(app);
+        // 5. Render (usa renderToString para evitar HTML parcial e permitir fallback)
+        try {
+            const bodyInnerHtml = await renderToString(app);
 
-        res.setHeader('Content-Type', 'text/html');
-
-        res.write(`<!DOCTYPE html>
-<html lang="${htmlLang}">
-<head>
-    <meta charset="utf-8" />
-    <title>${metadata.title || 'Vatts.js'}</title>
-    ${metaTagsHtml}
-    ${scriptPreloadsHtml}
-    ${componentPreloadsHtml}
-    ${stylesHtml}
-</head>
-<body>
-    <script id="__vatts_data__" type="text/plain" data-h="${obfuscatedData}"></script>
-    <div id="root">`);
-
-        stream.pipe(res, { end: false });
-
-        stream.on('end', () => {
-            res.write(`</div>
-    ${scriptsHtml}
-    ${hotReloadScript ? `<div style="display:none">${hotReloadScript}</div>` : ''}
-</body>
-</html>`);
-            res.end();
-        });
-
-        stream.on('error', (err: any) => {
-            console.error('Vue Streaming Error:', err);
-            if (!res.headersSent) {
-                res.statusCode = 500;
-                res.end('Internal Server Error');
-            } else {
-                res.end();
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.end(
+                buildVueShellDocument({
+                    lang: htmlLang,
+                    title: metadata.title || 'Vatts.js',
+                    metaTagsHtml,
+                    scriptPreloadsHtml,
+                    componentPreloadsHtml,
+                    stylesHtml,
+                    obfuscatedData,
+                    scriptsHtml,
+                    hotReloadScript,
+                    bodyInnerHtml,
+                })
+            );
+        } catch (err) {
+            if (!isProduction) {
+                console.error('Vue SSR Error:', err);
             }
-        });
+            await sendSsrError(err);
+        }
 
     } catch (err) {
-        console.error("Critical Vue Render Error:", err);
-        if (!res.headersSent) {
-            res.statusCode = 500;
-            res.end('Internal Server Error');
+        if (!isProduction) {
+            console.error("Critical Vue Render Error:", err);
         }
+        await sendSsrError(err);
     }
 }

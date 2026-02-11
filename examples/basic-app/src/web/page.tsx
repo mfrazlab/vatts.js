@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-
 // Limite de peso para considerar um arquivo "pesado" (em KB)
 const HEAVY_THRESHOLD = 500;
 

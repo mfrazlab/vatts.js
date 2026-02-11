@@ -23,6 +23,154 @@ import fs from 'fs';
 import path from 'path';
 
 import BuildingScreen from "../react/BuildingPage";
+import ServerError from "../react/server-error";
+
+function stripScriptTags(html: string): string {
+    if (!html) return '';
+    return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+}
+
+function getRequestUrl(req: GenericRequest): string | undefined {
+    return (req as any)?.originalUrl || (req as any)?.url;
+}
+
+function toError(err: unknown): Error {
+    if (err instanceof Error) return err;
+    if (typeof err === 'string') return new Error(err);
+    try {
+        return new Error(JSON.stringify(err));
+    } catch {
+        return new Error(String(err));
+    }
+}
+
+function buildShellHtml(options: {
+    lang: string;
+    title: string;
+    metaTagsHtml: string;
+    stylesHtml: string;
+    hotReloadScript: string;
+    obfuscatedData: string;
+    scriptsHtml?: string;
+}): string {
+    const { lang, title, metaTagsHtml, stylesHtml, hotReloadScript, obfuscatedData, scriptsHtml } = options;
+
+    return `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+    <meta charset="utf-8" />
+    <title>${title}</title>
+    ${metaTagsHtml || ''}
+    ${stylesHtml || ''}
+</head>
+<body>
+    <script id="__vatts_data__" type="text/plain" data-h="${obfuscatedData}"></script>
+    <div id="root"></div>
+    ${scriptsHtml || ''}
+    ${hotReloadScript ? `<div style="display:none">${hotReloadScript}</div>` : ''}
+</body>
+</html>`;
+}
+
+async function sendReactSsrFallback(options: {
+    req: GenericRequest;
+    res: any;
+    isProduction: boolean;
+    error: unknown;
+    assets: BuildAssets;
+    lang: string;
+    title: string;
+    metaTagsHtml: string;
+    stylesHtml: string;
+    hotReloadScript: string;
+    obfuscatedData: string;
+}): Promise<void> {
+    const {
+        req,
+        res,
+        isProduction,
+        error,
+        assets,
+        lang,
+        title,
+        metaTagsHtml,
+        stylesHtml,
+        hotReloadScript,
+        obfuscatedData,
+    } = options;
+
+        const scriptsHtml = assets.scripts
+            .map((src) => `<script type="module" src="${src}"></script>`)
+            .join('\n');
+
+        // No DEV a gente remove scripts do head pra garantir que só aparece a página de erro.
+        const safeMetaTagsHtmlForDev = stripScriptTags(metaTagsHtml);
+
+    if (res.headersSent) {
+        try {
+            res.end();
+        } catch {
+            // ignore
+        }
+        return;
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.statusCode = isProduction ? 200 : 500;
+
+    if (isProduction) {
+        res.end(
+            buildShellHtml({
+                lang,
+                title,
+                metaTagsHtml,
+                stylesHtml,
+                hotReloadScript: '',
+                obfuscatedData,
+                scriptsHtml,
+            })
+        );
+        return;
+    }
+
+    const err = toError(error);
+
+    return new Promise((resolve) => {
+        const { pipe } = renderToPipeableStream(
+            <ServerRoot
+                lang={lang}
+                title={title}
+                metaTagsHtml={safeMetaTagsHtmlForDev}
+                stylesHtml={stylesHtml}
+                initialDataScript={`/* Data Injection */`}
+                hotReloadScript={''}
+                dataScript={
+                    <script id="__vatts_data__" type="text/plain" data-h={obfuscatedData} />
+                }
+            >
+                <ServerError
+                    error={err}
+                    requestUrl={getRequestUrl(req)}
+                    hint="O SSR falhou ao renderizar essa rota. Veja o erro abaixo."
+                />
+            </ServerRoot>,
+            {
+                onAllReady() {
+                    pipe(res);
+                    resolve();
+                },
+                onError() {
+                    // ignore (já estamos numa tela de erro)
+                },
+                onShellError() {
+                    // fallback extremo
+                    res.end('<h1>SSR Error</h1>');
+                    resolve();
+                },
+            }
+        );
+    });
+}
 
 // --- Helpers de Servidor ---
 
@@ -284,26 +432,26 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
     // SILENCIAR CONSOLE: Inicia o silêncio para evitar logs de renderização
 
 
+    let assets: BuildAssets | null = null;
+    let metadata: Metadata = { title: 'Vatts App' };
+    let layoutInfo: any = null;
+
     try {
         // 1. Verificar Build - Se não tiver scripts, retorna tela de Loading
-        const assets = getBuildAssets(req);
+        assets = getBuildAssets(req);
 
         if (!assets || assets.scripts.length === 0) {
-            // Se falhar o build, restauramos o console para o erro aparecer se necessário
-
-
-            // Usando stream para a tela de loading também, agora via React Component
             const { pipe } = renderToPipeableStream(<BuildingScreen />, {
                 onShellReady() {
-                    res.setHeader('Content-Type', 'text/html');
+                    res.setHeader('Content-Type', 'text/html; charset=utf-8');
                     pipe(res);
-                }
+                },
             });
             return;
         }
 
         // 2. Preparar Layout
-        const layoutInfo = getLayout();
+        layoutInfo = getLayout();
         let LayoutComponent: any = null;
 
         if (layoutInfo) {
@@ -319,7 +467,6 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
         }
 
         // 3. Preparar Metadata
-        let metadata: Metadata = { title: 'Vatts App' };
         if (layoutInfo && layoutInfo.metadata) {
             metadata = { ...metadata, ...layoutInfo.metadata };
         }
@@ -370,59 +517,101 @@ export async function render({ req, res, route, params, allRoutes }: RenderOptio
             AppTree = <LayoutComponent>{AppTree}</LayoutComponent>;
         }
 
-        // 6. Streaming
-        return new Promise((resolve, reject) => {
+        // 6. Streaming (segura até onAllReady para conseguir fallback sem HTML parcial)
+        return new Promise((resolve) => {
             let didError = false;
+            let firstError: unknown = null;
 
-            const { pipe } = renderToPipeableStream(
+            const stream = renderToPipeableStream(
                 <ServerRoot
                     lang={htmlLang}
                     title={metadata.title || 'Vatts.js'}
                     metaTagsHtml={metaTagsHtml}
-                    stylesHtml={stylesHtml} // Passando CSS
-                    // Recriando o script de dados exatamente como o client espera
+                    stylesHtml={stylesHtml}
                     initialDataScript={`/* Data Injection */`}
                     hotReloadScript={hotReloadScript}
-                    dataScript={
-                        <script
-                            id="__vatts_data__"
-                            type="text/plain"
-                            data-h={obfuscatedData}
-                        />
-                    }
+                    dataScript={<script id="__vatts_data__" type="text/plain" data-h={obfuscatedData} />}
                 >
-                    {/* Injetamos o script de dados como um elemento React para garantir que esteja no DOM */}
                     {AppTree}
                 </ServerRoot>,
                 {
-                    // Usar bootstrapModules para scripts tipo módulo (ESM)
-                    bootstrapModules: assets.scripts,
-                    onShellReady() {
+                    bootstrapModules: assets!.scripts,
+                    onAllReady() {
+                        if (didError) {
+                            stream.abort();
+                            sendReactSsrFallback({
+                                req,
+                                res,
+                                isProduction,
+                                error: firstError || new Error('SSR error'),
+                                assets: assets!,
+                                lang: htmlLang,
+                                title: metadata.title || 'Vatts.js',
+                                metaTagsHtml,
+                                stylesHtml,
+                                hotReloadScript,
+                                obfuscatedData,
+                            }).then(resolve);
+                            return;
+                        }
 
-                        res.setHeader('Content-Type', 'text/html');
-                        pipe(res);
+                        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                        stream.pipe(res);
                         resolve();
                     },
                     onShellError(error: any) {
-
-                        console.error('Streaming Shell Error:', error);
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'text/html');
-                        res.end('<h1>Internal Server Error</h1>');
-                        resolve();
+                        firstError ||= error;
+                        didError = true;
                     },
                     onError(error: any) {
+                        firstError ||= error;
                         didError = true;
-                        // Log de erro de stream ainda é importante, mas podemos filtrar se quiser
-                        // Aqui mantemos o log de erro original do React que vai para stderr
-                        console.error('Streaming Error:', error);
-                    }
+                        if (!isProduction) {
+                            console.error('Streaming Error:', error);
+                        }
+                    },
                 }
             );
         });
     } catch (err) {
+        if (!assets) {
+            // sem assets não dá pra montar shell completo; evita crash
+            if (!res.headersSent) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                res.end(isProduction ? '' : '<h1>SSR Error</h1>');
+            }
+            return;
+        }
 
-        console.error("Critical Render Error:", err);
-        throw err;
+        await sendReactSsrFallback({
+            req,
+            res,
+            isProduction,
+            error: err,
+            assets,
+            lang: (metadata as any)?.language || 'pt-BR',
+            title: metadata.title || 'Vatts.js',
+            metaTagsHtml: (() => {
+                try {
+                    return generateMetaTags(metadata);
+                } catch {
+                    return '';
+                }
+            })(),
+            stylesHtml: assets.styles.map((styleUrl) => `<link rel="stylesheet" href="${styleUrl}">`).join('\n'),
+            hotReloadScript: !isProduction && hotReloadManager ? hotReloadManager.getClientScript() : '',
+            obfuscatedData: (() => {
+                try {
+                    return obfuscateData({
+                        routes: [],
+                        initialComponentPath: route.componentPath,
+                        initialParams: params,
+                    });
+                } catch {
+                    return '';
+                }
+            })(),
+        });
     }
 }
