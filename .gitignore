@@ -52,3 +52,5 @@ services/core-go/go.sum
 
 docs/
 docs/**
+
+services/core-go/.zig-cache
