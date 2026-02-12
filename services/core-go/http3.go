@@ -39,15 +39,17 @@ static void dispatch_close(OnCloseCallback cb, int connID) {
 }
 */
 import "C"
+
 import (
 	"bufio"
 	"bytes"
 	"core-go/utils"
 	"fmt"
 	"io"
-
+	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -56,7 +58,6 @@ import (
 
 	"github.com/quic-go/quic-go/http3"
 
-	// Importando as novas packages
 	"core-go/cache"
 	"core-go/security"
 	"core-go/traffic"
@@ -69,30 +70,135 @@ type ProxyConnection interface {
 }
 
 var (
-	// Mapa que conecta o ID da requisição à conexão (Pipe ou Socket Real)
-	conns = make(map[int]ProxyConnection)
-
-	// Contador atômico para gerar IDs únicos
+	conns        = make(map[int]ProxyConnection)
 	nextID int64 = 0
-
-	mutex sync.Mutex
+	mutex  sync.Mutex
 )
 
+/* -----------------------------
+   Helpers (ports + header inject)
+------------------------------ */
+
+func normalizeAddrPort(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	// se vier só "443", vira ":443"
+	if !strings.Contains(p, ":") {
+		return ":" + p
+	}
+	// se vier "0.0.0.0:443" ou ":443" mantém
+	return p
+}
+
+func extractPortOnly(addr string) string {
+	// aceita ":443", "443", "0.0.0.0:443", "[::]:443"
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	if !strings.Contains(addr, ":") {
+		return addr
+	}
+	// tenta net.SplitHostPort
+	host, port, err := net.SplitHostPort(addr)
+	_ = host
+	if err == nil && port != "" {
+		return port
+	}
+	// fallback: pega depois do último ':'
+	parts := strings.Split(addr, ":")
+	return parts[len(parts)-1]
+}
+
+// Wrapper que injeta Alt-Svc no PRIMEIRO WriteHeader/Write (garantido)
+type altSvcRW struct {
+	http.ResponseWriter
+	alt         string
+	wroteHeader bool
+}
+
+func (w *altSvcRW) ensure() {
+	if w.alt == "" {
+		return
+	}
+	// Não sobrescreve se alguém já setou diferente
+	if w.Header().Get("Alt-Svc") == "" {
+		w.Header().Set("Alt-Svc", w.alt)
+	}
+}
+
+func (w *altSvcRW) WriteHeader(statusCode int) {
+	if !w.wroteHeader {
+		w.ensure()
+		w.wroteHeader = true
+	}
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *altSvcRW) Write(p []byte) (int, error) {
+	if !w.wroteHeader {
+		// se ninguém chamou WriteHeader antes, o Write dispara header implicitamente
+		w.ensure()
+		w.wroteHeader = true
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func wrapAltSvc(w http.ResponseWriter, alt string) http.ResponseWriter {
+	if alt == "" {
+		return w
+	}
+	return &altSvcRW{ResponseWriter: w, alt: alt}
+}
+
 //export StartServer
-func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPathC *C.char, onData C.OnDataCallback, onClose C.OnCloseCallback, http3PortC *C.char, dev *C.char) *C.char {
-	httpPort := C.GoString(httpPortC)
-	httpsPort := C.GoString(httpsPortC)
+func StartServer(
+	httpPortC *C.char,
+	httpsPortC *C.char,
+	certPathC *C.char,
+	keyPathC *C.char,
+	onData C.OnDataCallback,
+	onClose C.OnCloseCallback,
+	http3PortC *C.char,
+	dev *C.char,
+) *C.char {
+
+	httpPort := normalizeAddrPort(C.GoString(httpPortC))
+	httpsPort := normalizeAddrPort(C.GoString(httpsPortC))
 	certPath := C.GoString(certPathC)
 	keyPath := C.GoString(keyPathC)
-	http3Port := C.GoString(http3PortC)
-	utils.Info("Starting HTTP/3 Server on port " + http3Port + "...")
+	http3Port := normalizeAddrPort(C.GoString(http3PortC))
+
 	devMode := C.GoString(dev) == "true"
 	useSSL := certPath != "" && keyPath != ""
+
 	if useSSL && httpsPort == "" {
 		return C.CString("Error: HTTPS port required for SSL mode")
 	}
 	if !useSSL && httpPort == "" {
 		return C.CString("Error: HTTP port required for Non-SSL mode")
+	}
+
+	// Validação de certificados SSL
+	if useSSL {
+		if _, err := os.Stat(certPath); err != nil {
+			return C.CString(fmt.Sprintf("Error: Certificate file not found at %s: %v", certPath, err))
+		}
+		if _, err := os.Stat(keyPath); err != nil {
+			return C.CString(fmt.Sprintf("Error: Key file not found at %s: %v", keyPath, err))
+		}
+	}
+
+	// --- Preparação do Alt-Svc Header (Pré-calculado) ---
+	var altSvcHeader string
+	if http3Port != "" {
+		h3PortOnly := extractPortOnly(http3Port)
+		if h3PortOnly != "" {
+			altSvcHeader = fmt.Sprintf(`h3=":%s"; ma=2592000`, h3PortOnly)
+			utils.Info("HTTP/3 Alt-Svc enabled: " + altSvcHeader)
+		}
 	}
 
 	// Inicia a limpeza do Cache em background
@@ -116,20 +222,17 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 				http.Error(w, "Websocket not supported by server interface", http.StatusInternalServerError)
 				return
 			}
-			
-			// Toma o controle da conexão TCP bruta
+
 			clientConn, _, err := hijacker.Hijack()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
-			// Registra a conexão TCP direta no mapa
 			mutex.Lock()
 			conns[id] = clientConn
 			mutex.Unlock()
 
-			// Notifica o Node que a conexão fechou quando sairmos
 			defer func() {
 				mutex.Lock()
 				delete(conns, id)
@@ -138,24 +241,21 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 				C.dispatch_close(onClose, C.int(id))
 			}()
 
-			// --- Envia o Handshake inicial para o Node ---
-			// Precisamos reconstruir a request HTTP crua para o Node processar o Upgrade
+			// Força HTTP/1.1 no dump pro Node
 			r.Proto = "HTTP/1.1"
 			r.ProtoMajor = 1
 			r.ProtoMinor = 1
-			
-			dump, err := httputil.DumpRequest(r, false) // Headers apenas
+
+			dump, err := httputil.DumpRequest(r, false)
 			if err == nil {
 				cHeaders := C.CBytes(dump)
 				C.dispatch_data(onData, C.int(id), cHeaders, C.int(len(dump)))
 				C.free(cHeaders)
 			}
-			
-			// --- Loop de Leitura (Cliente -> Node) ---
-			// Tudo que o cliente mandar agora (frames WS), mandamos direto pro Node
+
+			// Loop Cliente -> Node
 			buf := make([]byte, 32*1024)
 			for {
-				// Define deadline para evitar zumbis, mas longo para WS
 				clientConn.SetReadDeadline(time.Now().Add(60 * time.Minute))
 				n, err := clientConn.Read(buf)
 				if n > 0 {
@@ -164,7 +264,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 					C.free(chunk)
 				}
 				if err != nil {
-					// EOF ou erro de conexão encerra o loop
 					break
 				}
 			}
@@ -218,7 +317,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 
 		resp, err := http.ReadResponse(bufio.NewReader(pr), r)
 		if err != nil {
-			// Pode acontecer se o pipe fechar antes da resposta completa
 			utils.Error("Error reading response from Node: ", err)
 			return
 		}
@@ -235,7 +333,8 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 				headerClone := make(http.Header)
 				for k, vv := range resp.Header {
 					lowerK := strings.ToLower(k)
-					if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" || lowerK == "transfer-encoding" || lowerK == "upgrade" {
+					if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" ||
+						lowerK == "transfer-encoding" || lowerK == "upgrade" {
 						continue
 					}
 					for _, v := range vv {
@@ -250,7 +349,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 					Expiration: time.Now().Add(cache.TTL),
 				}
 				cache.Store.Unlock()
-				bodyReader = io.NopCloser(bytes.NewReader(b))
+				bodyReader = bytes.NewReader(b)
 			} else {
 				if len(b) > 0 {
 					bodyReader = io.MultiReader(bytes.NewReader(b), resp.Body)
@@ -258,36 +357,26 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 			}
 		}
 
-		// Copia Headers
+		// Copia Headers (sem hop-by-hop)
 		for k, v := range resp.Header {
 			lowerK := strings.ToLower(k)
-			// Em HTTP normal não copiamos headers de controle de conexão
-			if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" || lowerK == "transfer-encoding" || lowerK == "upgrade" {
+			if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" ||
+				lowerK == "transfer-encoding" || lowerK == "upgrade" {
 				continue
 			}
 			for _, val := range v {
 				w.Header().Add(k, val)
 			}
 		}
+
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, bodyReader)
 	})
 
-	// 2. Montagem da Pipeline de Handlers
+	// 2. Pipeline principal
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// --- [CORREÇÃO HTTP/3] Injeção do Alt-Svc ---
-		// Isso avisa ao cliente que o HTTP/3 está disponível na porta UDP especificada.
-		// Sem isso, o navegador/cliente continua usando TCP e não faz o upgrade.
-		if http3Port != "" {
-			// Remove o ":" se existir, apenas para garantir a formatação correta no header
-			// Ex: se http3Port for ":443", extraímos "443"
-			h3PortClean := http3Port
-			if strings.Contains(h3PortClean, ":") {
-				parts := strings.Split(h3PortClean, ":")
-				h3PortClean = parts[len(parts)-1]
-			}
-			w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, h3PortClean))
-		}
+		// injeta Alt-Svc de forma GARANTIDA
+		w = wrapAltSvc(w, altSvcHeader)
 
 		// A. Security Check
 		if err := security.AnalyzeRequest(r); err != nil {
@@ -297,10 +386,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 		}
 
 		// B. Cache Read Check (Apenas GET simples, não WebSocket)
-		if r.Method == "GET" && 
-		   r.Header.Get("Upgrade") == "" && 
-		   cache.IsCacheable(r.URL.Path) {
-			
+		if r.Method == "GET" && r.Header.Get("Upgrade") == "" && cache.IsCacheable(r.URL.Path) {
 			cache.Store.RLock()
 			item, ok := cache.Store.Items[r.URL.String()]
 			cache.Store.RUnlock()
@@ -311,16 +397,6 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 						w.Header().Add(k, val)
 					}
 				}
-				
-				// Se estiver servindo do cache, também precisamos mandar o Alt-Svc
-				if http3Port != "" {
-					h3PortClean := http3Port
-					if strings.Contains(h3PortClean, ":") {
-						parts := strings.Split(h3PortClean, ":")
-						h3PortClean = parts[len(parts)-1]
-					}
-					w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, h3PortClean))
-				}
 
 				w.Header().Set("X-Vatts-Cache", "HIT")
 				w.WriteHeader(http.StatusOK)
@@ -329,8 +405,7 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 			}
 		}
 
-		// C. Traffic Fusion (Coalescing) + D. Node Bridge
-		// Não usamos Fusion para WebSockets
+		// C. Traffic Fusion + D. Node Bridge
 		if r.Header.Get("Upgrade") != "" {
 			nodeBridgeHandler.ServeHTTP(w, r)
 		} else {
@@ -339,43 +414,49 @@ func StartServer(httpPortC *C.char, httpsPortC *C.char, certPathC *C.char, keyPa
 	})
 
 	go func() {
-		errChan := make(chan error)
+		errChan := make(chan error, 3)
 
 		if useSSL {
+			// HTTP/3 (UDP)
 			if http3Port != "" {
-				utils.Info("Starting HTTP/3 Server on port " + http3Port + "...")
+				utils.Info("Starting HTTP/3 Server on " + http3Port + "...")
 				go func() {
 					serverH3 := http3.Server{
-						Addr:    http3Port, // [CORREÇÃO] Usando a porta correta para o bind UDP
+						Addr:    http3Port,
 						Handler: mainHandler,
 					}
 					errChan <- serverH3.ListenAndServeTLS(certPath, keyPath)
 				}()
 			}
 
+			// HTTPS (TCP)
 			go func() {
 				errChan <- http.ListenAndServeTLS(httpsPort, certPath, keyPath, mainHandler)
 			}()
 
+			// HTTP -> HTTPS redirect (aqui também injeta Alt-Svc pra facilitar seus testes)
 			if httpPort != "" {
 				go func() {
-					errChan <- http.ListenAndServe(httpPort, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					redirectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w = wrapAltSvc(w, altSvcHeader)
+
 						target := "https://" + r.Host + r.URL.Path
 						if len(r.URL.RawQuery) > 0 {
 							target += "?" + r.URL.RawQuery
 						}
 						http.Redirect(w, r, target, http.StatusMovedPermanently)
-					}))
+					})
+					errChan <- http.ListenAndServe(httpPort, redirectHandler)
 				}()
 			}
-
 		} else {
+			// HTTP only
 			errChan <- http.ListenAndServe(httpPort, mainHandler)
 		}
 
 		err := <-errChan
 		if err != nil {
-			utils.Error("Server Error: %v", err)
+			utils.Error("Server Error:", err)
 		}
 	}()
 
@@ -395,7 +476,6 @@ func WriteToConn(connID C.int, dataPtr unsafe.Pointer, length C.int) *C.char {
 		return C.CString("Connection not found (request ended)")
 	}
 
-	// Write polimórfico (funciona tanto para Pipe quanto para Socket TCP)
 	_, err := conn.Write(data)
 	if err != nil {
 		return C.CString(fmt.Sprintf("Write error: %v", err))

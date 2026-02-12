@@ -391,6 +391,13 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         res.setHeader('X-XSS-Protection', '1; mode=block');
         res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+        // [NOVO] Injeção Alt-Svc se HTTP/3 estiver ativo
+        // O Go irá propagar este header para o cliente
+        if (vattsConfig.ssl && vattsConfig.ssl.http3Port) {
+            console.log("setando header alt-svc para HTTP/3 na porta", vattsConfig.ssl.http3Port);
+            res.setHeader('Alt-Svc', `h3=":${vattsConfig.ssl.http3Port}"; ma=2592000`);
+        }
+
         // Aplica headers de segurança configurados
         if (vattsConfig.security?.contentSecurityPolicy) {
             res.setHeader('Content-Security-Policy', vattsConfig.security.contentSecurityPolicy);
@@ -416,7 +423,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
             req.setTimeout(vattsConfig.individualRequestTimeout || 30000, () => {
                 res.statusCode = 408; // Request Timeout
                 res.end('Request timeout');
-    
+
                 // Log de timeout
                 if (vattsConfig.accessLogging) {
                     const duration = Date.now() - requestStartTime;
@@ -530,10 +537,10 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     // Ponte virtual: Go <-> Memória <-> Node HTTP Parser
     class NativeBridge extends Duplex {
         constructor(public connId: number) {
-            super({ 
+            super({
                 // Removemos decodeStrings: false para permitir que o parser interno (se existir) funcione,
                 // mas implementamos nosso próprio parser no _write para garantir a conversão.
-                allowHalfOpen: true 
+                allowHalfOpen: true
             });
         }
 
@@ -567,8 +574,8 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
             try {
                 // Parser simples: Se vier string, converte para Buffer antes de enviar.
                 // Isso resolve problemas onde o ws tenta mandar texto mas a ponte espera bytes crus.
-                const buffer = typeof chunk === 'string' 
-                    ? Buffer.from(chunk, encoding) 
+                const buffer = typeof chunk === 'string'
+                    ? Buffer.from(chunk, encoding)
                     : chunk;
 
                 // Node respondeu -> Envia de volta para o Go via CGO
@@ -654,7 +661,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         // Atualiza UI
         sendBox({ ...options });
 
-    
+
         const httpLabel = vattsConfig.ssl?.http3Port ? `HTTP/3 (${vattsConfig.ssl?.http3Port || ''})` : "HTTP/2";
         const modeLabel = isSSL ? httpLabel : "HTTP (Shield active)";
         msg.end(
@@ -669,8 +676,13 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         setInterval(() => {}, 2147483647);
 
     } catch (e: any) {
-        Console.error(`${Colors.FgRed}[Critical] Failed to start Native Server:${Colors.Reset} ${e.message}`);
-        process.exit(1);
+        Console.error(`${Colors.FgRed}[Critical] Failed to start Native Server:`, e);
+
+        // Graceful shutdown
+        console.log(`${Colors.FgGray}Shutting down gracefully...${Colors.Reset}`);
+        setTimeout(() => {
+            process.exit(1);
+        }, 1000);
     }
 
     // Configura WebSocket (Funciona através do Proxy pois ele suporta upgrade de conexão via raw bytes)
@@ -774,7 +786,7 @@ export function app(options: VattsOptions = {}) {
             // JS STICK LETTERS
 
             console.log(`${Colors.Bright + Colors.FgCyan}
-${Colors.Bright + Colors.FgCyan}            ___ ___  __    ${Colors.FgWhite}        __  
+${Colors.Bright + Colors.FgCyan}                ___ ___  __    ${Colors.FgWhite}        __  
 ${Colors.Bright + Colors.FgCyan}    \\  /  /\\   |   |  /__\`${Colors.FgWhite}        | /__\`    ${Colors.Bright + Colors.FgCyan}Vatts${Colors.FgWhite}.js ${Colors.FgGray}(v${require('../package.json').version}) - mfraz
 ${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite}   \\__/ .__/ ${message}
                                      

@@ -1,0 +1,2 @@
+0
+2357 108980 1770495652000000000 a0d9bd55ccdeb18477c58cc1d0867371 1 libc/mingw/lib-common/api-ms-win-crt-multibyte-l1-1-0.def

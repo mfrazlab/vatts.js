@@ -1,12 +1,11 @@
 {
   "name": "vatts-framework",
-  "version": "2.0.2",
+  "version": "2.0.3-canary.1",
   "description": "Monorepo for the Vatts.js framework",
   "private": true,
   "author": "mfraz",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.20.0",
-  
   "keywords": [
     "vatts.js",
     "vatts",
@@ -16,18 +15,16 @@
   "scripts": {
     "build": "pnpm run clean && pnpm -r --filter \"!./services/**\" run build",
     "clean": "pnpm -r exec rimraf dist",
-    
     "release": "node scripts/release.js",
-    
     "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
-    "@types/node": "^20.19.30",
+    "@types/node": "^20.19.33",
     "@vue/tsconfig": "^0.8.1",
     "rimraf": "^5.0.10",
     "typescript": "^5.9.3",
-    "vue-tsc": "^3.2.3"
+    "vue-tsc": "^3.2.4"
   },
   "workspaces": [
     "packages/*",

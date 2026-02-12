@@ -40,7 +40,7 @@ export class NativeServer {
         const arch = os.arch();
 
         let osName = '';
-        let ext = '.node';
+        let ext = '.node'; // Mantido .node conforme solicitado
 
         switch (platform) {
             case 'win32':
@@ -75,17 +75,27 @@ export class NativeServer {
     private static loadLibrary(customPath?: string) {
         if (this.lib) return;
 
-        const libPath = customPath || this.getLibPath();
+        // Alterado de const para let para permitir reatribuição se cair no fallback
+        let libPath = customPath || this.getLibPath();
 
         if (!fs.existsSync(libPath)) {
+            // Tenta resolver relativo ao CWD se não achar no __dirname
             const altPath = path.resolve(process.cwd(), libPath);
-            if (!fs.existsSync(altPath)) {
+            // Ou tenta buscar direto pelo nome do arquivo no CWD caso o path relativo esteja errado
+            const altPathSimple = path.resolve(process.cwd(), path.basename(libPath));
+
+            if (fs.existsSync(altPath)) {
+                libPath = altPath; // <--- AQUI ESTAVA O ERRO: Atualiza libPath para o caminho que existe
+            } else if (fs.existsSync(altPathSimple)) {
+                libPath = altPathSimple; // <--- Fallback extra de segurança
+            } else {
                 console.warn(`Native Server Library not found at: ${libPath}`);
                 return;
             }
         }
 
         try {
+            // Agora o koffi carrega o caminho correto (libPath atualizado)
             this.lib = koffi.load(libPath);
 
             // func StartServer(..., onData, onClose)
@@ -104,7 +114,7 @@ export class NativeServer {
             this.closeConnFunc = this.lib.func('CloseConn', 'void', ['int']);
 
         } catch (error) {
-            throw new Error(`Failed to load native library: ${error}`);
+            throw new Error(`Failed to load native library at ${libPath}: ${error}`);
         }
     }
 
@@ -124,6 +134,17 @@ export class NativeServer {
         this.loadLibrary(customLibPath);
 
         if (!this.startFunc) return;
+
+        // Validação de certificados SSL ANTES de iniciar
+        const useSSL = certPath && keyPath;
+        if (useSSL) {
+            if (!fs.existsSync(certPath)) {
+                throw new Error(`SSL Certificate file not found at: ${certPath}`);
+            }
+            if (!fs.existsSync(keyPath)) {
+                throw new Error(`SSL Key file not found at: ${keyPath}`);
+            }
+        }
 
         // Callback de DADOS: Agora recebe pointer e length
         const onDataPtr = koffi.register((connId: number, ptr: any, len: number) => {

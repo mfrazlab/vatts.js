@@ -1,3 +1,11 @@
+## 2.0.3-canary.1 (2026-02-12)
+
+feat: implement server error handling for SSR in React and Vue
+
+## 2.0.3-canary.1 (2026-02-12)
+
+feat: implement server error handling for SSR in React and Vue
+
 ## 2.0.2 (2026-01-31)
 
 chore(release): v2.0.0
