@@ -27,8 +27,6 @@ export type CreateAppOptions = {
   /** Alias prefix to use when moduleAlias=true (default: "@/") */
   alias?: string;
 
-  pathRouter?: boolean
-
   typeScript?: boolean
 
   framework?: 'react' | 'vue'
@@ -42,7 +40,6 @@ export type CreateAppContext = {
   willInstallDependencies: boolean;
 
   willUseModuleAlias: boolean;
-  pathRouter: boolean
 
   /** Normalized alias prefix (ex: "@/") */
   moduleAlias: string;

@@ -1,6 +1,6 @@
 {
   "name": "vatts-framework",
-  "version": "2.0.3-canary.2",
+  "version": "2.1.0-canary.1",
   "description": "Monorepo for the Vatts.js framework",
   "private": true,
   "author": "mfraz",
@@ -13,7 +13,7 @@
     "monorepo"
   ],
   "scripts": {
-    "build": "pnpm run clean && pnpm -r --filter \"!./services/**\" run build",
+    "build": "pnpm run clean && pnpm -r --filter \"!./services/**\" --filter \"!./examples/**\" run build",
     "clean": "pnpm -r exec rimraf dist",
     "release": "node scripts/release.js",
     "publish:create-app": "pnpm run build && pnpm publish --filter create-vatts-app --no-git-checks --access=public"

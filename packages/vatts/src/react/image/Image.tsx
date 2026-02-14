@@ -46,7 +46,7 @@ const Image: React.FC<VattsImageProps> = ({
     function optimizeSrc(src: string, baseUrl: string | null) {
         if (!baseUrl) return src
 
-        if (src.startsWith(baseUrl)) {
+        if (src.startsWith && src.startsWith(baseUrl)) {
             return src.slice(baseUrl.length) || '/'
         }
 

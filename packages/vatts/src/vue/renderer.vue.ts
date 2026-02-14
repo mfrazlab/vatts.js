@@ -30,6 +30,79 @@ function getRequestUrl(req: GenericRequest): string | undefined {
     return (req as any)?.originalUrl || (req as any)?.url;
 }
 
+// --- Polyfill para Browser Env no Server ---
+// Cria objetos globais falsos para evitar que bibliotecas client-side quebrem no SSR
+function polyfillBrowserEnv() {
+    if (typeof window === 'undefined') {
+        const win: any = {
+            document: {
+                createElement: () => ({ style: {}, setAttribute: () => {}, classList: { add: () => {}, remove: () => {} } }),
+                getElementById: () => null,
+                getElementsByTagName: () => [],
+                querySelector: () => null,
+                querySelectorAll: () => [],
+                head: {},
+                body: { style: {} },
+                addEventListener: () => {},
+                removeEventListener: () => {},
+                cookie: '',
+                location: { href: '', origin: '' }
+            },
+            navigator: {
+                userAgent: 'Node.js/VattsSSR',
+            },
+            location: {
+                href: 'http://localhost',
+                origin: 'http://localhost',
+                pathname: '/',
+                search: '',
+                hash: '',
+                assign: () => {},
+                replace: () => {},
+                reload: () => {},
+            },
+            history: {
+                pushState: () => {},
+                replaceState: () => {},
+            },
+            screen: { width: 1920, height: 1080 },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
+            requestAnimationFrame: (cb: Function) => setTimeout(cb, 0),
+            cancelAnimationFrame: (id: any) => clearTimeout(id),
+            setTimeout: setTimeout,
+            clearTimeout: clearTimeout,
+            setInterval: setInterval,
+            clearInterval: clearInterval,
+            localStorage: {
+                getItem: () => null,
+                setItem: () => {},
+                removeItem: () => {},
+                clear: () => {},
+            },
+            sessionStorage: {
+                getItem: () => null,
+                setItem: () => {},
+                removeItem: () => {},
+                clear: () => {},
+            },
+            console: console,
+            Image: class { constructor() {} },
+        };
+
+        // Atribui ao global do Node
+        (global as any).window = win;
+        (global as any).document = win.document;
+        (global as any).navigator = win.navigator;
+        (global as any).location = win.location;
+        (global as any).localStorage = win.localStorage;
+        (global as any).sessionStorage = win.sessionStorage;
+        (global as any).requestAnimationFrame = win.requestAnimationFrame;
+        (global as any).cancelAnimationFrame = win.cancelAnimationFrame;
+    }
+}
+
 function buildVueShellDocument(options: {
     lang: string;
     title: string;
@@ -143,10 +216,10 @@ function extractComponentPreloads(componentPath: string): string[] {
         // 2. Procura por versão com hash (ex: style.css -> style.CjdCylXW.css ou da8dfae3-style.CjdCylXW.css)
         const ext = path.extname(filename);
         const base = path.basename(filename, ext); // "style"
-        
+
         // Filtra arquivos que terminam com a extensão correta e contêm o nome base
         // Isso garante que pegamos o arquivo hasheado gerado pelo build
-        const match = availableAssets.find(asset => 
+        const match = availableAssets.find(asset =>
             asset.endsWith(ext) && asset.includes(base)
         );
 
@@ -159,7 +232,7 @@ function extractComponentPreloads(componentPath: string): string[] {
 
         const processPath = (fullPath: string) => {
             const filename = path.basename(fullPath);
-            
+
             // VERIFICAÇÃO DE HASH:
             // Tenta encontrar o nome real do arquivo na pasta de assets.
             // Se não encontrar (retornar null), ignoramos o arquivo para não gerar link quebrado (404).
@@ -205,7 +278,7 @@ function extractComponentPreloads(componentPath: string): string[] {
         while ((match = imgTagRegex.exec(content)) !== null) {
             const src = match[1];
             // Para tags img src, também processamos para tentar achar a versão hash
-            processPath(src); 
+            processPath(src);
         }
 
         return Array.from(tags);
@@ -450,6 +523,10 @@ interface RenderOptions {
 }
 
 export async function renderVue({ req, res, route, params, allRoutes }: RenderOptions): Promise<void> {
+    // ATENÇÃO: Polyfill executado aqui para garantir que window/document existam
+    // antes de qualquer lógica de componente ser executada.
+    polyfillBrowserEnv();
+
     if (!vue) {
         res.statusCode = 500;
         res.end('Vue dependencies not installed.');
@@ -506,15 +583,15 @@ export async function renderVue({ req, res, route, params, allRoutes }: RenderOp
             : '';
         const componentPreloadsHtml = includeScripts
             ? (() => {
-                  try {
-                      const componentPreloads = extractComponentPreloads(
-                          route.componentPath ? path.resolve(process.cwd(), route.componentPath) : ''
-                      );
-                      return componentPreloads.join('\n');
-                  } catch {
-                      return '';
-                  }
-              })()
+                try {
+                    const componentPreloads = extractComponentPreloads(
+                        route.componentPath ? path.resolve(process.cwd(), route.componentPath) : ''
+                    );
+                    return componentPreloads.join('\n');
+                } catch {
+                    return '';
+                }
+            })()
             : '';
         const stylesHtml = assets.styles.map((styleUrl) => `<link rel="stylesheet" href="${styleUrl}">`).join('\n');
         const scriptsHtml = includeScripts
@@ -564,7 +641,7 @@ export async function renderVue({ req, res, route, params, allRoutes }: RenderOp
                         h(ServerErrorPage as any, {
                             error,
                             requestUrl: getRequestUrl(req),
-                            hint: 'O SSR falhou ao renderizar essa rota. Veja o erro abaixo.',
+                            hint: 'SSR failed to render this route. See the error below.',
                         });
                 },
             };

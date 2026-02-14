@@ -49,8 +49,6 @@ export function parseArgs(argv: string[]): CreateAppOptions {
   const noAliasFlag = args.includes("--no-alias");
   const aliasValue = readArgValue(args, "--alias");
 
-  const pathRouterFlag = args.includes("--path-router") || args.includes("-p")
-  const noPathRouterFlag = args.includes("--no-path-router")
 
   const reactFlag = args.includes("--react")
   const vueFlag = args.includes("--vue")
@@ -63,7 +61,6 @@ export function parseArgs(argv: string[]): CreateAppOptions {
 
     moduleAlias: noAliasFlag ? false : aliasValue ? true : undefined,
     alias: aliasValue ? normalizeAliasPrefix(aliasValue) : undefined,
-    pathRouter: pathRouterFlag ? true : noPathRouterFlag ? false : undefined,
     typeScript: args.includes("--typescript") || args.includes("-ts") ? true : undefined,
 
     framework: reactFlag ? 'react' : vueFlag ? 'vue' : undefined
@@ -109,11 +106,9 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
   let name = framework === 'react' ? 'React' : 'Vue'
   const recommended = await Console.selection(`Would you like to use the recommended options? (${name})`, {
     "yes": `${Colors.Underscore}Yes, use recommended defaults - TypeScript, Tailwind CSS, Module Alias`,
-    "maybe": `Maybe, use Path Router defaults - TypeScript, Tailwind CSS`,
     "no": "No, customize settings"
   })
   if(recommended !== 'no') {
-    recommendedOptions.pathRouter = recommended === 'maybe'
     // Forçar todas as propriedades obrigatórias
     return {
       appName: recommendedOptions.appName!,
@@ -122,7 +117,6 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
       install: recommendedOptions.install!,
       moduleAlias: recommendedOptions.moduleAlias!,
       alias: recommendedOptions.alias!,
-      pathRouter: recommendedOptions.pathRouter!,
       typeScript: recommendedOptions.typeScript!,
       framework: recommendedOptions.framework!
     }
@@ -146,12 +140,6 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
   let examples = opts.examples;
   if (examples === undefined) {
     examples = await Console.confirm("Do you want to include example routes?", true);
-    console.log(" ")
-  }
-
-  let pathRouter = opts.pathRouter
-  if(pathRouter === undefined) {
-    pathRouter = await Console.confirm("Do you want to use path router?", false)
     console.log(" ")
   }
 
@@ -186,7 +174,6 @@ export async function promptForMissingOptions(opts: CreateAppOptions): Promise<R
     install: install!,
     moduleAlias: moduleAlias!,
     alias: alias!,
-    pathRouter: pathRouter!,
     typeScript: typescript!,
     framework: framework!
   };

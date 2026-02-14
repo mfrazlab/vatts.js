@@ -19,7 +19,7 @@ package traffic
 import (
 	"bytes"
 	"core-go/utils"
-
+	"fmt"
 	"net/http"
 	"sync"
 )
@@ -47,7 +47,6 @@ var globalGroup = &FusionGroup{
 }
 
 // ServeFusion tenta fundir requisições idênticas (GET)
-// Adaptação: Aceita http.Handler em vez de *httputil.ReverseProxy para compatibilidade
 func ServeFusion(w http.ResponseWriter, r *http.Request, next http.Handler) {
 	if r.Method != "GET" {
 		next.ServeHTTP(w, r)
@@ -82,9 +81,9 @@ func ServeFusion(w http.ResponseWriter, r *http.Request, next http.Handler) {
 		code:   http.StatusOK,
 	}
 
-	// Executa o handler real (Proxy p/ Node)
 	next.ServeHTTP(recorder, r)
 
+	// snapshot
 	c.val = &ResponseSnapshot{
 		Code:   recorder.code,
 		Header: recorder.header,
@@ -98,7 +97,7 @@ func ServeFusion(w http.ResponseWriter, r *http.Request, next http.Handler) {
 	globalGroup.mu.Unlock()
 
 	if c.dups > 0 {
-		utils.Info("Collapsed %d requests for %s", c.dups, key)
+		utils.Info(fmt.Sprintf("Collapsed %d requests for %s", c.dups, key))
 	}
 
 	copyResponse(w, c.val, "LEADER")
@@ -112,6 +111,10 @@ type responseRecorder struct {
 
 func (r *responseRecorder) Header() http.Header { return r.header }
 func (r *responseRecorder) Write(b []byte) (int, error) {
+	// se ninguém chamou WriteHeader, assume 200
+	if r.code == 0 {
+		r.code = http.StatusOK
+	}
 	return r.body.Write(b)
 }
 func (r *responseRecorder) WriteHeader(statusCode int) {
@@ -119,12 +122,24 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 }
 
 func copyResponse(w http.ResponseWriter, snap *ResponseSnapshot, role string) {
+	// Copia headers capturados
 	for k, v := range snap.Header {
 		for _, val := range v {
 			w.Header().Add(k, val)
 		}
 	}
+
+	// Marca papel do fusion
 	w.Header().Set("X-Vatts-Fusion", role)
+
+	// ✅ GARANTIA: se o snapshot tiver Alt-Svc, mantém.
+	// (isso resolve exatamente o teu bug de “sumir no curl/navegador”)
+	if w.Header().Get("Alt-Svc") == "" {
+		if alt := snap.Header.Get("Alt-Svc"); alt != "" {
+			w.Header().Set("Alt-Svc", alt)
+		}
+	}
+
 	w.WriteHeader(snap.Code)
-	w.Write(snap.Body)
+	_, _ = w.Write(snap.Body)
 }

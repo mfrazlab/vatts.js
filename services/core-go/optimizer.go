@@ -19,7 +19,6 @@ package main
 import "C"
 import (
 	"compress/gzip"
-	"core-go/utils"
 	"fmt"
 	"io"
 	"os"
@@ -160,8 +159,6 @@ func Optimize(targetDirC *C.char, outputDirC *C.char, ignoredPatternsC *C.char, 
 	os.RemoveAll(filepath.Join(outputDir, "chunks"))
 	os.RemoveAll(filepath.Join(outputDir, "temp"))
 
-	printTotalStats(entryPoints, outputDir)
-
 	return nil
 }
 
@@ -204,43 +201,4 @@ func compressToBrotli(srcPath string) error {
 
 	_, err = io.Copy(writer, srcFile)
 	return err
-}
-
-func printTotalStats(entries []string, outDir string) {
-	var totalOrig, totalGzip, totalBr int64
-
-	for _, f := range entries {
-		if info, err := os.Stat(f); err == nil {
-			totalOrig += info.Size()
-		}
-	}
-
-	filepath.Walk(outDir, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			if strings.HasSuffix(info.Name(), ".gz") {
-				totalGzip += info.Size()
-			} else if strings.HasSuffix(info.Name(), ".br") {
-				totalBr += info.Size()
-			}
-		}
-		return nil
-	})
-
-	if totalOrig > 0 {
-		// Consideramos a maior economia (geralmente Brotli)
-		bestFinal := totalBr
-		if totalGzip < totalBr && totalGzip > 0 {
-			bestFinal = totalGzip
-		}
-
-		diff := totalOrig - bestFinal
-		pct := (float64(diff) / float64(totalOrig)) * 100
-
-		original := fmt.Sprintf("  Original : %s%.2f KB", utils.Bright+utils.FgGreen, float64(totalOrig)/1024)
-		brotliStr := fmt.Sprintf("  Final    : %s%.2f KB", utils.Bright+utils.FgGreen, float64(totalBr)/1024)
-		saved := fmt.Sprintf("  Saved    : %s%.2f KB %s(%.2f%%)%s", utils.Bright+utils.FgGreen, float64(diff)/1024, utils.Reset+utils.FgGray, pct, utils.Reset)
-
-		utils.LogCustomLevel("", false, "", "", utils.FgBlue+utils.Bright+"Optimization summary:"+utils.Reset,
-			original, brotliStr, saved, "Optimizer")
-	}
 }

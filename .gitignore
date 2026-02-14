@@ -54,3 +54,5 @@ docs/
 docs/**
 
 services/core-go/.zig-cache
+
+examples/portfolio

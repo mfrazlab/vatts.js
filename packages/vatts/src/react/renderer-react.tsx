@@ -44,6 +44,102 @@ function toError(err: unknown): Error {
     }
 }
 
+// --- Polyfill para Browser Env no Server ---
+// Cria objetos globais falsos para evitar que bibliotecas client-side quebrem no SSR
+function polyfillBrowserEnv() {
+    if (typeof window === 'undefined') {
+        const win: any = {
+            document: {
+                createElement: () => ({ style: {}, setAttribute: () => {}, classList: { add: () => {}, remove: () => {} } }),
+                getElementById: () => null,
+                getElementsByTagName: () => [],
+                querySelector: () => null,
+                querySelectorAll: () => [],
+                head: {},
+                body: { style: {} },
+                addEventListener: () => {},
+                removeEventListener: () => {},
+                cookie: '',
+                location: { href: '', origin: '' }
+            },
+            navigator: {
+                userAgent: 'Node.js/VattsSSR',
+            },
+            location: {
+                href: 'http://localhost',
+                origin: 'http://localhost',
+                pathname: '/',
+                search: '',
+                hash: '',
+                assign: () => {},
+                replace: () => {},
+                reload: () => {},
+            },
+            history: {
+                pushState: () => {},
+                replaceState: () => {},
+            },
+            screen: { width: 1920, height: 1080 },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
+            requestAnimationFrame: (cb: Function) => setTimeout(cb, 0),
+            cancelAnimationFrame: (id: any) => clearTimeout(id),
+            setTimeout: setTimeout,
+            clearTimeout: clearTimeout,
+            setInterval: setInterval,
+            clearInterval: clearInterval,
+            localStorage: {
+                getItem: () => null,
+                setItem: () => {},
+                removeItem: () => {},
+                clear: () => {},
+            },
+            sessionStorage: {
+                getItem: () => null,
+                setItem: () => {},
+                removeItem: () => {},
+                clear: () => {},
+            },
+            // MOCK SILENCIOSO: Substitui o console original por funções vazias no ambiente window fake
+            // para evitar que logs do client-side poluam o terminal do servidor durante o SSR.
+            console: {
+                log: () => {},
+                warn: () => {},
+                error: () => {},
+                info: () => {},
+                debug: () => {},
+                trace: () => {},
+                dir: () => {},
+            },
+            Image: class { constructor() {} },
+        };
+
+        const globalAny = global as any;
+
+        // Helper para definir globais de forma segura
+        // Node 21+ tem globais 'navigator', 'performance' etc que são getter-only e quebram se tentar sobrescrever
+        const setGlobal = (key: string, value: any) => {
+            try {
+                if (typeof globalAny[key] === 'undefined') {
+                    globalAny[key] = value;
+                }
+            } catch (e) {
+                // Se falhar (propriedade read-only), ignoramos silenciosamente
+            }
+        };
+
+        setGlobal('window', win);
+        setGlobal('document', win.document);
+        setGlobal('navigator', win.navigator);
+        setGlobal('location', win.location);
+        setGlobal('localStorage', win.localStorage);
+        setGlobal('sessionStorage', win.sessionStorage);
+        setGlobal('requestAnimationFrame', win.requestAnimationFrame);
+        setGlobal('cancelAnimationFrame', win.cancelAnimationFrame);
+    }
+}
+
 function buildShellHtml(options: {
     lang: string;
     title: string;
@@ -99,12 +195,12 @@ async function sendReactSsrFallback(options: {
         obfuscatedData,
     } = options;
 
-        const scriptsHtml = assets.scripts
-            .map((src) => `<script type="module" src="${src}"></script>`)
-            .join('\n');
+    const scriptsHtml = assets.scripts
+        .map((src) => `<script type="module" src="${src}"></script>`)
+        .join('\n');
 
-        // No DEV a gente remove scripts do head pra garantir que só aparece a página de erro.
-        const safeMetaTagsHtmlForDev = stripScriptTags(metaTagsHtml);
+    // No DEV a gente remove scripts do head pra garantir que só aparece a página de erro.
+    const safeMetaTagsHtmlForDev = stripScriptTags(metaTagsHtml);
 
     if (res.headersSent) {
         try {
@@ -151,7 +247,7 @@ async function sendReactSsrFallback(options: {
                 <ServerError
                     error={err}
                     requestUrl={getRequestUrl(req)}
-                    hint="O SSR falhou ao renderizar essa rota. Veja o erro abaixo."
+                    hint="SSR failed to render this route. See the error below."
                 />
             </ServerRoot>,
             {
@@ -425,6 +521,10 @@ interface RenderOptions {
 }
 
 export async function render({ req, res, route, params, allRoutes }: RenderOptions): Promise<void> {
+    // ATENÇÃO: Polyfill executado aqui para garantir que window/document existam
+    // antes de qualquer lógica de componente ser executada.
+    polyfillBrowserEnv();
+
     const { generateMetadata } = route;
     const isProduction = !(req as any).hwebDev;
     const hotReloadManager = (req as any).hotReloadManager;

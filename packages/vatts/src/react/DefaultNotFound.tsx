@@ -259,7 +259,7 @@ export default function ErrorPage() {
                     onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
                 >
                     {/* Logo mantida, removido o filtro cinza para ficar natural */}
-                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" alt="Vatts Logo" style={{ width: 20, height: 20 }} />
+                    <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/docs/public/logo.png" alt="Vatts Logo" style={{ width: 20, height: 20 }} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
                         Vatts
                         <span style={{ color: theme.cyan }}>.js</span>

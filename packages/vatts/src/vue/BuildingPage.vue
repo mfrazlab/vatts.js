@@ -246,7 +246,7 @@ const clientReloadScript = `
         <div class="content">
           <div class="logo-wrapper">
             <div class="logo-glow"></div>
-            <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" alt="Vatts Logo" />
+            <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/docs/public/logo.png" alt="Vatts Logo" />
           </div>
 
           <h1>Vatts<span>.js</span></h1>

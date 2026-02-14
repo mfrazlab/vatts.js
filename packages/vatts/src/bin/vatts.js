@@ -31,6 +31,7 @@ const ConsoleModule = require('../api/console');
 const {loadVattsConfig, config, setConfig} = require("../helpers");
 const {default: detectFramework} = require("../api/framework");
 const {renderAsStream} = require("../renderer");
+const {showTitle} = require("../utils/utils");
 const Console = ConsoleModule.default;
 const { Levels, Colors } = ConsoleModule;
 
@@ -40,12 +41,109 @@ program
 
 // --- Helpers ---
 
-function initializeApp(options, isDev) {
+/**
+ * Cria um arquivo de marcação de build de produção
+ */
+function createBuildInfoFile(projectDir) {
+    const buildInfoPath = path.join(projectDir, '.vatts', '.build-info.json');
+
+
+
+    const buildInfo = {
+        type: 'production',
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        vattsVersion: '1.0.0', // Pode pegar do package.json se necessário
+        buildDate: new Date().getTime()
+    };
+
+    try {
+        fs.mkdirSync(path.dirname(buildInfoPath), { recursive: true });
+        fs.writeFileSync(buildInfoPath, JSON.stringify(buildInfo, null, 2), 'utf8');
+    } catch (error) {
+        Console.error('Failed to create build info file:', error);
+    }
+}
+
+/**
+ * Verifica se existe uma build de produção válida
+ */
+function hasValidProductionBuild(projectDir) {
+    const buildInfoPath = path.join(projectDir, '.vatts', '.build-info.json');
+    const buildDir = path.join(projectDir, '.vatts');
+
+    // Verifica se o diretório de build existe e tem conteúdo
+    if (!fs.existsSync(buildDir)) {
+        return false;
+    }
+
+    // Verifica se o arquivo de info de build existe
+    if (!fs.existsSync(buildInfoPath)) {
+        return false;
+    }
+
+    try {
+        const buildInfo = JSON.parse(fs.readFileSync(buildInfoPath, 'utf8'));
+
+        // Verifica se é uma build de produção
+        if (buildInfo.type !== 'production') {
+            return false;
+        }
+
+        // Verifica se tem arquivos no diretório (além do .build-info.json)
+        const files = fs.readdirSync(buildDir);
+        if (files.length <= 1) {
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        Console.warn('Invalid build info file:', error.message);
+        return false;
+    }
+}
+
+/**
+ * Obtém informações da build de produção
+ */
+function getBuildInfo(projectDir) {
+    const buildInfoPath = path.join(projectDir, '.vatts', '.build-info.json');
+
+    try {
+        if (fs.existsSync(buildInfoPath)) {
+            return JSON.parse(fs.readFileSync(buildInfoPath, 'utf8'));
+        }
+    } catch (error) {
+        Console.warn('Could not read build info:', error.message);
+    }
+
+    return null;
+}
+
+/**
+ * Remove o arquivo de info de build (usado no modo dev)
+ */
+function removeBuildInfoFile(projectDir) {
+    const buildInfoPath = path.join(projectDir, '.vatts', '.build-info.json');
+
+    try {
+        if (fs.existsSync(buildInfoPath)) {
+            fs.unlinkSync(buildInfoPath);
+        }
+    } catch (error) {
+        // Silencioso, não é crítico
+    }
+}
+
+function initializeApp(options, isDev, skipBuild = false) {
     const appOptions = {
         dev: isDev,
         port: options.port,
         hostname: options.hostname,
         framework: 'native',
+        skipBuild: skipBuild,
     };
 
 
@@ -84,8 +182,49 @@ program
     .option('-H, --hostname <string>', 'Specifies the hostname to run on', '0.0.0.0')
     .option('--ssl', 'Activates HTTPS/SSL mode')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
-    .action((options) => {
+    .action(async (options) => {
+        await showTitle()
+        const projectDir = process.cwd();
+
+        // Remove o arquivo de build info se existir (modo dev não usa builds de produção)
+        removeBuildInfoFile(projectDir);
+
         initializeApp(options, true);
+    });
+
+program
+    .command('build')
+    .description('Builds the application for production.')
+    .action(async (options) => {
+        await showTitle()
+        process.env.NODE_ENV = 'production';
+        const projectDir = process.cwd();
+
+        Console.info('Starting production build...');
+
+        try {
+            const { loadVattsConfig, setConfig } = require("../helpers");
+            setConfig(await loadVattsConfig(projectDir, 'production'));
+
+            const helperModule = require("../helpers");
+            const app = helperModule.default({
+                dev: false,
+                port: 3000,
+                hostname: '0.0.0.0',
+                framework: 'native'
+            });
+
+            await app.prepare();
+
+            // Cria o arquivo de informações da build
+            createBuildInfoFile(projectDir);
+
+            Console.success('Production build completed successfully!');
+            Console.info('You can now start the application with: vatts start');
+        } catch (error) {
+            Console.error('Build failed:', error);
+            process.exit(1);
+        }
     });
 
 program
@@ -95,9 +234,118 @@ program
     .option('-H, --hostname <string>', 'Specifies the hostname to run on', '0.0.0.0')
     .option('--ssl', 'Activates HTTPS/SSL mode')
     .option('--http-redirect-port <number>', 'Port for HTTP->HTTPS redirection', '80')
-    .action((options) => {
+    .option('--build', 'Force rebuild before starting')
+    .action(async (options) => {
+        await showTitle()
         process.env.NODE_ENV = 'production';
-        initializeApp(options, false);
+        const projectDir = process.cwd();
+        const buildDir = path.join(projectDir, '.vatts');
+
+        // Verifica se existe uma build de produção válida
+        const hasValidBuild = hasValidProductionBuild(projectDir);
+
+        if (!hasValidBuild || options.build) {
+            if (!hasValidBuild) {
+
+                const dim = Colors.Dim;
+                const bright = Colors.Bright;
+
+                const title = bright + Colors.FgCyan;
+                const err = bright + Colors.FgRed;
+                const label = Colors.FgGray;
+                const cmd = bright + Colors.FgCyan;
+                const reset = Colors.Reset;
+
+                const line = `${dim}${"━".repeat(70)}${reset}`;
+
+                Console.logCustomLevel(
+                    "",
+                    false,
+                    undefined,
+                    `${err}✖ No valid production build found!${reset}`,
+                    `${label}It looks like there is no build output to run in production.${reset}`,
+                    " ",
+
+                    `${label}Build the application first:${reset}`,
+                    `  ${cmd}vatts build${reset}`,
+                    " ",
+
+                    `${label}Or build and start in one command:${reset}`,
+                    `  ${cmd}vatts start --build${reset}`,
+                );
+
+                process.exitCode = 0;
+                return
+            } else {
+                Console.info('Rebuilding application...');
+            }
+
+            try {
+                const { loadVattsConfig, setConfig } = require("../helpers");
+                setConfig(await loadVattsConfig(projectDir, 'production'));
+
+                const helperModule = require("../helpers");
+                const app = helperModule.default({
+                    dev: false,
+                    port: options.port || 3000,
+                    hostname: options.hostname || '0.0.0.0',
+                    framework: 'native'
+                });
+
+                await app.prepare();
+
+                // Cria o arquivo de informações da build
+                createBuildInfoFile(projectDir);
+
+                Console.success('Build completed!');
+            } catch (error) {
+                Console.error('Build failed:', error);
+                process.exitCode = 0;
+                return
+            }
+
+            // Inicia a aplicação sem rebuildar (já foi buildado acima)
+            initializeApp(options, false, true);
+        } else {
+            // Mostra informações da build existente
+            const buildInfo = getBuildInfo(projectDir);
+            if (buildInfo) {
+                const dim = Colors.Dim;
+                const bright = Colors.Bright;
+
+                const title = bright + Colors.FgCyan;
+                const ok = bright + Colors.FgGreen;
+                const label = Colors.FgGray;
+                const value = bright + Colors.FgWhite;
+                const reset = Colors.Reset;
+                const sysLocale =
+                    process.env.LC_ALL ||
+                    process.env.LC_TIME ||
+                    process.env.LANG ||
+                    undefined;
+                const date = new Date(buildInfo.buildDate).toLocaleString(sysLocale, {
+                    dateStyle: 'full',
+                    timeStyle: 'medium'
+                });
+
+                Console.logCustomLevel(
+                    "",
+                    false,
+                    undefined,
+                    `${ok}✔${reset}  ${bright}Using existing production build${reset}`,
+                    " ",
+
+                    `${label}Built on:${reset}      ${value}${date}${reset}`,
+                    `${label}Node version:${reset}  ${value}${buildInfo.nodeVersion}${reset}`,
+                    `${label}Platform:${reset}      ${value}${buildInfo.platform}-${buildInfo.arch}${reset}`,
+                    " "
+                );
+
+            }
+
+            // Inicia a aplicação sem rebuildar
+            initializeApp(options, false, true);
+        }
     });
 
 program
@@ -108,6 +356,7 @@ program
     .option('--no-html', 'Do not generate index.html (assets only)')
     .option('--output-h-data <file>', 'Write the data-h value into this file')
     .action(async (options) => {
+        await showTitle()
         process.env.NODE_ENV = 'production';
         const projectDir = process.cwd();
         const outputInput = (typeof options.output === 'string' && options.output.trim()) || 'exported';

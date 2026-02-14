@@ -76,7 +76,7 @@ var (
 )
 
 /* -----------------------------
-   Helpers (ports + header inject)
+    Helpers (ports)
 ------------------------------ */
 
 func normalizeAddrPort(p string) string {
@@ -110,47 +110,6 @@ func extractPortOnly(addr string) string {
 	// fallback: pega depois do último ':'
 	parts := strings.Split(addr, ":")
 	return parts[len(parts)-1]
-}
-
-// Wrapper que injeta Alt-Svc no PRIMEIRO WriteHeader/Write (garantido)
-type altSvcRW struct {
-	http.ResponseWriter
-	alt         string
-	wroteHeader bool
-}
-
-func (w *altSvcRW) ensure() {
-	if w.alt == "" {
-		return
-	}
-	// Não sobrescreve se alguém já setou diferente
-	if w.Header().Get("Alt-Svc") == "" {
-		w.Header().Set("Alt-Svc", w.alt)
-	}
-}
-
-func (w *altSvcRW) WriteHeader(statusCode int) {
-	if !w.wroteHeader {
-		w.ensure()
-		w.wroteHeader = true
-	}
-	w.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (w *altSvcRW) Write(p []byte) (int, error) {
-	if !w.wroteHeader {
-		// se ninguém chamou WriteHeader antes, o Write dispara header implicitamente
-		w.ensure()
-		w.wroteHeader = true
-	}
-	return w.ResponseWriter.Write(p)
-}
-
-func wrapAltSvc(w http.ResponseWriter, alt string) http.ResponseWriter {
-	if alt == "" {
-		return w
-	}
-	return &altSvcRW{ResponseWriter: w, alt: alt}
 }
 
 //export StartServer
@@ -193,11 +152,15 @@ func StartServer(
 
 	// --- Preparação do Alt-Svc Header (Pré-calculado) ---
 	var altSvcHeader string
+	var debugH3Port string
+
 	if http3Port != "" {
 		h3PortOnly := extractPortOnly(http3Port)
 		if h3PortOnly != "" {
-			altSvcHeader = fmt.Sprintf(`h3=":%s"; ma=2592000`, h3PortOnly)
-			utils.Info("HTTP/3 Alt-Svc enabled: " + altSvcHeader)
+			debugH3Port = h3PortOnly
+			altSvcHeader = fmt.Sprintf(`h3=":%s"; ma=2592000, h3-29=":%s"; ma=2592000`, h3PortOnly, h3PortOnly)
+		} else {
+			utils.Warn("[Native] HTTP/3 Port string is invalid or empty.")
 		}
 	}
 
@@ -208,14 +171,14 @@ func StartServer(
 	nodeBridgeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := int(atomic.AddInt64(&nextID, 1))
 
-		// Verifica se é WebSocket / Upgrade
+		// WebSocket / Upgrade
 		isUpgrade := false
 		if strings.ToLower(r.Header.Get("Connection")) == "upgrade" &&
 			strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
 			isUpgrade = true
 		}
 
-		// Se for WebSocket, precisamos fazer o Hijack da conexão TCP
+		// WebSocket: Hijack
 		if isUpgrade {
 			hijacker, ok := w.(http.Hijacker)
 			if !ok {
@@ -270,7 +233,7 @@ func StartServer(
 			return
 		}
 
-		// --- FLUXO PADRÃO HTTP (Pipe Request/Response) ---
+		// HTTP normal (Pipe)
 		pr, pw := io.Pipe()
 
 		mutex.Lock()
@@ -322,7 +285,7 @@ func StartServer(
 		}
 		defer resp.Body.Close()
 
-		// --- Lógica de Cache (Write) ---
+		// Cache write
 		shouldCache := r.Method == "GET" && resp.StatusCode == 200 && cache.IsCacheable(r.URL.Path)
 		var bodyReader io.Reader = resp.Body
 
@@ -334,7 +297,7 @@ func StartServer(
 				for k, vv := range resp.Header {
 					lowerK := strings.ToLower(k)
 					if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" ||
-						lowerK == "transfer-encoding" || lowerK == "upgrade" {
+						lowerK == "transfer-encoding" || lowerK == "upgrade" || lowerK == "alt-svc" {
 						continue
 					}
 					for _, v := range vv {
@@ -357,15 +320,23 @@ func StartServer(
 			}
 		}
 
-		// Copia Headers (sem hop-by-hop)
+		// Copia headers do Node (sem hop-by-hop e sem Alt-Svc)
 		for k, v := range resp.Header {
 			lowerK := strings.ToLower(k)
 			if lowerK == "connection" || lowerK == "keep-alive" || lowerK == "proxy-connection" ||
-				lowerK == "transfer-encoding" || lowerK == "upgrade" {
+				lowerK == "transfer-encoding" || lowerK == "upgrade" || lowerK == "alt-svc" {
 				continue
 			}
 			for _, val := range v {
 				w.Header().Add(k, val)
+			}
+		}
+
+		// ✅ GARANTE Alt-Svc AQUI (isso entra no recorder do Fusion)
+		if altSvcHeader != "" {
+			w.Header().Set("Alt-Svc", altSvcHeader)
+			if devMode && debugH3Port != "" {
+				w.Header().Set("X-Vatts-H3-Port", debugH3Port)
 			}
 		}
 
@@ -375,17 +346,14 @@ func StartServer(
 
 	// 2. Pipeline principal
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// injeta Alt-Svc de forma GARANTIDA
-		w = wrapAltSvc(w, altSvcHeader)
-
-		// A. Security Check
+		// Security
 		if err := security.AnalyzeRequest(r); err != nil {
 			utils.Warn("[SECURITY] Blocked ", r.RemoteAddr, err)
 			http.Error(w, "Vatts Shield: Request Blocked", http.StatusForbidden)
 			return
 		}
 
-		// B. Cache Read Check (Apenas GET simples, não WebSocket)
+		// Cache HIT (só GET)
 		if r.Method == "GET" && r.Header.Get("Upgrade") == "" && cache.IsCacheable(r.URL.Path) {
 			cache.Store.RLock()
 			item, ok := cache.Store.Items[r.URL.String()]
@@ -397,20 +365,30 @@ func StartServer(
 						w.Header().Add(k, val)
 					}
 				}
-
 				w.Header().Set("X-Vatts-Cache", "HIT")
+
+				// ✅ GARANTE Alt-Svc também no cache HIT (não passa pelo nodeBridgeHandler)
+				if altSvcHeader != "" {
+					w.Header().Set("Alt-Svc", altSvcHeader)
+					if devMode && debugH3Port != "" {
+						w.Header().Set("X-Vatts-H3-Port", debugH3Port)
+					}
+				}
+
 				w.WriteHeader(http.StatusOK)
 				w.Write(item.Body)
 				return
 			}
 		}
 
-		// C. Traffic Fusion + D. Node Bridge
+		// Websocket bypass fusion
 		if r.Header.Get("Upgrade") != "" {
 			nodeBridgeHandler.ServeHTTP(w, r)
-		} else {
-			traffic.ServeFusion(w, r, nodeBridgeHandler)
+			return
 		}
+
+		// Fusion (GET) + Node bridge
+		traffic.ServeFusion(w, r, nodeBridgeHandler)
 	})
 
 	go func() {
@@ -434,15 +412,17 @@ func StartServer(
 				errChan <- http.ListenAndServeTLS(httpsPort, certPath, keyPath, mainHandler)
 			}()
 
-			// HTTP -> HTTPS redirect (aqui também injeta Alt-Svc pra facilitar seus testes)
+			// HTTP -> HTTPS redirect
 			if httpPort != "" {
 				go func() {
 					redirectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						w = wrapAltSvc(w, altSvcHeader)
-
 						target := "https://" + r.Host + r.URL.Path
 						if len(r.URL.RawQuery) > 0 {
 							target += "?" + r.URL.RawQuery
+						}
+						// (opcional) Alt-Svc no redirect também
+						if altSvcHeader != "" {
+							w.Header().Set("Alt-Svc", altSvcHeader)
 						}
 						http.Redirect(w, r, target, http.StatusMovedPermanently)
 					})
@@ -450,7 +430,6 @@ func StartServer(
 				}()
 			}
 		} else {
-			// HTTP only
 			errChan <- http.ListenAndServe(httpPort, mainHandler)
 		}
 
@@ -480,7 +459,6 @@ func WriteToConn(connID C.int, dataPtr unsafe.Pointer, length C.int) *C.char {
 	if err != nil {
 		return C.CString(fmt.Sprintf("Write error: %v", err))
 	}
-
 	return nil
 }
 

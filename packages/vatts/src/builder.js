@@ -19,7 +19,7 @@ const path = require('path');
 const Console = require("./api/console").default;
 const fs = require('fs');
 const crypto = require('crypto');
-const { readdir, stat, rm, rename } = require("node:fs/promises");
+const { readdir, stat, rm, rename, readFile } = require("node:fs/promises");
 const { loadTsConfigPaths, resolveTsConfigAlias } = require('./tsconfigPaths');
 const { config } = require("./helpers")
 // --- Optimization Plugins ---
@@ -41,7 +41,7 @@ const excludedFiles = ['vatts.sock'];
 
 // --- Virtual Entry Plugin ---
 const virtualEntryPlugin = (options) => {
-    const { routes, layout, notFound, framework, projectDir, pathRouter } = options;
+    const { routes, layout, notFound, framework } = options;
     const virtualEntryId = 'virtual:vatts-entry';
     const resolvedEntryId = '\0' + virtualEntryId;
 
@@ -78,33 +78,14 @@ const virtualEntryPlugin = (options) => {
                 // [FIX] Removido 'dist' extra do caminho. O __dirname já aponta para a dist quando compilado.
                 const defaultNotFoundFilename = framework === 'vue' ? 'DefaultNotFound.vue' : 'DefaultNotFound.js';
                 const defaultNotFoundPath = path.join(__dirname, framework, defaultNotFoundFilename).replace(/\\/g, '/');
-                
+
                 // Component Registration Logic
-                let componentRegistration;
-                if (pathRouter === true) {
-                    componentRegistration = routes
-                        .map((route, index) => {
-                            const key = route.componentPath.replace(/\\/g, '/');
-                            return `  '${key}': route${index} || route${index}.default,`;
-                        })
-                        .join('\n');
-                } else {
-                    if (framework === 'vue') {
-                        componentRegistration = routes
-                            .map((route, index) => {
-                                const key = route.componentPath.replace(/\\/g, '/');
-                                return `  '${key}': route${index} || route${index}.default,`;
-                            })
-                            .join('\n');
-                    } else {
-                        componentRegistration = routes
-                            .map((route, index) => {
-                                const key = route.componentPath.replace(/\\/g, '/');
-                                return `  '${key}': route${index} || route${index}.default,`;
-                            })
-                            .join('\n');
-                    }
-                }
+                let componentRegistration = routes
+                    .map((route, index) => {
+                        const key = route.componentPath.replace(/\\/g, '/');
+                        return `  '${key}': route${index} || route${index}.default,`;
+                    })
+                    .join('\n');
 
                 const layoutRegistration = layout
                     ? `window.__VATTS_LAYOUT__ = LayoutComponent.default || LayoutComponent;`
@@ -177,7 +158,11 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
     let configLoaded = false;
 
     const initPostCss = async (projectDir) => {
-        if (configLoaded) return cachedProcessor;
+        // [FIX] Se estiver em modo Watch, NÃO retorna o processador cacheado.
+        // Isso força o PostCSS/Tailwind a reinicializar e escanear os arquivos novamente
+        // para encontrar classes novas (JIT/Arbitrary values).
+        if (configLoaded && !isWatch) return cachedProcessor;
+
         process.env.NODE_ENV = isProduction ? 'production' : 'development';
         const postcssConfigPath = path.join(projectDir, 'postcss.config.js');
         const postcssConfigMjsPath = path.join(projectDir, 'postcss.config.mjs');
@@ -191,6 +176,9 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
                 catch { try { postcss = require('postcss'); } catch (e) { return null; } }
 
                 if (postcss) {
+                    // Limpa o cache do require para garantir que a config seja lida novamente se editada (opcional, mas seguro)
+                    delete require.cache[require.resolve(configPath)];
+
                     const config = require(configPath);
                     const postcssConfig = config.default || config;
                     const plugins = [];
@@ -222,6 +210,21 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
 
     return {
         name: 'custom-postcss-plugin',
+        // [FIX] Hook load adicionado para modo watch.
+        // Ele lê o CSS e injeta um comentário com timestamp. Isso faz o Rollup pensar que o arquivo mudou,
+        // forçando a execução do transform(), que por sua vez roda o Tailwind novamente.
+        async load(id) {
+            if (isWatch && id.endsWith('.css')) {
+                try {
+                    const content = await readFile(id, 'utf8');
+                    // Injeta comentário para invalidar cache do Rollup para este arquivo
+                    return content + `\n/* v-watch-${Date.now()} */`;
+                } catch (e) {
+                    return null; // Deixa o Rollup carregar normalmente se falhar
+                }
+            }
+            return null; // Comportamento padrão para build normal ou outros arquivos
+        },
         async transform(code, id) {
             if (!id.endsWith('.css')) return null;
 
@@ -234,6 +237,7 @@ const customPostCssPlugin = (isProduction, isWatch = false) => {
 
             if (processor) {
                 try {
+                    // Sempre passa o 'from' para que o Tailwind saiba onde está o arquivo
                     const result = await processor.process(code, { from: id, to: id, map: false });
                     processedCss = result.css;
                 } catch (e) { Console.warn(`PostCSS process error:`, e.message); }
@@ -411,7 +415,7 @@ async function getFrameworkConfig(vattsOptions, outdir, isProduction, isWatch = 
     // Determine framework from options or detect
     const projectDir = vattsOptions.projectDir || process.cwd();
     const framework = vattsOptions.framework || detectFramework(projectDir);
-    
+
     // Ensure framework is in options for plugin
     vattsOptions.framework = framework;
     vattsOptions.projectDir = projectDir;
@@ -531,7 +535,7 @@ async function buildWithChunks(vattsOptions, outdir, isProduction = false) {
             try {
                 const { runOptimizer } = require('./api/optimizer');
                 const optimizedDir = path.join(outdir, 'optimized');
-            
+
                 runOptimizer({
                     targetDir: outdir,
                     outputDir: optimizedDir,
@@ -670,16 +674,16 @@ async function watchWithChunks(vattsOptions, outdir, hotReloadManager = null) {
             sourcemap: true,
             intro: processPolyfill
         };
-        
+
         // Correcting the watch options syntax
         const watchOptions = {
             ...inputOptions,
             output: outputOptions,
-            watch: { 
-                exclude: ['node_modules/**', path.join(outdir, '**').replace(/\\/g, '/')], 
-                clearScreen: false, 
-                skipWrite: false, 
-                buildDelay: 100 
+            watch: {
+                exclude: ['node_modules/**', path.join(outdir, '**').replace(/\\/g, '/')],
+                clearScreen: false,
+                skipWrite: false,
+                buildDelay: 100
             }
         };
         const watcher = rollupWatch(watchOptions);
@@ -710,15 +714,15 @@ async function watch(vattsOptions, outfile, hotReloadManager = null) {
             sourcemap: true,
             intro: processPolyfill
         };
-        
+
         // Correcting the watch options syntax
         const watchOptions = {
             ...inputOptions,
             output: outputOptions,
-            watch: { 
-                exclude: ['node_modules/**', path.join(outdir, '**').replace(/\\/g, '/')], 
-                clearScreen: false, 
-                buildDelay: 100 
+            watch: {
+                exclude: ['node_modules/**', path.join(outdir, '**').replace(/\\/g, '/')],
+                clearScreen: false,
+                buildDelay: 100
             }
         };
         const watcher = rollupWatch(watchOptions);

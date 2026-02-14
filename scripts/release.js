@@ -1,4 +1,3 @@
-// scripts/release.js
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -43,12 +42,12 @@ try {
   // 1. Verificação do Core-Go (Binários)
   // ---------------------------------------------------------
   console.log('🕵️  Verificando binários do Core-Go...');
-  
+
   let missingBinaries = [];
-  
+
   if (fs.existsSync(CORE_BINARIES_DIR)) {
-    missingBinaries = REQUIRED_BINARIES.filter(bin => 
-      !fs.existsSync(path.join(CORE_BINARIES_DIR, bin))
+    missingBinaries = REQUIRED_BINARIES.filter(bin =>
+        !fs.existsSync(path.join(CORE_BINARIES_DIR, bin))
     );
   } else {
     missingBinaries = REQUIRED_BINARIES;
@@ -57,10 +56,10 @@ try {
   if (missingBinaries.length > 0) {
     console.warn(`   ⚠️  Binários faltando: ${missingBinaries.join(', ')}`);
     console.log('   🔨 Compilando Core-Go (pnpm run build)...');
-    
-    execSync('pnpm run build', { 
-      cwd: CORE_GO_DIR, 
-      stdio: 'inherit' 
+
+    execSync('pnpm run build', {
+      cwd: CORE_GO_DIR,
+      stdio: 'inherit'
     });
     console.log('   ✅ Core-Go compilado com sucesso!');
   } else {
@@ -73,13 +72,13 @@ try {
   console.log('🔄 Sincronizando versões nos pacotes...');
   PACKAGES_TO_SYNC.forEach(pkgPath => {
     const fullPath = path.join(ROOT_DIR, pkgPath, 'package.json');
-    
+
     if (fs.existsSync(fullPath)) {
       const pkg = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
       pkg.version = NEW_VERSION;
-      
+
       if (pkg.dependencies && pkg.dependencies['vatts']) {
-          pkg.dependencies['vatts'] = `^${NEW_VERSION}`;
+        pkg.dependencies['vatts'] = `^${NEW_VERSION}`;
       }
 
       fs.writeFileSync(fullPath, JSON.stringify(pkg, null, 2) + '\n');
@@ -93,10 +92,10 @@ try {
   // 3. Gerar Changelogs (Raiz e Auth)
   // ---------------------------------------------------------
   console.log('📝 Gerando Changelogs...');
-  
+
   const lastCommitMsg = execSync('git log -1 --pretty=%B').toString().trim();
   const date = new Date().toISOString().split('T')[0];
-  
+
   const generateChangelog = (relativePath) => {
     const logPath = path.join(ROOT_DIR, relativePath);
     const header = `## ${NEW_VERSION} (${date})`;
@@ -121,13 +120,13 @@ try {
   execSync('pnpm run build', { stdio: 'inherit', cwd: ROOT_DIR });
 
   const publishFilter = `--filter "./packages/vatts" --filter "./packages/auth"`;
-  
-  const tagArg = NEW_VERSION.includes('canary') || NEW_VERSION.includes('alpha') 
-      ? '--tag canary' 
-      : '';
+
+  const isCanary = NEW_VERSION.includes('canary') || NEW_VERSION.includes('alpha');
+
+  const tagArg = isCanary ? '--tag canary' : '';
 
   const publishCmd = `pnpm publish -r ${publishFilter} --no-git-checks --access=public ${tagArg}`;
-  
+
   console.log(`   Executando: ${publishCmd}`);
   execSync(publishCmd, { stdio: 'inherit', cwd: ROOT_DIR });
 
@@ -138,39 +137,47 @@ try {
 
   // 5.1 Commit na branch atual (canary) IGNORANDO A PASTA DOCS
   console.log(`   📌 Commitando alterações (ignorando ./docs)...`);
-  
+
   // O ":!docs" diz para o git adicionar tudo EXCETO o caminho docs
   execSync('git add . -- ":!docs"', { cwd: ROOT_DIR });
-  
+
   try {
     execSync(`git commit -m "chore(release): v${NEW_VERSION}"`, { cwd: ROOT_DIR });
   } catch (e) {
     console.log('   ⚠️  Nada para comitar (talvez já tenha sido comitado).');
   }
-  
-  // Pega o nome da branch atual (canary)
+
+  // Pega o nome da branch atual
   const currentBranch = execSync('git branch --show-current').toString().trim();
   console.log(`   🌿 Branch atual: ${currentBranch}`);
 
-  // 5.2 Hard Reset na Latest (Sem Merge)
-  // Aqui fazemos o "latest" virar exatamente o que o "canary" é agora.
-  console.log(`   🔄 Forçando a branch ${BRANCH_PROD} a ser idêntica a ${currentBranch}...`);
-  
-  execSync(`git checkout ${BRANCH_PROD}`, { stdio: 'inherit', cwd: ROOT_DIR });
-  
-  // Hard reset faz a branch local latest ficar IGUAL à branch de origem (canary)
-  execSync(`git reset --hard ${currentBranch}`, { stdio: 'inherit', cwd: ROOT_DIR });
-  
-  // Force push é obrigatório aqui pois reescrevemos o histórico do latest
-  console.log(`   🔥 Enviando ${BRANCH_PROD} com Force Push...`);
-  execSync(`git push origin ${BRANCH_PROD} --force`, { stdio: 'inherit', cwd: ROOT_DIR });
+  // 5.2 Hard Reset na Latest (APENAS SE NÃO FOR CANARY)
+  let releaseTargetBranch = BRANCH_PROD;
+
+  if (isCanary) {
+    console.log(`   🐤 Versão Canary detectada (${NEW_VERSION}). Mantendo na branch atual e pulando atualização da '${BRANCH_PROD}'.`);
+    // Se é canary, o alvo da release no GitHub é a branch atual, não a latest
+    releaseTargetBranch = currentBranch;
+  } else {
+    // Se é estável, faz o fluxo normal de jogar para a latest
+    console.log(`   🔄 Versão Estável. Forçando a branch ${BRANCH_PROD} a ser idêntica a ${currentBranch}...`);
+
+    execSync(`git checkout ${BRANCH_PROD}`, { stdio: 'inherit', cwd: ROOT_DIR });
+    execSync(`git reset --hard ${currentBranch}`, { stdio: 'inherit', cwd: ROOT_DIR });
+
+    console.log(`   🔥 Enviando ${BRANCH_PROD} com Force Push...`);
+    execSync(`git push origin ${BRANCH_PROD} --force`, { stdio: 'inherit', cwd: ROOT_DIR });
+  }
 
   // 5.3 Criar Release no GitHub
   console.log('   🏷️  Criando Release no GitHub...');
   try {
     const releaseNotes = lastCommitMsg.replace(/"/g, '\\"');
-    // Nota: target agora é BRANCH_PROD (que acabamos de resetar)
-    const ghCommand = `gh release create v${NEW_VERSION} --title "v${NEW_VERSION}" --notes "${releaseNotes}" --target ${BRANCH_PROD}`;
+    const prereleaseFlag = isCanary ? '--prerelease' : '';
+
+    // O target agora é dinâmico (currentBranch se for canary, BRANCH_PROD se for estável)
+    const ghCommand = `gh release create v${NEW_VERSION} --title "v${NEW_VERSION}" --notes "${releaseNotes}" --target ${releaseTargetBranch} ${prereleaseFlag}`;
+
     execSync(ghCommand, { stdio: 'inherit', cwd: ROOT_DIR });
     console.log('   ✅ Release criada via GitHub CLI!');
   } catch (err) {
@@ -180,9 +187,13 @@ try {
     console.log('   ✅ Tag v' + NEW_VERSION + ' enviada!');
   }
 
-  // 5.4 Voltar para Canary
-  console.log(`   🔙 Voltando para a branch ${BRANCH_DEV}...`);
-  execSync(`git checkout ${BRANCH_DEV}`, { stdio: 'inherit', cwd: ROOT_DIR });
+  // 5.4 Voltar para Canary (se tivermos trocado de branch)
+  if (!isCanary) {
+    console.log(`   🔙 Voltando para a branch ${BRANCH_DEV}...`);
+    execSync(`git checkout ${BRANCH_DEV}`, { stdio: 'inherit', cwd: ROOT_DIR });
+  } else {
+    console.log(`   🐣 Já estamos na branch correta (${currentBranch}).`);
+  }
 
   console.log(`✨ Release ${NEW_VERSION} concluído com sucesso!`);
 

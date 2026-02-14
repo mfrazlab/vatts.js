@@ -56,7 +56,6 @@ export async function createApp(options: CreateAppOptions) {
 
     vattsVersion: ownPkg.version,
     packageJson: {},
-    pathRouter: resolved.pathRouter,
     typeScript: resolved.typeScript,
     framework: resolved.framework
   };

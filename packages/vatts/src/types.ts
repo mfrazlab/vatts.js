@@ -40,6 +40,7 @@ export interface VattsOptions {
     dir?: string;
     framework?: 'express' | 'fastify' | 'native';
     envFiles?: string[];
+    skipBuild?: boolean;
 }
 
 // --- Tipos de Configuração ---
@@ -57,11 +58,7 @@ export interface VattsConfig {
         cert: string;
         ca?: string;
     };
-    /**
-     * Prefere utilizar rotas por path, sem precisar registrar?
-     * Padrão: false
-     */
-    pathRouter?: boolean;
+
 
     /**
      * Limita o número máximo de headers HTTP permitidos por requisição.

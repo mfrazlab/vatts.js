@@ -60,11 +60,11 @@ export function printSummary(ctx: CreateAppContext) {
   console.log(`${timer}${label}     ${cmd}npm run dev${Colors.Reset}`);
 
   console.log("");
-  console.log(`${timer}${label}Production:${Colors.Reset}`);
-  console.log(`${timer}${label}  • Start:${Colors.Reset} ${cmd}vatts start${Colors.Reset}`);
-  console.log(`${timer}${label}    or${Colors.Reset}`);
-  console.log(`${timer}${label}    ${cmd}npm run start${Colors.Reset}`);
-
+  console.log(`${timer}${label}Production steps:${Colors.Reset}`);
+  console.log(`${timer}${label}  1. ${cmd}vatts build${Colors.Reset}`);
+  console.log(`${timer}${label}  2. ${cmd}vatts start${Colors.Reset}`);
+  console.log(`${timer}${label}     or${Colors.Reset}`);
+  console.log(`${timer}${label}     ${cmd}npm run start${Colors.Reset}`);
   console.log("");
   console.log(`${timer}${dim}Website:${Colors.Reset} ${Colors.FgCyan}https://vatts.mfraz.ovh${Colors.Reset}`);
   console.log("");

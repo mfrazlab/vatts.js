@@ -86,7 +86,7 @@ const reload = () => {
       </div>
 
       <a href="https://npmjs.com/package/vatts" target="_blank" rel="noopener noreferrer" class="brand-link">
-        <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/master/docs/public/logo.png" alt="Vatts Logo" class="brand-logo" />
+        <img src="https://raw.githubusercontent.com/mfrazlab/vatts.js/docs/public/logo.png" alt="Vatts Logo" class="brand-logo" />
         <span class="brand-text">
             Vatts<span class="brand-highlight">.js</span>
         </span>

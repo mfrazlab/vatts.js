@@ -17,6 +17,7 @@
 
 import path from 'path';
 import fs from 'fs';
+import fsp from "fs/promises"
 import crypto from 'crypto'; // Adicionado para gerar hash do cache
 import {ExpressAdapter} from './adapters/express';
 import {build, buildWithChunks, watch, watchWithChunks} from './builder';
@@ -231,7 +232,86 @@ async function handleImageOptimization(req: GenericRequest, res: GenericResponse
         res.status(500).text('Image optimization failed');
     }
 }
+import zlib from 'node:zlib'; // Certifique-se de ter este import no topo
 
+export async function printTotalStats(outDir: string, https: boolean) {
+    let totalOrig = 0;
+    let totalGzip = 0;
+    let totalBr = 0;
+
+    // REMOVIDO: O loop que lia 'entries' para somar originais foi apagado.
+
+    // Walk recursivo no outDir pra somar .gz e .br e calcular o original reverso
+    async function walk(dir: string) {
+        let dirents: fs.Dirent[];
+        try {
+            dirents = await fsp.readdir(dir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+
+        for (const d of dirents) {
+            const full = path.join(dir, d.name);
+            if (d.isDirectory()) {
+                await walk(full);
+                continue;
+            }
+            if (!d.isFile()) continue;
+
+            let st: fs.Stats;
+            try {
+                st = await fsp.stat(full);
+            } catch {
+                continue;
+            }
+
+            const name = d.name;
+            const isGz = name.endsWith(".gz");
+            const isBr = name.endsWith(".br");
+
+            if (isGz) totalGzip += st.size;
+            else if (isBr) totalBr += st.size;
+
+            // Lógica nova: Se o arquivo for do tipo que estamos priorizando (https = br, !https = gz),
+            // descomprimimos para pegar o tamanho original.
+            if ((https && isBr) || (!https && isGz)) {
+                try {
+                    const content = await fsp.readFile(full);
+                    if (isBr) {
+                        // Descomprime Brotli síncrono para pegar tamanho
+                        totalOrig += zlib.brotliDecompressSync(content).length;
+                    } else {
+                        // Descomprime Gzip síncrono para pegar tamanho
+                        totalOrig += zlib.gunzipSync(content).length;
+                    }
+                } catch (e) {
+                    // Ignora erro de descompressão se houver
+                }
+            }
+        }
+    }
+
+    await walk(outDir);
+
+    // O totalOrig agora é calculado baseado na descompressão, se for 0 não tem o que mostrar
+    if (totalOrig <= 0) return;
+
+    const finalSize = https ? totalBr : totalGzip;
+    if (finalSize <= 0) return;
+
+    const diff = totalOrig - finalSize;
+    const pct = (diff / totalOrig) * 100;
+
+    const original = `  Original : ${Colors.Bright}${Colors.FgGreen}${(totalOrig / 1024).toFixed(2)} KB`;
+    const finalStr = `  Final    : ${Colors.Bright}${Colors.FgGreen}${(finalSize / 1024).toFixed(2)} KB`;
+    const saved = `  Saved    : ${Colors.Bright}${Colors.FgGreen}${(diff / 1024).toFixed(2)} KB ${Colors.Reset}${Colors.FgGray}(${pct.toFixed(
+        2
+    )}%)${Colors.Reset} \n`;
+
+    Console.logCustomLevel("", false, undefined, "",
+        `${Colors.FgBlue}${Colors.Bright}Optimization summary:${Colors.Reset}`, original, finalStr, saved
+    );
+}
 // Exporta apenas os tipos e classes para o backend
 export { VattsRequest, VattsResponse };
 export type { BackendRouteConfig, BackendHandler };
@@ -304,7 +384,6 @@ export default function vatts(options: VattsOptions) {
         notFound: null,
         framework: framework,
         projectDir: dir,
-        pathRouter: config?.pathRouter
     };
 
     const updateBuilderOptions = () => {
@@ -329,7 +408,7 @@ export default function vatts(options: VattsOptions) {
     };
 
     return {
-        prepare: async () => {
+        prepare: async (skipBuild = false) => {
             const isProduction = !dev;
 
             if (!isProduction) {
@@ -376,37 +455,54 @@ export default function vatts(options: VattsOptions) {
 
 
             if (isProduction) {
-                const time = Console.dynamicLine(`Starting client build`);
+                // Pula o build se skipBuild for true (usado quando já existe build)
+                if (!skipBuild) {
+                    const time = Console.dynamicLine(`Starting client build`);
+                    const spinnerFrames = ['|', '/', '-', '\\'];
+                    let frameIndex = 0;
+
+                    const spinner = setInterval(() => {
+                        time.update(`    ${Colors.FgGreen}${spinnerFrames[frameIndex]}${Colors.Reset}  Building...`);
+                        frameIndex = (frameIndex + 1) % spinnerFrames.length;
+                    }, 100);
+
+                    const now = Date.now();
+
+                    // Passa o objeto de opções ao invés do caminho do arquivo
+                    await buildWithChunks(vattsBuilderOptions, outDir, isProduction);
+                    const elapsed = Date.now() - now;
+
+                    clearInterval(spinner);
+                    time.update("");
+
+                    await printTotalStats(outDir, config?.ssl !== undefined && config.ssl !== null);
+                    time.end(`Client build completed in ${elapsed}ms`);
+
+                    if (hotReloadManager) {
+                        hotReloadManager.onBuildComplete(true);
+                    }
+                }
+
+            } else {
+                const time = Console.dynamicLine(`  ${Colors.BgYellow} watcher ${Colors.Reset}  Building initial assets`);
                 const spinnerFrames = ['|', '/', '-', '\\'];
                 let frameIndex = 0;
 
                 const spinner = setInterval(() => {
-                    time.update(`    ${Colors.FgGreen}${spinnerFrames[frameIndex]}${Colors.Reset}  Building...`);
+                    time.update(`    ${Colors.FgYellow}${spinnerFrames[frameIndex]}${Colors.Reset}  Building initial assets...`);
                     frameIndex = (frameIndex + 1) % spinnerFrames.length;
                 }, 100);
 
-                const now = Date.now();
-                
-                // Passa o objeto de opções ao invés do caminho do arquivo
-                await buildWithChunks(vattsBuilderOptions, outDir, isProduction);
-                const elapsed = Date.now() - now;
-
-                clearInterval(spinner);
-                time.update("");
-                time.end(`Client build completed in ${elapsed}ms`);
-
-                if (hotReloadManager) {
-                    hotReloadManager.onBuildComplete(true);
-                }
-
-            } else {
-                const time = Console.dynamicLine(`  ${Colors.BgYellow} watcher ${Colors.Reset}  Starting client watch`);
+                const buildStart = Date.now();
                 // @ts-ignore
                 // Passa o objeto de opções ao invés do caminho do arquivo
-                watchWithChunks(vattsBuilderOptions, outDir, hotReloadManager!).catch(err => {
+                // Aguarda o primeiro build completar para evitar lentidão na primeira requisição
+                await watchWithChunks(vattsBuilderOptions, outDir, hotReloadManager!).catch(err => {
                     Console.error(`Error starting watch`, err);
                 });
-                time.end(`Client Watch started`);
+
+                clearInterval(spinner);
+                time.end(`Initial build complete in ${Date.now() - buildStart}ms - watching for changes...`);
             }
 
         },

@@ -70,14 +70,13 @@ export default function Layout({ children }) {
 }
 
 
-export function vattsConfigTemplate(typescript: boolean, pathRouter: boolean) {
+export function vattsConfigTemplate(typescript: boolean) {
 
   if(!typescript) {
     return `
 const vattsConfig = (phase, { defaultConfig }) => {
     return {
-        ...defaultConfig${pathRouter ? `,
-        pathRouter: true` : ''}
+        ...defaultConfig
     };
 };
 
@@ -89,8 +88,7 @@ export default vattsConfig;
 
 const vattsConfig: VattsConfigFunction = (phase, { defaultConfig }) => {
     return {
-        ...defaultConfig${pathRouter ? `,
-        pathRouter: true` : ''}
+        ...defaultConfig
     };
 };
 
@@ -161,8 +159,8 @@ module.exports = {
 }`;
 }
 
-export function webIndexRouteTemplate(willTailwind: boolean, pathRouter: boolean, typescript: boolean) {
-  const functionName = pathRouter ? 'export default function' : 'function'
+export function webIndexRouteTemplate(willTailwind: boolean, typescript: boolean) {
+  const functionName = 'export default function'
 
 
   let base = `import React from 'react'; 
@@ -279,20 +277,6 @@ ${functionName} Welcome() {
 }`;
   }
 
-  if(!pathRouter) {
-    base += `
-
-export const config${typescript ? ': RouteConfig': ''} = {
-    pattern: '/',
-    component: Welcome,
-    generateMetadata: () => ({
-        title: 'Vatts.js | Home'
-    })
-};
-
-export default config;
-`;
-  }
 
   return base;
 }
@@ -342,18 +326,8 @@ const ExampleRoute: BackendRouteConfig = {
 export default ExampleRoute;`;
 }
 
-export function vueExampleRoute(typescript: boolean, pathRouter: boolean, tailwind: boolean) {
-  return `${pathRouter ? '' : `<script${typescript ? ' lang="ts"' : ''}>
-${typescript ? 'import type { RouteConfig } from "vatts/vue";\n' : ''}
-export const config${typescript ? ': RouteConfig': ''} = {
-  pattern: '/',
-  component: undefined,
-  generateMetadata: () => ({
-    title: 'Vatts.js | Home'
-  })
-};
-</script>`}
-${tailwind ? `<template>
+export function vueExampleRoute(typescript: boolean, tailwind: boolean) {
+  return `${tailwind ? `<template>
   <div class="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-4 text-center">
     <div class="group relative">
       <div class="absolute -inset-1 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-400 opacity-25 blur transition duration-500 group-hover:opacity-50"></div>

@@ -22,17 +22,14 @@ import http, {IncomingMessage, Server, ServerResponse} from 'http';
 import os from 'os';
 import {URLSearchParams} from 'url'; // API moderna, substitui 'querystring'
 import path from 'path';
-import { Duplex } from 'stream'; // Necessário para a ponte do Socket
-// Helpers para integração com diferentes frameworks
+import {Duplex} from 'stream';
 import vatts, {FrameworkAdapterFactory} from './index.js'; // Importando o tipo
-import type {VattsOptions, VattsConfig, VattsConfigFunction} from './types';
+import type {VattsConfig, VattsConfigFunction, VattsOptions} from './types';
 import Console, {Colors} from "./api/console";
-import https, { Server as HttpsServer } from 'https';
-import http2, { Http2SecureServer } from 'http2';
 import fs from 'fs';
 
 // Nova API do Servidor Nativo (Go HTTP/3)
-import { NativeServer } from "./api/native-server";
+import {NativeServer} from "./api/native-server";
 
 // Registra loaders customizados para importar arquivos não-JS
 const { registerLoaders } = require('./loaders');
@@ -44,7 +41,7 @@ registerLoaders({ projectDir: process.cwd() });
  * Interface para a instância principal do vatts, inferida pelo uso.
  */
 interface VattsApp {
-    prepare: () => Promise<void>;
+    prepare: (skipBuild?: boolean) => Promise<void>;
     // O handler pode ter assinaturas diferentes dependendo do framework
     getRequestHandler: () => (req: any, res: any, next?: any) => Promise<void> | void;
     setupWebSocket: (server: Server | any) => void; // Aceita http.Server ou app (Express/Fastify)
@@ -95,7 +92,6 @@ const sendBox = (options: VattsOptions) => {
     // Pequeno espaçamento visual antes dos logs de acesso
     console.log('');
     console.log(timer + labelStyle + ' Access on:')
-    console.log(' ')
     // 1. Local (Alinhamento: Local tem 6 letras + 4 espaços = 10)
     console.info(timer + `${labelStyle}  ┃  Local:${Colors.Reset}    ${urlStyle}${protocol}://localhost:${config?.port}${Colors.Reset}`);
 
@@ -140,7 +136,7 @@ export async function loadVattsConfig(projectDir: string, phase: string): Promis
         maxUrlLength: 2048,
         accessLogging: true,
         envFiles: [],
-        pathRouter: false,
+
         port: 3000,
         // backendPort removido do padrão lógico, mas mantido na tipagem se necessário para compatibilidade retroativa
     };
@@ -361,7 +357,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     // Passa envFiles da config para as opções do vatts
     options.envFiles = vattsConfig.envFiles;
 
-    await vattsApp.prepare();
+    await vattsApp.prepare(options.skipBuild || false);
 
     const handler = vattsApp.getRequestHandler();
     const msg = Console.dynamicLine(`${Colors.Bright}Starting Vatts.js on port ${config?.port}${Colors.Reset}`);
@@ -391,12 +387,8 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
         res.setHeader('X-XSS-Protection', '1; mode=block');
         res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-        // [NOVO] Injeção Alt-Svc se HTTP/3 estiver ativo
-        // O Go irá propagar este header para o cliente
-        if (vattsConfig.ssl && vattsConfig.ssl.http3Port) {
-            console.log("setando header alt-svc para HTTP/3 na porta", vattsConfig.ssl.http3Port);
-            res.setHeader('Alt-Svc', `h3=":${vattsConfig.ssl.http3Port}"; ma=2592000`);
-        }
+        // REMOVIDO: A injeção de Alt-Svc aqui causava duplicação.
+        // O servidor Go (NativeServer) já injeta este header corretamente.
 
         // Aplica headers de segurança configurados
         if (vattsConfig.security?.contentSecurityPolicy) {
@@ -454,6 +446,7 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
                 else if (method === 'PUT') methodColor = Colors.FgYellow;
                 else if (method === 'DELETE') methodColor = Colors.FgRed;
                 else if (method === 'PATCH') methodColor = Colors.FgMagenta;
+
                 Console.logCustomLevel(method, true, methodColor, `${url} ${statusColor}${statusCode}${Colors.Reset} ${Colors.FgGray}${duration}ms${Colors.Reset}`);
             }
             // @ts-ignore
@@ -618,12 +611,19 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
     }
 
     try {
+        // Garante que a porta HTTP/3 seja uma string limpa ou vazia, sem criar ::
+        const h3PortValue = config.ssl?.http3Port
+            ? String(config.ssl.http3Port)
+            : "";
+
+        // Se já tiver :, deixa. Se não, o Go normaliza. Mas enviamos string limpa.
+
         NativeServer.start({
             httpPort: goHttpPort,
             httpsPort: goHttpsPort,
             certPath: certPath,
             keyPath: keyPath,
-            http3Port: config.ssl?.http3Port ? `:${config.ssl?.http3Port}` : "",
+            http3Port: h3PortValue ? (h3PortValue.includes(':') ? h3PortValue : `:${h3PortValue}`) : "",
             devMode: options.dev ? "true" : "false",
             // Callback: Chegou dados do Go (Browser -> Go -> Node)
             onData: (connId, data) => {
@@ -664,9 +664,12 @@ async function initNativeServer(vattsApp: VattsApp, options: VattsOptions, hostn
 
         const httpLabel = vattsConfig.ssl?.http3Port ? `HTTP/3 (${vattsConfig.ssl?.http3Port || ''})` : "HTTP/2";
         const modeLabel = isSSL ? httpLabel : "HTTP (Shield active)";
-        msg.end(
+
+        msg.end("end_clear");
+
+        Console.success(
             `${Colors.Bright}Ready on port ${Colors.BgGreen} ${publicPort} (${modeLabel}) ${Colors.Reset}\n` +
-            `${Colors.Dim} ↳ Engine running on Native Bridge in ${Date.now() - time}ms${Colors.Reset}\n`
+            `${Colors.Dim} ↳ Engine running on Native Server in ${Date.now() - time}ms${Colors.Reset}\n`
         );
 
 
@@ -760,40 +763,7 @@ export function app(options: VattsOptions = {}) {
         init: async () => {
             const projectDir = options.dir || process.cwd();
             const phase = options.dev ? 'development' : 'production';
-            const vattsConfig = await loadVattsConfig(projectDir, phase);
-            config = vattsConfig
-            const currentVersion = require('../package.json').version;
-
-            async function verifyVersion(): Promise<string> {
-                // node fetch
-                try {
-                    const response = await fetch('https://registry.npmjs.org/vatts/latest');
-                    const data = await response.json();
-                    return data.version;
-                } catch (error) {
-                    Console.error('Could not check for the latest Vatts.js version:', error);
-                    return currentVersion; // Retorna a versão atual em caso de erro
-                }
-            }
-            const latestVersion = await verifyVersion();
-            const isUpToDate = latestVersion === currentVersion;
-            let message;
-            if (!isUpToDate) {
-                message = `${Colors.FgRed}   A new version is available (v${latestVersion})${Colors.FgMagenta}`
-            } else {
-                message = `${Colors.FgGreen}   You are on the latest version${Colors.FgMagenta}`
-            }
-            // JS STICK LETTERS
-
-            console.log(`${Colors.Bright + Colors.FgCyan}
-${Colors.Bright + Colors.FgCyan}                ___ ___  __    ${Colors.FgWhite}        __  
-${Colors.Bright + Colors.FgCyan}    \\  /  /\\   |   |  /__\`${Colors.FgWhite}        | /__\`    ${Colors.Bright + Colors.FgCyan}Vatts${Colors.FgWhite}.js ${Colors.FgGray}(v${require('../package.json').version}) - mfraz
-${Colors.Bright + Colors.FgCyan}     \\/  /~~\\  |   |  .__/ .${Colors.FgWhite}   \\__/ .__/ ${message}
-                                     
-                                     `)
-
-
-
+            config = await loadVattsConfig(projectDir, phase)
 
             const actualHostname = options.hostname || "0.0.0.0";
 
